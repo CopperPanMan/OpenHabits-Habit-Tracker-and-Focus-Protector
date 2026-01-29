@@ -7,7 +7,10 @@ function getAppConfig() {
     },
     sheetConfig: {
       trackingSheetName: "Tracking Data",
-      separatorChar: "Ù"
+      separatorChar: "Ù",
+      taskIdColumn: 1,
+      labelColumn: 2,
+      dataStartColumn: 3
     },
     positive_push_notifications: "On",
     screenTime: {
@@ -121,7 +124,7 @@ function getAppConfig() {
     chartDataRanges: [
       {
         dataRow: 1,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 1,
         targetColumn: 2,
@@ -129,7 +132,7 @@ function getAppConfig() {
       },
       {
         dataRow: 41,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 3,
         targetColumn: 2,
@@ -137,7 +140,7 @@ function getAppConfig() {
       },
       {
         dataRow: 44,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 5,
         targetColumn: 2,
@@ -145,7 +148,7 @@ function getAppConfig() {
       },
       {
         dataRow: 34,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 8,
         targetRow: 7,
         targetColumn: 2,
@@ -153,7 +156,7 @@ function getAppConfig() {
       },
       {
         dataRow: 51,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 9,
         targetColumn: 2,
@@ -161,7 +164,7 @@ function getAppConfig() {
       },
       {
         dataRow: 28,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 14,
         targetColumn: 2,
@@ -169,7 +172,7 @@ function getAppConfig() {
       },
       {
         dataRow: 32,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 15,
         targetColumn: 2,
@@ -177,7 +180,7 @@ function getAppConfig() {
       },
       {
         dataRow: 36,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 11,
         targetColumn: 2,
@@ -185,7 +188,7 @@ function getAppConfig() {
       },
       {
         dataRow: 37,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 12,
         targetColumn: 2,
@@ -193,7 +196,7 @@ function getAppConfig() {
       },
       {
         dataRow: 56,
-        labelColumn: 1,
+        labelColumn: 2,
         lastXDays: 7,
         targetRow: 20,
         targetColumn: 2,
@@ -203,6 +206,7 @@ function getAppConfig() {
     metricSettings: {
       habit_stack_1: [
         {
+          taskId: "habit_stack_1_1",
           rowNumber: 4,
           insightChance: 1,
           streakProb: 0.8,
@@ -215,6 +219,7 @@ function getAppConfig() {
           unitType: "timestamp"
         },
         {
+          taskId: "habit_stack_1_2",
           rowNumber: 5,
           insightChance: 1,
           streakProb: 0,
@@ -230,6 +235,7 @@ function getAppConfig() {
       ],
       habit_stack_2: [
         {
+          taskId: "habit_stack_2_1",
           rowNumber: 8,
           insightChance: 1,
           streakProb: 0.8,
@@ -242,6 +248,7 @@ function getAppConfig() {
           unitType: "timestamp"
         },
         {
+          taskId: "habit_stack_2_2",
           rowNumber: 9,
           insightChance: 1,
           streakProb: 0,
@@ -257,6 +264,7 @@ function getAppConfig() {
       ],
       habit_stack_3: [
         {
+          taskId: "habit_stack_3",
           rowNumber: 11,
           insightChance: 1,
           streakProb: 0,
@@ -272,6 +280,7 @@ function getAppConfig() {
       ],
       meditate: [
         {
+          taskId: "meditate_1",
           rowNumber: 13,
           insightChance: 0,
           streakProb: 0.8,
@@ -284,6 +293,7 @@ function getAppConfig() {
           unitType: "timestamp"
         },
         {
+          taskId: "meditate_2",
           rowNumber: 14,
           insightChance: 1,
           streakProb: 0,
@@ -297,6 +307,7 @@ function getAppConfig() {
           recordType: 1
         },
         {
+          taskId: "meditate_3",
           rowNumber: 15,
           insightChance: 1,
           streakProb: 0,
@@ -310,6 +321,7 @@ function getAppConfig() {
           recordType: 1
         },
         {
+          taskId: "meditate_4",
           rowNumber: 16,
           insightChance: 1,
           streakProb: 0,
@@ -325,6 +337,7 @@ function getAppConfig() {
       ],
       habit_stack_4: [
         {
+          taskId: "habit_stack_4",
           rowNumber: 19,
           insightChance: 1,
           streakProb: 0.8,
@@ -340,6 +353,7 @@ function getAppConfig() {
       ],
       "habit_stack_4.5": [
         {
+          taskId: "habit_stack_4.5",
           rowNumber: 21,
           insightChance: 1,
           streakProb: 0.8,
@@ -355,6 +369,7 @@ function getAppConfig() {
       ],
       "floss_you_fools!": [
         {
+          taskId: "floss_you_fools!",
           rowNumber: 25,
           insightChance: 1,
           streakProb: 0.8,
@@ -370,6 +385,7 @@ function getAppConfig() {
       ],
       macros_hit: [
         {
+          taskId: "macros_hit",
           rowNumber: 24,
           insightChance: 1,
           streakProb: 0.8,
@@ -385,6 +401,7 @@ function getAppConfig() {
       ],
       lay_out_tomorrows_clothes: [
         {
+          taskId: "lay_out_tomorrows_clothes",
           rowNumber: 48,
           insightChance: 1,
           streakProb: 0.8,
@@ -400,6 +417,7 @@ function getAppConfig() {
       ],
       plan_personal_workday: [
         {
+          taskId: "plan_personal_workday",
           rowNumber: 46,
           insightChance: 1,
           streakProb: 0.8,
@@ -415,6 +433,7 @@ function getAppConfig() {
       ],
       plan_workday: [
         {
+          taskId: "plan_workday",
           rowNumber: 23,
           insightChance: 1,
           streakProb: 0.8,
@@ -430,6 +449,7 @@ function getAppConfig() {
       ],
       daily_metrics: [
         {
+          taskId: "daily_metrics_1",
           rowNumber: 27,
           insightChance: 0,
           streakProb: 0.8,
@@ -443,6 +463,7 @@ function getAppConfig() {
           recordType: 1
         },
         {
+          taskId: "daily_metrics_2",
           rowNumber: 28,
           insightChance: 1,
           streakProb: 0,
@@ -456,6 +477,7 @@ function getAppConfig() {
           recordType: 1
         },
         {
+          taskId: "daily_metrics_3",
           rowNumber: 32,
           insightChance: 0,
           streakProb: 0,
@@ -471,6 +493,7 @@ function getAppConfig() {
       ],
       phone_off_power: [
         {
+          taskId: "phone_off_power",
           rowNumber: 2,
           insightChance: 1,
           streakProb: 0.8,
@@ -486,6 +509,7 @@ function getAppConfig() {
       ],
       phone_on_power: [
         {
+          taskId: "phone_on_power",
           rowNumber: 34,
           insightChance: 1,
           streakProb: 0.8,
@@ -501,6 +525,7 @@ function getAppConfig() {
       ],
       phone_on_power_V2: [
         {
+          taskId: "phone_on_power_V2_1",
           rowNumber: 34,
           insightChance: 0,
           streakProb: 0.8,
@@ -514,6 +539,7 @@ function getAppConfig() {
           recordType: 1
         },
         {
+          taskId: "phone_on_power_V2_2",
           rowNumber: 35,
           insightChance: 1,
           streakProb: 1,
@@ -541,6 +567,7 @@ function getAppConfig() {
           unitType: "timestamp"
         },
         {
+          taskId: "temporary_unlock_2",
           rowNumber: 52,
           insightChance: 0,
           streakProb: 0,
@@ -556,6 +583,7 @@ function getAppConfig() {
       ],
       first_arrived_at_work: [
         {
+          taskId: "first_arrived_at_work",
           rowNumber: 36,
           insightChance: 1,
           streakProb: 0.5,
@@ -571,6 +599,7 @@ function getAppConfig() {
       ],
       last_departed_work: [
         {
+          taskId: "last_departed_work",
           rowNumber: 37,
           insightChance: 0,
           streakProb: 0.5,
@@ -586,6 +615,7 @@ function getAppConfig() {
       ],
       log_reading: [
         {
+          taskId: "log_reading",
           rowNumber: 33,
           insightChance: 1,
           streakProb: 0.8,
@@ -601,6 +631,7 @@ function getAppConfig() {
       ],
       smoothie_time: [
         {
+          taskId: "smoothie_time",
           rowNumber: 64,
           insightChance: 1,
           streakProb: 0.8,
@@ -616,6 +647,7 @@ function getAppConfig() {
       ],
       exercise_v2: [
         {
+          taskId: "exercise_v2",
           rowNumber: 8,
           insightChance: 1,
           streakProb: 0.8,
@@ -631,6 +663,7 @@ function getAppConfig() {
       ],
       start_work: [
         {
+          taskId: "start_work",
           rowNumber: 40,
           insightChance: 1,
           streakProb: 0.5,
@@ -646,6 +679,7 @@ function getAppConfig() {
       ],
       record_new_screentime: [
         {
+          taskId: "record_new_screentime",
           rowNumber: 51,
           insightChance: 0.05,
           dayToDayChance: 0.75,
@@ -660,6 +694,7 @@ function getAppConfig() {
       ],
       personal_start_work: [
         {
+          taskId: "personal_start_work",
           rowNumber: 43,
           insightChance: 1,
           dayToDayChance: 1,
@@ -674,6 +709,7 @@ function getAppConfig() {
       ],
       SAS_start_work: [
         {
+          taskId: "SAS_start_work",
           rowNumber: 55,
           insightChance: 1,
           dayToDayChance: 1,

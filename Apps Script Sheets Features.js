@@ -45,6 +45,10 @@ var spreadsheetID;
 var sheet1;
 var separatorChar;
 var activeCol;
+var taskIdColumn;
+var labelColumn;
+var dataStartColumn;
+var taskIdRowMap = {};
 var currentTimeStamp = new Date();
 var originalComparisonArray  = [];
 var firstLineMessage = [];
@@ -160,7 +164,7 @@ if (key == "append_to_notion_inbox") { //paired with shortcut to append to my no
     var alarmStatus = 0;
 
     //get the streak count here!
-    var dataRange = sheet1.getRange(nighttime_notifier_settings[0][2], 2, 1, activeCol-1).getValues();
+    var dataRange = sheet1.getRange(nighttime_notifier_settings[0][2], dataStartColumn, 1, activeCol - dataStartColumn).getValues();
     var streakCount = streakCheck(dataRange[0].slice(0, -1));
 
     //Set 60 min alarm
@@ -289,7 +293,7 @@ if (key == "append_to_notion_inbox") { //paired with shortcut to append to my no
       return ContentService.createTextOutput(formattedHours + " hours until bedtime for a " + wakeTime + " wakeup. If you want to watch a movie, do it soon.|" + alarmStatus + "|"+timeToAlarm);
     }
     //get the streak count here!
-    var dataRange = sheet1.getRange(nighttime_notifier_settings[0][2], 2, 1, activeCol-1).getValues();
+    var dataRange = sheet1.getRange(nighttime_notifier_settings[0][2], dataStartColumn, 1, activeCol - dataStartColumn).getValues();
     //console.log("dataRange: " + dataRange[0][dataRange[0].length - 1]);
     var streakCount = streakCheck(dataRange[0].slice(0, -1));
     //console.log(streakCount)
@@ -449,7 +453,7 @@ if (key == "append_to_notion_inbox") { //paired with shortcut to append to my no
 
     // Check the habit chain in order
     for (const habit of filteredHabits) {
-      const dataRange = sheet1.getRange(habit.row, 2, 1, activeCol - 1).getValues();
+      const dataRange = sheet1.getRange(habit.row, dataStartColumn, 1, activeCol - dataStartColumn).getValues();
       const streakCount = streakCheck(dataRange[0].slice(0, -1), habit.dates); // Account for irregular habits
 
       // Check if the habit is incomplete
@@ -490,7 +494,7 @@ else if (key == "habit_dashboard") {//JAN 27 THIS CAN BE superceded by or MERGED
   for (const habit of habitChain) {
 
     // Get dataRange for the habit
-    const dataRange = sheet1.getRange(habit.row, 2, 1, activeCol - 1).getValues();
+    const dataRange = sheet1.getRange(habit.row, dataStartColumn, 1, activeCol - dataStartColumn).getValues();
     const streakCount = streakCheck(dataRange[0].slice(0, -1), habit.dates);
 
     // Get cell value for today
@@ -815,7 +819,7 @@ else if (key == "habit_dashboard") {//JAN 27 THIS CAN BE superceded by or MERGED
           tempString += "\n";
         }
         if (Math.random() <= allMetricSettings[i]["streakProb"]) {
-          var dataRange = sheet1.getRange(allMetricSettings[i]["rowNumber"], 2, 1, activeCol-1).getValues();
+          var dataRange = sheet1.getRange(allMetricSettings[i]["rowNumber"], dataStartColumn, 1, activeCol - dataStartColumn).getValues();
           var streakCount = streakCheck(dataRange[0])
           tempString += "streak +1. Now = " + streakCount + " days"; // 2 day streak increased to 3 OR streak +1. Now = 4 days
         }
@@ -850,6 +854,10 @@ function loadSettings(global_key) {
   var config = getAppConfig();
 
   positive_push_notifications = config.positive_push_notifications; // On/Off
+
+  taskIdColumn = config.sheetConfig.taskIdColumn || 1;
+  labelColumn = config.sheetConfig.labelColumn || (taskIdColumn + 1);
+  dataStartColumn = config.sheetConfig.dataStartColumn || (labelColumn + 1);
 
   //screen time features
   screenTimeLimit = config.screenTime.limit; //total limit (hours)
@@ -899,6 +907,7 @@ function loadSettings(global_key) {
   spreadsheetID = scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
   sheet1 = SpreadsheetApp.openById(spreadsheetID).getSheetByName(config.sheetConfig.trackingSheetName); //replace with your sheet's info
   separatorChar = config.sheetConfig.separatorChar;  // this character should be one that you'll never use. It must match what's in your apple shortcuts. It's "Ù" by default.
+  taskIdRowMap = buildTaskIdRowMap_(sheet1, taskIdColumn);
 
   firstLineMessage = config.messages.firstLineMessage;
   firstLineMessageFreq = config.messages.firstLineMessageFreq; //how often you want a randomized first line message from above (0-1)
@@ -986,7 +995,7 @@ function loadSettings(global_key) {
   }
 
   if (config.metricSettings[key]) {
-    return resolveMetricSettings_(config.metricSettings[key], config);
+    return resolveMetricSettings_(config.metricSettings[key], config, taskIdRowMap);
   }
 
   return ContentService.createTextOutput("Invalid Key. Please try again.");
@@ -1010,16 +1019,54 @@ function applyKeySettings_(keySettings) {
   }
 }
 
-function resolveMetricSettings_(metricSettings, config) {
+function resolveMetricSettings_(metricSettings, config, taskIdRowMap) {
   return metricSettings.map(function (metric) {
-    if (metric.rowNumberKey) {
-      var resolvedMetric = Object.assign({}, metric);
-      resolvedMetric.rowNumber = config.rows[metric.rowNumberKey];
+    var resolvedMetric = Object.assign({}, metric);
+    if (resolvedMetric.taskId) {
+      resolvedMetric.rowNumber = resolveTaskIdRow_(resolvedMetric.taskId, taskIdRowMap);
+      return resolvedMetric;
+    }
+    if (resolvedMetric.rowNumberKey) {
+      resolvedMetric.rowNumber = config.rows[resolvedMetric.rowNumberKey];
       delete resolvedMetric.rowNumberKey;
       return resolvedMetric;
     }
-    return metric;
+    return resolvedMetric;
   });
+}
+
+function buildTaskIdRowMap_(sheet, taskIdColumn) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return {};
+  }
+
+  var taskIdValues = sheet.getRange(2, taskIdColumn, lastRow - 1, 1).getValues();
+  var map = {};
+
+  taskIdValues.forEach(function (rowValue, index) {
+    var rawValue = rowValue[0];
+    if (rawValue === "" || rawValue === null) {
+      return;
+    }
+    var taskId = String(rawValue).trim();
+    if (!taskId) {
+      return;
+    }
+    if (map[taskId]) {
+      throw new Error("Duplicate taskID found in sheet: " + taskId);
+    }
+    map[taskId] = index + 2;
+  });
+
+  return map;
+}
+
+function resolveTaskIdRow_(taskId, taskIdRowMap) {
+  if (!taskIdRowMap || !taskIdRowMap[taskId]) {
+    throw new Error("taskID not found in sheet: " + taskId);
+  }
+  return taskIdRowMap[taskId];
 }
 
 function notionAppendToBlock_(blockId, text, opts) {
@@ -1171,7 +1218,7 @@ function updateDashboardData() {
   // Iterate over each habit in the global habitChain
   habitChain.forEach((habit, index) => {
     // Retrieve the data range for each habit's row
-    const dataRange = dataSheet.getRange(habit.row, 2, 1, activeCol - 1).getValues()[0];
+    const dataRange = dataSheet.getRange(habit.row, dataStartColumn, 1, activeCol - dataStartColumn).getValues()[0];
     const streakCount = streakCheck(dataRange.slice(0, -1), habit.dates); // Calculate streak for the habit
 
     // Get cell value for today
@@ -1329,21 +1376,21 @@ function findPerformanceInsights(metricSettings, metrics, key, dataRange = [], f
   }
 
   //validate that enough data even exists to make a comparison possible
-  if (activeCol < 3) {
+  if (activeCol < dataStartColumn + 1) {
     //return "no prior data to compare to. Complete this task tomorrow for new performance insights!";
     return "Well done! Complete this tomorrow for new performance insights.";
   }
-  else if (metricSettings["dayToDayChance"] < 1 && metricSettings["dayToDayChance"] > 0 && activeCol - averageSpan+1 < 2) {
+  else if (metricSettings["dayToDayChance"] < 1 && metricSettings["dayToDayChance"] > 0 && activeCol - averageSpan + 1 < dataStartColumn) {
     metricSettings["dayToDayChance"] = 1;
   }
-  else if (metricSettings["dayToDayChance"] == 0 && activeCol - averageSpan+1 < 2) {
+  else if (metricSettings["dayToDayChance"] == 0 && activeCol - averageSpan + 1 < dataStartColumn) {
     return "Nice job! Not enough data to compare averages yet.";
   }
 
   //if this is our first iteration
   if (dataRange.length == 0) {
     console.log("running findPerformanceInsights with: " + metricSettings["insightFirstWords"]);
-    dataRange = sheet1.getRange(metricSettings["rowNumber"], 2,1, activeCol-1).getValues()[0];
+    dataRange = sheet1.getRange(metricSettings["rowNumber"], dataStartColumn, 1, activeCol - dataStartColumn).getValues()[0];
     var chooseChance = Math.round(1/maxPossibleComparisons(metricSettings, avgBool=0)*100)/100;
   }
   //else this function has already run once and found a valid comparison it didn't choose (we're in recursion #1), so set it to randomly choose the first valid comparison it finds
@@ -1362,20 +1409,20 @@ function findPerformanceInsights(metricSettings, metrics, key, dataRange = [], f
   //if calculating day vs day values (not avg)
   if (Math.random() <= metricSettings["dayToDayChance"]) {
 
-    todaysValue = turnToNumber(metricSettings, dataRange[activeCol-2]); //should be the last element in the array
+    todaysValue = turnToNumber(metricSettings, dataRange[activeCol - dataStartColumn - 1]); //should be the last element in the array
 
     //iterate through all possible comparisons
     for (let i = 0; i < comparisonArray.length; i++) {
 
       //validate comparison is possible and grab number
       var compColumn = activeCol - comparisonArray[i][0];
-      if (compColumn > 1 && compColumn < activeCol) {
+      if (compColumn >= dataStartColumn && compColumn < activeCol) {
 
         if (chooseChance != 1) {
           chooseChance = (chooseChance / (1-chooseChance)); //chances need to go up each time
         }
 
-        compValue = turnToNumber(metricSettings, dataRange[activeCol-2-comparisonArray[i][0]]); //  ASDF;LKJASDF;LKAJSDF;LKJASDF;LKJASDF;LKJASD;FLKJASD
+        compValue = turnToNumber(metricSettings, dataRange[activeCol - dataStartColumn - 1 - comparisonArray[i][0]]); //  ASDF;LKJASDF;LKAJSDF;LKJASDF;LKJASDF;LKJASD;FLKJASD
 
         if (compValue > 0) {
           //positive vs negative message readout
@@ -1401,11 +1448,11 @@ function findPerformanceInsights(metricSettings, metrics, key, dataRange = [], f
 
     //find the value for today (whether today or average of span)
     if (Math.random() <= metricSettings["dayToAvgChance"]) {
-      todaysValue = turnToNumber(metricSettings, dataRange[activeCol-2]);
+      todaysValue = turnToNumber(metricSettings, dataRange[activeCol - dataStartColumn - 1]);
       var messageModifier = "today";
     }
     else {
-      todaysValue = getAverage(turnArrayToNumbers(metricSettings, dataRange.slice([activeCol-2-averageSpan+1], [activeCol-2+1])));
+      todaysValue = getAverage(turnArrayToNumbers(metricSettings, dataRange.slice([activeCol - dataStartColumn - averageSpan], [activeCol - dataStartColumn])));
       var messageModifier = "this " + averageSpan + " day span";
     }
 
@@ -1414,13 +1461,13 @@ function findPerformanceInsights(metricSettings, metrics, key, dataRange = [], f
 
       //validate comparison is possible and grab number
       var compColumn = activeCol - comparisonArray[i][0];
-      if ((compColumn - averageSpan+1) >= 2 && compColumn < activeCol) {
+      if ((compColumn - averageSpan + 1) >= dataStartColumn && compColumn < activeCol) {
         
         if (chooseChance != 1) {
           chooseChance = (chooseChance / (1-chooseChance)); //chances need to go up each time
         }
 
-        compValue = getAverage(turnArrayToNumbers(metricSettings, dataRange.slice([activeCol-2-comparisonArray[i][0]-averageSpan+1], [activeCol+1-2-comparisonArray[i][0]])));
+        compValue = getAverage(turnArrayToNumbers(metricSettings, dataRange.slice([activeCol - dataStartColumn - comparisonArray[i][0] - averageSpan], [activeCol - dataStartColumn - comparisonArray[i][0]])));
 
         if (compValue != 0) { //if comp is 0 it's probably an empty range
 
@@ -2455,7 +2502,7 @@ function updateDataRanges(spreadsheetId, dataSheetName, targetSheetName, chartDa
 
   chartDataRanges.forEach(function(range) {
     // Calculate the start column in the data sheet based on the last X days
-    var startColumn = Math.max(lastColumnWithData - range.lastXDays + 1, 1);
+    var startColumn = Math.max(lastColumnWithData - range.lastXDays + 1, dataStartColumn);
 
     // Define the range for the last X days of data in the data sheet
     var dataRange = dataSheet.getRange(range.dataRow, startColumn, 1, range.lastXDays);
