@@ -847,98 +847,72 @@ function loadSettings(global_key) {
 
   console.log("loading settings");
   var scriptProperties = PropertiesService.getScriptProperties();
+  var config = getAppConfig();
 
-  positive_push_notifications = "On"; // On/Off
+  positive_push_notifications = config.positive_push_notifications; // On/Off
 
   //screen time features
-  screenTimeLimit = 2 //total limit (hours)
-  cumulativeScreenTimeRow = 51
-  screenTimeRationing = "ON" //"ON" or "OFF", acts like this: if you are 50% through the day, and you are at or above 50% of your screentime, it blocks the app the next time you open the app to "ration" or cooldown your usage until more time has passed
-  screenStartTime = 5 //24h hour format, used with rationing feature
-  rationDuration = 12 //hours until your access is 100% -> used with rationing feature. Lower number means you get more time allowed earlier in the day
-  appLockSettings['quick_unlocker'] = "OFF"; //Turns on or off quick unlock shortcut
-  appLockSettings['use_notion_task_ID'] = "ON"; //references notion for plan day task lockout
-  appLockSettings['use_sheets_task_ID'] = "ON"; //references google sheet for plan day task lockout
-  appLockSettings['morning_planning_time'] = 9; //the time after which I must plan my workday (else apps are locked)
-  appLockSettings['personal_planning_time'] = 16; //the time after which if I return to home wifi I must plan my day (else apps are locked)
-  appLockSettings['workday_planning_lockout'] = "ON"; //turns on the "plan workday" type lock
-  appLockSettings['personal_planning_lockout'] = "ON"; //turns on the "plan personal day" type lock
-  appLockSettings['night_app_lockout'] = "ON"; //turns on the "locked after 10pm" type lock
-  appLockSettings['morning_app_lockout'] = "ON"; //turns on the "first 2 hours of day" type lock
+  screenTimeLimit = config.screenTime.limit; //total limit (hours)
+  cumulativeScreenTimeRow = config.screenTime.cumulativeRow;
+  screenTimeRationing = config.screenTime.rationing; //"ON" or "OFF", acts like this: if you are 50% through the day, and you are at or above 50% of your screentime, it blocks the app the next time you open the app to "ration" or cooldown your usage until more time has passed
+  screenStartTime = config.screenTime.startTime; //24h hour format, used with rationing feature
+  rationDuration = config.screenTime.rationDuration; //hours until your access is 100% -> used with rationing feature. Lower number means you get more time allowed earlier in the day
+  appLockSettings = Object.assign({}, config.appLockSettings);
 
-  appCloserRow = 23;
-  personalPlanningRow = 46;
-  lateExtension = 5; //This sets how many hours into the next day a task will be recorded to the prior one. For example, a value of 4 means tasks recorded up to 4AM will be recorded the prior day.
+  appCloserRow = config.rows.appCloserRow;
+  personalPlanningRow = config.rows.personalPlanningRow;
+  lateExtension = config.rows.lateExtension; //This sets how many hours into the next day a task will be recorded to the prior one. For example, a value of 4 means tasks recorded up to 4AM will be recorded the prior day.
 
-  homeWifiName = scriptProperties.getProperty('homeWifiName');
-  workWifiName = scriptProperties.getProperty('workWifiName');
-  lastDepartedWorkCell = 37;
-  calendarOutput = "ON" // ON or OFF used with start stop work to write blocks to calendar
-  eventNameInput = "ON" // ON or OFF used with start stop work to name blocks after their tasks (ON), or default to "work block" (OFF)
+  homeWifiName = scriptProperties.getProperty(config.scriptProperties.homeWifiName);
+  workWifiName = scriptProperties.getProperty(config.scriptProperties.workWifiName);
+  lastDepartedWorkCell = config.rows.lastDepartedWorkCell;
+  calendarOutput = config.calendarOutput; // ON or OFF used with start stop work to write blocks to calendar
+  eventNameInput = config.eventNameInput; // ON or OFF used with start stop work to name blocks after their tasks (ON), or default to "work block" (OFF)
 
-  morningAppLockoutDuration = 2; //how many hours after you wake up you want an app (chosen on phone) to be locked for. For apple automations that automatically close apps.
-  nightAppLockoutDuration = 5; //hrs
-  nightAppLockoutStartTime = 22; //24h format of when my apps lock again
-  nightAppLockoutMessage = "Why not Read a Book or Grade your Day!"
-  whiteListCell = 53; //cell that overrides app lockouts for 5 minutes
-  
-  if (key == "all_lockouts_off") {
-    screenTimeLimit = 24;
-    appLockSettings['workday_planning_lockout'] = "OFF"; //turns on the "plan workday" type lock
-    appLockSettings['personal_planning_lockout'] = "OFF"; //turns on the "plan personal day" type lock
-    appLockSettings['night_app_lockout'] = "OFF"; //turns on the "locked after 10pm" type lock
-    appLockSettings['morning_app_lockout'] = "OFF"; //turns on the "first 2 hours of day" type lock
-    key = "app_closer";
-  }
-  if (key == "night_lockout_relaxed") {
-    nightAppLockoutStartTime = 23;
-    key = "app_closer";
-  }
-  if (key == "sunday_lockout_rules") {
-    appLockSettings['morning_app_lockout'] = "OFF"
-    //morningAppLockoutDuration = 1;
-    screenTimeLimit = 4;
-    appLockSettings['personal_planning_time'] = 8;
-    appLockSettings['morning_planning_time'] = 8;
-    key = "app_closer";
-  }
-  if (key == "saturday_lockout_rules") {
-    appLockSettings['morning_app_lockout'] = "OFF"
-    //morningAppLockoutDuration = 1;
-    nightAppLockoutStartTime = 23;
-    screenTimeLimit = 4;
-    appLockSettings['personal_planning_time'] = 8;
-    appLockSettings['morning_planning_time'] = 8;
-    key = "app_closer";
+  morningAppLockoutDuration = config.lockout.morningDuration; //how many hours after you wake up you want an app (chosen on phone) to be locked for. For apple automations that automatically close apps.
+  nightAppLockoutDuration = config.lockout.nightDuration; //hrs
+  nightAppLockoutStartTime = config.lockout.nightStartTime; //24h format of when my apps lock again
+  nightAppLockoutMessage = config.lockout.nightMessage;
+  whiteListCell = config.rows.whiteListCell; //cell that overrides app lockouts for 5 minutes
+
+  if (config.lockoutOverrides[key]) {
+    var lockoutOverride = config.lockoutOverrides[key];
+    if (lockoutOverride.screenTimeLimit !== undefined) {
+      screenTimeLimit = lockoutOverride.screenTimeLimit;
+    }
+    if (lockoutOverride.nightAppLockoutStartTime !== undefined) {
+      nightAppLockoutStartTime = lockoutOverride.nightAppLockoutStartTime;
+    }
+    if (lockoutOverride.appLockSettings) {
+      Object.keys(lockoutOverride.appLockSettings).forEach(function (settingKey) {
+        appLockSettings[settingKey] = lockoutOverride.appLockSettings[settingKey];
+      });
+    }
+    if (lockoutOverride.overrideKey) {
+      key = lockoutOverride.overrideKey;
+    }
   }
 
 
   //the timestamp of the very first nfc recording event for the current day is what you use to gauge when the lockout begins. This happens WHENEVER this script first runs, for any reason. This way, even if you sleep in, you are STILL locked out for an hour. Known vulnerability is waking up in the night before "lateExtension, and triggering a recording, thus when you truly wake up a few hours later you're already run up your duration and it doesn't trigger.
 
-  spreadsheetID = scriptProperties.getProperty('spreadSheetID');
-  sheet1 = SpreadsheetApp.openById(spreadsheetID).getSheetByName('Tracking Data'); //replace with your sheet's info
-  separatorChar = "Ù";  // this character should be one that you'll never use. It must match what's in your apple shortcuts. It's "Ù" by default.
+  spreadsheetID = scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
+  sheet1 = SpreadsheetApp.openById(spreadsheetID).getSheetByName(config.sheetConfig.trackingSheetName); //replace with your sheet's info
+  separatorChar = config.sheetConfig.separatorChar;  // this character should be one that you'll never use. It must match what's in your apple shortcuts. It's "Ù" by default.
 
-  firstLineMessage = ["Great Job!", "Well done!","Puff your chest Up PAL!", "Guten Tag, King", "You did a good thing!", "One down, a lifetime to Go!", "STEAL THE DAY" , "Makin 'em proud, Cowboy!"];
-  firstLineMessageFreq = 0; //how often you want a randomized first line message from above (0-1)
-  originalComparisonArray  = [[1, "yesterday"], [2, "2 days ago"], [3, "3 days ago"], [4, "4 days ago"], [5, "5 days ago"], [6, "6 days ago"], [7, "7 days ago"], [14, "two weeks ago"], [21, "3 weeks ago"], [30, "this day last month"], [60, "2 months ago"], [90, "3 months ago"], [180, "6 months ago"], [365, "one year ago today"], [730, "2 years ago today"]];
-  posPerformanceFreq = .75;   //how often a message output is positive, 0-1 (roughly; actual frequency will be affected by your own performance)
-  negPerformanceFreq = .25;     //how often a message output is negative, 0-1
-  averageSpan = 7;            //how long of a period you want an average value to be calculated from
+  firstLineMessage = config.messages.firstLineMessage;
+  firstLineMessageFreq = config.messages.firstLineMessageFreq; //how often you want a randomized first line message from above (0-1)
+  originalComparisonArray  = config.messages.originalComparisonArray;
+  posPerformanceFreq = config.messages.posPerformanceFreq;   //how often a message output is positive, 0-1 (roughly; actual frequency will be affected by your own performance)
+  negPerformanceFreq = config.messages.negPerformanceFreq;     //how often a message output is negative, 0-1
+  averageSpan = config.messages.averageSpan;            //how long of a period you want an average value to be calculated from
 
-  sheetNames = [ {dataSheetName: "Tracking Data"}, {targetSheetName: "Charts"}, {dashboardSheetName: "Dashboard Data"}]
-  chartDataRanges =   [
-    {dataRow : 1, labelColumn : 1, lastXDays : 7, targetRow : 1, targetColumn: 2, dataLabel : "Last 7 Days Date Range"},
-    {dataRow : 41, labelColumn : 1, lastXDays : 7, targetRow : 3, targetColumn: 2, dataLabel : "Time Worked"},
-    {dataRow : 44, labelColumn : 1, lastXDays : 7, targetRow : 5, targetColumn: 2, dataLabel : "Personal Time Worked"},
-    {dataRow : 34, labelColumn : 1, lastXDays : 8, targetRow : 7, targetColumn: 2, dataLabel : "Hours Slept"},
-    {dataRow : 51, labelColumn : 1, lastXDays : 7, targetRow : 9, targetColumn: 2, dataLabel : "Screen Time"}, // (in particular bad apps like yt, X, etc)
-    {dataRow : 28, labelColumn : 1, lastXDays : 7, targetRow : 14, targetColumn: 2, dataLabel : "How Happy"}, // for nightly notes - how happy
-    {dataRow : 32, labelColumn : 1, lastXDays : 7, targetRow : 15, targetColumn: 2, dataLabel : "Notes on Day"}, // for nightly notes - notes on day
-    {dataRow : 36, labelColumn : 1, lastXDays : 7, targetRow : 11, targetColumn: 2, dataLabel : "First began work at AS"},
-    {dataRow : 37, labelColumn : 1, lastXDays : 7, targetRow : 12, targetColumn: 2, dataLabel : "Last ended work at AS"},
-    {dataRow : 56, labelColumn : 1, lastXDays : 7, targetRow : 20, targetColumn: 2, dataLabel : "SAS Time Worked"}
-  ];
+  sheetNames = config.sheetNames.map(function (sheet) {
+    return Object.assign({}, sheet);
+  });
+  chartDataRanges = config.chartDataRanges.map(function (range) {
+    return Object.assign({}, range);
+  });
 
   // NOTE: the allMetricSettings array stores the row number and return message settings for each metric you are recording in a given apple shortcut, as shown below.
   // Keep in mind, all "messages" will come combined into one (1) bulleted list in one (1) single notification per NFC trigger.
@@ -965,312 +939,87 @@ function loadSettings(global_key) {
          
   //each of these if statements correspond to a specific colored metric block in the google sheet.
 
-  if (key == "habit_stack_1") {   //replace with your block's key. Must match what the apple shortcut sends as it's key
-    return allMetricSettings = [ {rowNumber: 4, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp"}, {rowNumber: 5, insightChance: 1, streakProb: 0, dayToDayChance: .25, dayToAvgChance: .5, rawValueChance: .5, increaseGood: 1, insightFirstWords: "Weight:", insightUnits: "lbs", unitType: "number", recordType: 1} ];
-  }
-  else if (key == "habit_stack_2") {
-    return allMetricSettings = [ {rowNumber: 8, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp"} , {rowNumber: 9, insightChance: 1, streakProb: 0, dayToDayChance: .25, dayToAvgChance: .5, rawValueChance: .5, increaseGood: 1, insightFirstWords: "Duration: ", insightUnits: "minutes", unitType: "minutes", recordType: 1} ];
-  }
-  else if (key == "habit_stack_3") {
-    return allMetricSettings = [ {rowNumber: 11, insightChance: 1, streakProb: 0, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "meditate") {
-    return allMetricSettings = [ {rowNumber: 13, insightChance: 0, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "•Time Completed:", insightUnits: "minutes", unitType: "timestamp"} , {rowNumber: 14, insightChance: 1, streakProb: 0, dayToDayChance: .6, dayToAvgChance: .6, rawValueChance: .25, increaseGood: 1, insightFirstWords: "• Meditation Length:", insightUnits: "minutes", unitType: "minutes", recordType: 1} , {rowNumber: 15, insightChance: 1, streakProb: 0, dayToDayChance: 0, dayToAvgChance: .5, rawValueChance: .1, increaseGood: 1, insightFirstWords: "• Mental Calmness (beg):", insightUnits: "points", unitType: "number", recordType: 1} , {rowNumber: 16, insightChance: 1, streakProb: 0, dayToDayChance: 0, dayToAvgChance: .5, rawValueChance: .1, increaseGood: 1, insightFirstWords: "• Mental Calmness (end):", insightUnits: "points", unitType: "number", recordType: 1} ];
-  }
-  else if (key == "habit_stack_4") {
-    return [ {rowNumber: 19, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "habit_stack_4.5") {
-    return [ {rowNumber: 21, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "floss_you_fools!") {
-    return [ {rowNumber: 25, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "macros_hit") {
-    return [ {rowNumber: 24, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2} ];
-  }
-  else if (key == "lay_out_tomorrows_clothes") {
-    return [ {rowNumber: 48, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "plan_personal_workday") {
-    return [ {rowNumber: 46, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "plan_workday") {
-    return [ {rowNumber: 23, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "daily_metrics") {
-
-    //return [ {rowNumber: 27, insightChance: 0, streakProb: .5, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "•Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} , {rowNumber: 28, insightChance: 1, streakProb: .5, dayToDayChance: .6, dayToAvgChance: .25, rawValueChance: .15, increaseGood: 1, insightFirstWords: "• happiness:", insightUnits: "points", unitType: "number", recordType: 1} , {rowNumber: 29, insightChance: 1, streakProb: .5, dayToDayChance: .6, dayToAvgChance: .25, rawValueChance: .2, increaseGood: 1, insightFirstWords: "\n• Productive-ness:", insightUnits: "points", unitType: "number", recordType: 1} , {rowNumber: 30, insightChance: 1, streakProb: .5, dayToDayChance: .6, dayToAvgChance: .25, rawValueChance: .15, increaseGood: -1, insightFirstWords: "\n• Overthinking:", insightUnits: "points", unitType: "number", recordType: 1}, {rowNumber: 31, insightChance: 0, streakProb: .5, dayToDayChance: .6, dayToAvgChance: .25, rawValueChance: .15, increaseGood: 1, insightFirstWords: "• Goals", insightUnits: "points", unitType: "number", recordType: 1}, {rowNumber: 32, insightChance: 0, streakProb: .5, dayToDayChance: .6, dayToAvgChance: .25, rawValueChance: .15, increaseGood: 1, insightFirstWords: "• Notes on Day:", insightUnits: "points", unitType: "number", recordType: 1} ];
-
-    return [ {rowNumber: 27, insightChance: 0, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "•Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1}, {rowNumber: 28, insightChance: 1, streakProb: 0, dayToDayChance: .6, dayToAvgChance: .25, rawValueChance: .15, increaseGood: 1, insightFirstWords: "• happiness:", insightUnits: "points", unitType: "number", recordType: 1}, {rowNumber: 32, insightChance: 0, streakProb: 0, dayToDayChance: .6, dayToAvgChance: .25, rawValueChance: .15, increaseGood: 1, insightFirstWords: "• Notes on Day:", insightUnits: "points", unitType: "number", recordType: 1} ];
-  }
-  else if (key == "phone_off_power") { //wake up
-    return [ {rowNumber: 2, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2} ];
-  }
-  else if (key == "phone_on_power") { //go to sleep  LEGACY, CAN DELETE
-    return [ {rowNumber: 34, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "phone_on_power_V2") { //go to sleep
-    return [ {rowNumber: 34, insightChance: 0, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1}, {rowNumber: 35, insightChance: 1, streakProb: 1, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "On Time?:", insightUnits: "minutes", unitType: "timestamp", recordType: 1}];
-  }
-  else if (key == "next_habit_check") { //OUTDATED: returns what the next habit is. Replaced by positive push notifications v2
+  if (key == "next_habit_check") { //OUTDATED: returns what the next habit is. Replaced by positive push notifications v2
     return [];
   }
-  else if (key == "append_to_notion_inbox") {
+  if (key == "append_to_notion_inbox") {
     return [];
   }
-  else if (key == "app_closer") {
-    nextActionSetting = "off" //on or off
-    nextActionRow = 27
-    nextActionMessage = "Would you like to Grade your Day?"
-    screentimeTimeStampRow = 50
-    return [];
-  }
-  else if (key == "temporary_unlock") {
-    return allMetricSettings = [ {rowNumber: whiteListCell, insightChance: 0, streakProb: .5, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp"}, {rowNumber: 52, insightChance: 0, streakProb: 0, dayToDayChance: .25, dayToAvgChance: .5, rawValueChance: .5, increaseGood: 1, insightFirstWords: "Weight:", insightUnits: "lbs", unitType: "number", recordType: 1} ];
-  }
-  else if (key == "is_nfc_completed") {
-    return [];
-  }
-  else if (key == "first_arrived_at_work") {
-    return [ {rowNumber: 36, insightChance: 1, streakProb: .5, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Arrived:", insightUnits: "minutes", unitType: "timestamp", recordType: 2} ];
-  }
-  else if (key == "last_departed_work") {
-    return [ {rowNumber: 37, insightChance: 0, streakProb: .5, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: 1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  //NEW HABITS Nov 18
-  else if (key == "log_reading") {
-    return [ {rowNumber: 33, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "smoothie_time") {
-    return [ {rowNumber: 64, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
-  }
-  else if (key == "exercise_v2") {
-    return [ {rowNumber: 8, insightChance: 1, streakProb: .8, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 1} ];
+
+  if (config.keySettings[key]) {
+    applyKeySettings_(config.keySettings[key]);
   }
 
-
-  else if (key == "positive_push_notification" || key == "habit_dashboard") { // enhanced habit chain function -> JAN 27 THIS CAN BE MERGED WITH HABITS. can return what to do, when it is due by, the points you will gain by doing it or lose by not doing it.
-    // Define the enhanced habit chain with customization options
-    habitChain = [
-      { 
-        row: 5, 
-        name: "Weight                          ", 
-        dates: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day
-        startTime: 3, 
-        endTime: 24, 
-        messagePart1: "Weigh yourself. Streak =", 
-        streakTerm: "days", 
-        messagePart2: "Get those Gains" 
-      },
-      { 
-        row: 23, 
-        name: "Plan Workday               ", 
-        dates: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day
-        startTime: 3, 
-        endTime: 24, 
-        messagePart1: "Plan your day. Streak =", 
-        streakTerm: "days", //Options:
-        messagePart2: "Stay organized!" 
-      },
-      { 
-        row: 11, 
-        name: "Sunscreen                    ", 
-        dates: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day
-        startTime: 3, 
-        endTime: 12, 
-        messagePart1: "Shower and apply sunscreen. You have", 
-        streakTerm: "Pale Zuckerbergs", 
-        messagePart2: "Protect your skin!" 
-      },
-      {
-        row: 13, 
-        name: "Meditate                       ", 
-        dates: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day
-        startTime: 3, 
-        endTime: 12, 
-        messagePart1: "Meditation Streak =", 
-        streakTerm: "days", //Options:
-        messagePart2: "Open your Mind." 
-      },
-      { 
-        row: 64,
-        name: "Smoothie                      ", 
-        dates: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], // Weekdays
-        startTime: 3, 
-        endTime: 12, 
-        messagePart1: "Smoothie & Vitamin streak =", 
-        streakTerm: "days", 
-        messagePart2: "Get Stronger Bones." 
-      },
-      /*{ 
-        row: 21, //why is this included? Sure it's a next step, but it's more of a reminder. completion does not matter, right?
-        name: "Pack Lunch                   ", 
-        dates: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], // Weekdays
-        startTime: 0, 
-        endTime: 24, 
-        messagePart1: "Pack your lunch if Desired. Streak =", 
-        streakTerm: "days", 
-        messagePart2: "Stay prepared!" 
-      },*/
-      { 
-        row: 46, 
-        name: "Plan Personal Day        ", 
-        dates: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day
-        startTime: 0, 
-        endTime: 24, 
-        messagePart1: "Plan your Personal Day. Streak =", 
-        streakTerm: "days", //Options:
-        messagePart2: "Stay organized!" 
-      },
-      /*{
-        row: 25, 
-        name: "Journalling                       ", 
-        order: 1, 
-        dates: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day
-        startTime: 0, 
-        endTime: 24, 
-        messagePart1: "Journal Streak: ", 
-        streakTerm: "days", 
-        messagePart2: "for a smarter tomorrow." 
-      },*/
-      { 
-        row: 8, 
-        name: "Exercise                        ", //this could also just be a work timer. That would make it such that I could use the duration of the event + the title to record how many extra calories to eat.
-        dates: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day except sunday, do something active
-        startTime: 3, 
-        endTime: 22, 
-        messagePart1: "Exercising Streak =", 
-        streakTerm: "Hafthors", //Options: arnolds, herculeses, showmans, chrises, 
-        messagePart2: "Get yo Gains!" 
-      },
-      { 
-        row: 24, 
-        name: "Macros Hit                    ",  //INTENTION would be to have this automatically written by the calorie pace checker shortcut
-        dates: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"], // Weekdays
-        startTime: 19, 
-        endTime: 24, 
-        messagePart1: "MacroNutrient Goal Met. You Have", 
-        streakTerm: "Hungry Hafthors", //Will smith spaghettis, 
-        messagePart2: "Get Those Gains!" 
-      },
-      { 
-        row: 25, 
-        name: "Flossing                        ", 
-        order: 1, 
-        dates: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], // Every day
-        startTime: 0, 
-        endTime: 24, 
-        messagePart1: "Flossing: ", 
-        streakTerm: "days", 
-        messagePart2: "Keep it going!" 
-      },
-      { 
-        row: 33,  //I COULD MAKE THIS FUNCTION AS A WORK TIMER! THAT WOULD THEN TRACK AMOUNT READ CUMULTIVELY IN A DAY, WITH ONLY TWO BUTTON PRESSES
-        name: "Read Book                    ", 
-        dates: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"], // Weekdays
-        startTime: 19, 
-        endTime: 24, 
-        messagePart1: "In Bed On Time. Streak =", 
-        streakTerm: "days", //knowledge meme (englightenments), Reading XPs, 
-        messagePart2: "Stay Rested!" 
-      },
-      { 
-        row: 35, 
-        name: "In Bed On Time            ", 
-        dates: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"], // Weekdays
-        startTime: 19, 
-        endTime: 24, 
-        messagePart1: "In Bed On Time. Streak =", 
-        streakTerm: "days", //Sleep XP
-        messagePart2: "Stay Rested!" 
-      }
-    ];
+  if (key == "positive_push_notification" || key == "habit_dashboard") { // enhanced habit chain function -> JAN 27 THIS CAN BE MERGED WITH HABITS. can return what to do, when it is due by, the points you will gain by doing it or lose by not doing it.
+    habitChain = config.habitChain.map(function (habit) {
+      return Object.assign({}, habit);
+    });
   }
 
-  else if (key == "start_work") {
-    arrivedAtWorkCell = 36;
-    nextActionSetting = "on" //on or off
-    nextActionRow = 23
-    nextActionMessage = "Would you like to Plan your Day?"
-    if (nextActionSetting == "on") {
-      return [ {rowNumber: 40, insightChance: 1, streakProb: .5, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2}];
-    } else {
-    return [ {rowNumber: 40, insightChance: 1, streakProb: .5, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2}];
-    }
-  }
-  else if (key == "stop_work" || key == "start_stop_work") {
-    //This is a special kind of return that doesn't match the style of the others. This takes the start_time and a cumulativeSumRow cell and returns the current cumulative elapsed time.
-    arrivedAtWorkCell = 36;
-    chartDataRanges = [chartDataRanges[1]] // Time Worked
-    return time_elapsed = [40,41]; //[startRow, cumulativeSumRow] (stop_time does not need to be recorded.)
-  }
-  else if (key == "record_new_screentime") {
-    //This is a special kind of return that doesn't match the style of the others. This takes the start_time and a cumulativeSumRow cell and returns the current cumulative elapsed time.
-    time_elapsed = [50,51]; //[startRow, cumulativeSumRow] (stop_time does not need to be recorded.)
-    chartDataRanges = [chartDataRanges[4]] // Screen Time (in particular bad apps like yt, X, etc)
-    return [ {rowNumber: 51, insightChance: .05, dayToDayChance: .75, dayToAvgChance: .25, rawValueChance: .5, increaseGood: -1, insightFirstWords: "Screen Time: ", insightUnits: "minutes", unitType: "minutes", recordType: 2} ];
-    
-  }
-  else if (key == "personal_start_work") {
-    arrivedAtWorkCell = 36;
-    nextActionSetting = "on" //on or off
-    nextActionRow = 46
-    nextActionMessage = "Would you like to Plan your (personal) Day?"
-    if (nextActionSetting == "on") {
-      return [ {rowNumber: 43, insightChance: 1, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2}];
-    } else {
-    return [ {rowNumber: 43, insightChance: 1, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2}];
-    }
-  }
-  else if (key == "personal_stop_work") {
-    //This is a special kind of return that doesn't match the style of the others. This takes the start_work, stop_work, and a cumulativeSumRow cell and returns the current cumulative elapsed time.
-    chartDataRanges = [chartDataRanges[2]] // Personal Time Worked
-    return time_elapsed = [43,44]; //[startRow, cumulativeSumRow] (stop_time does not need to be recorded.)
-  }
-  else if (key == "SAS_start_work") {
-    arrivedAtWorkCell = 36;
-    nextActionSetting = "on" //on or off
-    nextActionRow = 46
-    nextActionMessage = "Would you like to Plan your (personal) Day?"
-    if (nextActionSetting == "on") {
-      return [ {rowNumber: 55, insightChance: 1, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2}];
-    } else {
-    return [ {rowNumber: 55, insightChance: 1, dayToDayChance: 1, dayToAvgChance: .5, rawValueChance: 1, increaseGood: -1, insightFirstWords: "Time Completed:", insightUnits: "minutes", unitType: "timestamp", recordType: 2}];
-    }
-  }
-  else if (key == "SAS_stop_work") {
-    //This is a special kind of return that doesn't match the style of the others. This takes the start_work, stop_work, and a cumulativeSumRow cell and returns the current cumulative elapsed time.
-    chartDataRanges = [chartDataRanges[9]] // Personal Time Worked
-    return time_elapsed = [55,56]; //[startRow, cumulativeSumRow] (stop_time does not need to be recorded.)
-  }
-
-  else if (key == "fanOnOff") {
+  if (key == "fanOnOff" || key == "teslaPortOnOff") {
+    var toggleSettings = config.toggleSettings[key];
     activeCol = findactiveCol();
     toggleKey = true;
-    return leToggler(0, 1, 53, "fan turned ON", "fan turned OFF")
+    return leToggler(0, 1, toggleSettings.dataRow, toggleSettings.onOutput, toggleSettings.offOutput);
   }
-  else if (key == "teslaPortOnOff") {
-    activeCol = findactiveCol();
-    toggleKey = true;
-    return leToggler(0, 1, 54, "Tesla Port OPEN", "Tesla Port CLOSED")
-  }
-  else if (key == "nighttime_notifier") {
-    nighttime_notifier_settings = [["Harold", 14, 25], 180, 60, 30]; //["Harold", 14, 180, 60, 30] settings[name of streak, minutes above or below], first notification (minutes), second notification (minutes), third notification (minutes),
-    
 
+  if (config.notifierSettings[key]) {
+    nighttime_notifier_settings = config.notifierSettings[key];
   }
-  else if (key == "nighttime_away_notifier") {
-    nighttime_notifier_settings = [["Harold", 14, 25, 5, 10, 15, 15], 60, 30, 0]; //["Harold", 14, 180, 60, 30] settings[name of streak, minutes above or below, row, time to get to car, tt get inside, tt get ready, tt read], first notification (minutes), second notification (minutes), third notification (minutes), 
-    //the goal is to remind you when to LEAVE the place you are at, assuming it is within 45 minutes of home.
-    //shortcut mods: get location. if you are not at home or Kali's, and your travel time is less than than 45 minutes, then the travel time + 5 is subtracted from the [time until sleep], before being sent to the code, and the key = nighttime_away_notifier. The time bands stay the same.
-    //code mods: the output text needs to change to "32 minute warning to leave", which is what exactly?
-    //as is, I'll get the "30 minute warning text" 25 minutes minutes early. But it will still only know on the code end that it's a 30 minute warning.
-    //I don't want it to say "time to"
+
+  if (config.timeElapsedSettings[key]) {
+    var timeElapsedConfig = config.timeElapsedSettings[key];
+    if (timeElapsedConfig.arrivedAtWorkCell !== undefined) {
+      arrivedAtWorkCell = timeElapsedConfig.arrivedAtWorkCell;
+    }
+    if (timeElapsedConfig.chartDataRangeIndex !== undefined) {
+      chartDataRanges = [chartDataRanges[timeElapsedConfig.chartDataRangeIndex]];
+    }
+    time_elapsed = timeElapsedConfig.timeElapsed.slice();
+    if (timeElapsedConfig.returnType === "time_elapsed") {
+      return time_elapsed;
+    }
   }
-  else {
-    return ContentService.createTextOutput("Invalid Key. Please try again.");
+
+  if (config.noMetricKeys.indexOf(key) !== -1) {
+    return [];
   }
+
+  if (config.metricSettings[key]) {
+    return resolveMetricSettings_(config.metricSettings[key], config);
+  }
+
+  return ContentService.createTextOutput("Invalid Key. Please try again.");
+}
+
+function applyKeySettings_(keySettings) {
+  if (keySettings.arrivedAtWorkCell !== undefined) {
+    arrivedAtWorkCell = keySettings.arrivedAtWorkCell;
+  }
+  if (keySettings.nextActionSetting !== undefined) {
+    nextActionSetting = keySettings.nextActionSetting;
+  }
+  if (keySettings.nextActionRow !== undefined) {
+    nextActionRow = keySettings.nextActionRow;
+  }
+  if (keySettings.nextActionMessage !== undefined) {
+    nextActionMessage = keySettings.nextActionMessage;
+  }
+  if (keySettings.screentimeTimeStampRow !== undefined) {
+    screentimeTimeStampRow = keySettings.screentimeTimeStampRow;
+  }
+}
+
+function resolveMetricSettings_(metricSettings, config) {
+  return metricSettings.map(function (metric) {
+    if (metric.rowNumberKey) {
+      var resolvedMetric = Object.assign({}, metric);
+      resolvedMetric.rowNumber = config.rows[metric.rowNumberKey];
+      delete resolvedMetric.rowNumberKey;
+      return resolvedMetric;
+    }
+    return metric;
+  });
 }
 
 function notionAppendToBlock_(blockId, text, opts) {
