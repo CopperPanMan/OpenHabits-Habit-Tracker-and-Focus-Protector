@@ -6,7 +6,7 @@ NOTE: "metrics" are the atomic loggable fields that make up a habit/task’s rec
 
 ## Apps Script Files
 
-- *Apps Script Sheets Apps Script Sheets Features.gs:* where all of the logic lives.
+- *Apps Script Sheets Main.gs:* where all of the logic lives.
     - keeps roughly the same structure. “keys” and “metrics” input are joined by a new “data” input. This new data input is not required for many existing and unrelated keys (ie features).
     - New keys (ie features):
         - *record_metric_iOS* → records a metric. This one overarching metric key replaces all of the previous individual habit keys. In this case, “data” = [[metricID1, metric1],[metricID2,metric2]]. For each metricID, it uses that ID to identify the habit in config, write it to google sheets, and (if write_to_notion is ON), marks the task complete in notion via API, as well as writing a point multiplier and streak.
