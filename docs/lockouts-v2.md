@@ -150,12 +150,12 @@
     ## Services Used
     
     - Apps Script Files
-        - *Apps Script Sheets [Features.gs](http://Features.gs):* where all of the logic lives.
+        - *Main.gs:* where all of the logic lives.
             - keeps roughly the same structure. “keys” and “metrics” input are joined by a new “data” input. This new data input is not required for many existing and unrelated keys (ie features).
             - keys (ie features):
                 - *app_closer* → what runs this lockout code.
                 - *metric_status* → returns true or false, depending on whether a metric is complete, or not.
-        - *c[onfig.gs](http://Copnfig.gs):* all blocking configuration happens in a dictionary/JSON format inside here.
+        - *Config.gs:* all blocking configuration happens in a dictionary/JSON format inside here.
     - Google sheets (relevant tabs):
         - *Tracking Data* → the log where truth is recorded. All values referenced by lockouts come from this sheet.
     
