@@ -1,64 +1,64 @@
-Habit,Task ID,Wed Oct 16 2024 6:30:14,Thu Oct 17 2024 6:28:26,Fri Oct 18 2024 6:59:56,Sat Oct 19 2024 7:42:47,Sun Oct 20 2024 8:05:04,Mon Oct 21 2024 6:48:28,Tue Oct 22 2024 7:30:11,Wed Oct 23 2024 5:15:46,Thu Oct 24 2024 6:30:11,Fri Oct 25 2024 5:41:09,Sat Oct 26 2024 6:23:38,Sun Oct 27 2024 7:09:18,Mon Oct 28 2024 6:39:31,Tue Oct 29 2024 7:30:27,Wed Oct 30 2024 5:28:57,Thu Oct 31 2024 7:30:16
-phone off charger (wake up time),,Wed Oct 16 2024 6:30:14,Thu Oct 17 2024 6:28:25,Fri Oct 18 2024 6:59:55,Sat Oct 19 2024 7:42:47,Sun Oct 20 2024 8:05:03,Mon Oct 21 2024 6:48:27,Tue Oct 22 2024 7:30:10,Wed Oct 23 2024 5:15:45,Thu Oct 24 2024 6:30:10,Fri Oct 25 2024 5:41:08,Sat Oct 26 2024 6:23:37,Sun Oct 27 2024 7:09:17,Mon Oct 28 2024 6:39:30,Tue Oct 29 2024 7:30:26,Wed Oct 30 2024 5:28:56,Thu Oct 31 2024 7:30:14
+Metric ID,Metric,Wed Oct 16 2024 6:30:14,Thu Oct 17 2024 6:28:26,Fri Oct 18 2024 6:59:56,Sat Oct 19 2024 7:42:47,Sun Oct 20 2024 8:05:04,Mon Oct 21 2024 6:48:28,Tue Oct 22 2024 7:30:11,Wed Oct 23 2024 5:15:46,Thu Oct 24 2024 6:30:11,Fri Oct 25 2024 5:41:09,Sat Oct 26 2024 6:23:38,Sun Oct 27 2024 7:09:18,Mon Oct 28 2024 6:39:31,Tue Oct 29 2024 7:30:27,Wed Oct 30 2024 5:28:57,Thu Oct 31 2024 7:30:16
+,phone off charger (wake up time),Wed Oct 16 2024 6:30:14,Thu Oct 17 2024 6:28:25,Fri Oct 18 2024 6:59:55,Sat Oct 19 2024 7:42:47,Sun Oct 20 2024 8:05:03,Mon Oct 21 2024 6:48:27,Tue Oct 22 2024 7:30:10,Wed Oct 23 2024 5:15:45,Thu Oct 24 2024 6:30:10,Fri Oct 25 2024 5:41:08,Sat Oct 26 2024 6:23:37,Sun Oct 27 2024 7:09:17,Mon Oct 28 2024 6:39:30,Tue Oct 29 2024 7:30:26,Wed Oct 30 2024 5:28:56,Thu Oct 31 2024 7:30:14
 ,,,,,,,,,,,,,,,,,
-"Contacts (+brush teeth, weight, clothes)",,,,,,,,Tue Oct 22 2024 16:10:32,,Thu Oct 24 2024 6:55:02,,,,,Tue Oct 29 2024 11:21:58,Wed Oct 30 2024 9:26:22,Thu Oct 31 2024 8:00:14
-   weight (lbs),,,,,,,140,139,,140.8,,,,,139,139,140
-   How Well-Rested do you Feel?,,,,,,,,,,,,,,,,,
+,"Contacts (+brush teeth, weight, clothes)",,,,,,,Tue Oct 22 2024 16:10:32,,Thu Oct 24 2024 6:55:02,,,,,Tue Oct 29 2024 11:21:58,Wed Oct 30 2024 9:26:22,Thu Oct 31 2024 8:00:14
+,   weight (lbs),,,,,,140,139,,140.8,,,,,139,139,140
+,   How Well-Rested do you Feel?,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-Exercise,,,,,,,,,,,,Sat Oct 26 2024 19:38:25,,,,,
-   cardio duration,,,,,,,,,,,,,,,,,
+,Exercise,,,,,,,,,,,Sat Oct 26 2024 19:38:25,,,,,
+,   cardio duration,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-"Shower (+hair, moisturize, clothes, next day clothes)",,,,,,,,,Wed Oct 23 2024 9:49:24,,Fri Oct 25 2024 7:21:06,,Sun Oct 27 2024 13:40:33,,Tue Oct 29 2024 8:24:09,Wed Oct 30 2024 9:23:24,Thu Oct 31 2024 8:33:03
+,"Shower (+hair, moisturize, clothes, next day clothes)",,,,,,,,Wed Oct 23 2024 9:49:24,,Fri Oct 25 2024 7:21:06,,Sun Oct 27 2024 13:40:33,,Tue Oct 29 2024 8:24:09,Wed Oct 30 2024 9:23:24,Thu Oct 31 2024 8:33:03
 ,,,,,,,,,,,,,,,,,
-Meditate,,,,,,,,,,,,Sat Oct 26 2024 19:37:47,,,,,
-   meditation duration,,,,,,,,,,,,,,,,,
-   beg mental calmness,,,,,,,,,,,,,,,,,
-   end mental calmness,,,,,,,,,,,,,,,,,
-   notes? - might use one day,,,,,,,,,,,,,,,,,
+,Meditate,,,,,,,,,,,Sat Oct 26 2024 19:37:47,,,,,
+,   meditation duration,,,,,,,,,,,,,,,,
+,   beg mental calmness,,,,,,,,,,,,,,,,
+,   end mental calmness,,,,,,,,,,,,,,,,
+,   notes? - might use one day,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-Eat Breakfast (+ vitamins),,,,,,,,,,,,,,,,,
+,Eat Breakfast (+ vitamins),,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-"Pack for Work (pack lunch, make smoothie, leave)",,,,,,,,,,,,,,,,,
+,"Pack for Work (pack lunch, make smoothie, leave)",,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-"Morning Planning (inbox, plan day, timeblock)",,Wed Oct 16 2024 7:13:55,,,,,Mon Oct 21 2024 12:51:17,Tue Oct 22 2024 7:58:00,Wed Oct 23 2024 16:53:33,Thu Oct 24 2024 7:22:31,,,,,Tue Oct 29 2024 8:07:43,Wed Oct 30 2024 8:30:39,Thu Oct 31 2024 8:17:59
-Hit eating goal (macros hit),,,,,,,,,,,,,,,,,
-Floss,,Wed Oct 16 2024 23:15:03,Fri Oct 18 2024 0:22:32,Sat Oct 19 2024 3:08:17,Sun Oct 20 2024 0:09:42,Sun Oct 20 2024 23:12:29,Mon Oct 21 2024 23:50:45,Tue Oct 22 2024 22:22:01,Wed Oct 23 2024 13:36:26,Fri Oct 25 2024 8:11:41,Sat Oct 26 2024 0:21:12,Sat Oct 26 2024 19:34:57,Mon Oct 28 2024 0:07:06,Mon Oct 28 2024 22:54:30,Tue Oct 29 2024 19:09:47,Thu Oct 31 2024 0:08:15,Thu Oct 31 2024 7:30:17
+,"Morning Planning (inbox, plan day, timeblock)",Wed Oct 16 2024 7:13:55,,,,,Mon Oct 21 2024 12:51:17,Tue Oct 22 2024 7:58:00,Wed Oct 23 2024 16:53:33,Thu Oct 24 2024 7:22:31,,,,,Tue Oct 29 2024 8:07:43,Wed Oct 30 2024 8:30:39,Thu Oct 31 2024 8:17:59
+,Hit eating goal (macros hit),,,,,,,,,,,,,,,,
+,Floss,Wed Oct 16 2024 23:15:03,Fri Oct 18 2024 0:22:32,Sat Oct 19 2024 3:08:17,Sun Oct 20 2024 0:09:42,Sun Oct 20 2024 23:12:29,Mon Oct 21 2024 23:50:45,Tue Oct 22 2024 22:22:01,Wed Oct 23 2024 13:36:26,Fri Oct 25 2024 8:11:41,Sat Oct 26 2024 0:21:12,Sat Oct 26 2024 19:34:57,Mon Oct 28 2024 0:07:06,Mon Oct 28 2024 22:54:30,Tue Oct 29 2024 19:09:47,Thu Oct 31 2024 0:08:15,Thu Oct 31 2024 7:30:17
 ,,,,,,,,,,,,,,,,,
-EOD Check-In (metric capture),,,,,,,,,,,,,,,,,
-   Happy: How Happy were today's thoughts?,,,,,,,,,,,,,,,,,
-   Productive: How Productive was Today?,,,,,,,,,,,,,,,,,
-   Overthinking: How Anxious and/or Chaotic were today's Thoughts?,,,,,,,,,,,,,,,,,
-   What's do you want to get done Tomorrow?,,,,,,,,,,,,,,,,,
-   Notes on the Day:,,,,,,,,,,,,,,,,,
-Read Book?,,,,,,,,,,,,,,,,,
-phone on charger (sleep time),,Thu Oct 17 2024 4:21:54,Fri Oct 18 2024 0:37:25,Sat Oct 19 2024 3:20:35,Sun Oct 20 2024 0:23:14,Mon Oct 21 2024 4:38:59,Tue Oct 22 2024 0:04:47,Wed Oct 23 2024 4:56:47,Thu Oct 24 2024 1:49:20,Fri Oct 25 2024 4:29:26,Sat Oct 26 2024 0:38:24,Sun Oct 27 2024 3:22:56,Mon Oct 28 2024 0:40:08,Tue Oct 29 2024 2:23:58,Wed Oct 30 2024 3:24:17,Thu Oct 31 2024 0:15:26,Fri Nov 1 2024 4:53:51
-"   In bed on time? (1=yes, 0=no)",,,,,,,,,,0,0,0,0,0,0,0,0
-Physically Arrived to Work,,,,,,Sun Oct 20 2024 16:28:58,Mon Oct 21 2024 12:57:31,Tue Oct 22 2024 13:36:30,,,,,,Mon Oct 28 2024 9:39:53,Tue Oct 29 2024 11:25:47,Wed Oct 30 2024 10:17:48,Thu Oct 31 2024 10:20:10
-   Last Departed,,,,,,,Mon Oct 21 2024 16:57:16,Tue Oct 22 2024 17:27:53,,,,,,Mon Oct 28 2024 18:23:01,Tue Oct 29 2024 13:31:40,Wed Oct 30 2024 15:11:39,
-   Total Time at Worksite,,,,,,,,,,,,,,,,,
+,EOD Check-In (metric capture),,,,,,,,,,,,,,,,
+,   Happy: How Happy were today's thoughts?,,,,,,,,,,,,,,,,
+,   Productive: How Productive was Today?,,,,,,,,,,,,,,,,
+,   Overthinking: How Anxious and/or Chaotic were today's Thoughts?,,,,,,,,,,,,,,,,
+,   What's do you want to get done Tomorrow?,,,,,,,,,,,,,,,,
+,   Notes on the Day:,,,,,,,,,,,,,,,,
+,Read Book?,,,,,,,,,,,,,,,,
+,phone on charger (sleep time),Thu Oct 17 2024 4:21:54,Fri Oct 18 2024 0:37:25,Sat Oct 19 2024 3:20:35,Sun Oct 20 2024 0:23:14,Mon Oct 21 2024 4:38:59,Tue Oct 22 2024 0:04:47,Wed Oct 23 2024 4:56:47,Thu Oct 24 2024 1:49:20,Fri Oct 25 2024 4:29:26,Sat Oct 26 2024 0:38:24,Sun Oct 27 2024 3:22:56,Mon Oct 28 2024 0:40:08,Tue Oct 29 2024 2:23:58,Wed Oct 30 2024 3:24:17,Thu Oct 31 2024 0:15:26,Fri Nov 1 2024 4:53:51
+,"   In bed on time? (1=yes, 0=no)",,,,,,,,,0,0,0,0,0,0,0,0
+,Physically Arrived to Work,,,,,Sun Oct 20 2024 16:28:58,Mon Oct 21 2024 12:57:31,Tue Oct 22 2024 13:36:30,,,,,,Mon Oct 28 2024 9:39:53,Tue Oct 29 2024 11:25:47,Wed Oct 30 2024 10:17:48,Thu Oct 31 2024 10:20:10
+,   Last Departed,,,,,,Mon Oct 21 2024 16:57:16,Tue Oct 22 2024 17:27:53,,,,,,Mon Oct 28 2024 18:23:01,Tue Oct 29 2024 13:31:40,Wed Oct 30 2024 15:11:39,
+,   Total Time at Worksite,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-Started Work (most recently),,,,,,,,,,,,,,,,,
-   Cumulative Time Worked,,00:27:39,,,,,03:56:47,04:11:49,07:07:32,,,,,05:31:13,05:56:00,05:27:24,05:17:28
+,Started Work (most recently),,,,,,,,,,,,,,,,
+,   Cumulative Time Worked,00:27:39,,,,,03:56:47,04:11:49,07:07:32,,,,,05:31:13,05:56:00,05:27:24,05:17:28
 ,,,,,,,,,,,,,,,,,
-Started Work (most recently),,,,,,,,,,,,,,,,,
-   Cumulative Time Worked (Personal),,,,,,,00:00:13,,,,,,,,,,
+,Started Work (most recently),,,,,,,,,,,,,,,,
+,   Cumulative Time Worked (Personal),,,,,,00:00:13,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-Plan Personal Workday,,Wed Oct 16 2024 16:35:41,,,,,Mon Oct 21 2024 19:12:23,,Wed Oct 23 2024 16:53:35,,,,,,Tue Oct 29 2024 8:07:45,,
+,Plan Personal Workday,Wed Oct 16 2024 16:35:41,,,,,Mon Oct 21 2024 19:12:23,,Wed Oct 23 2024 16:53:35,,,,,,Tue Oct 29 2024 8:07:45,,
 ,,,,,,,,,,,,,,,,,
-Layed Out Tomorrow's Clothes,,,,,,,,,,,,,,,,,
+,Layed Out Tomorrow's Clothes,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-"Opened ""Time Wasting"" App Most Recently",,,Fri Oct 18 2024 0:14:20,,,Sun Oct 20 2024 23:13:12,,,,,,,,,Tue Oct 29 2024 21:46:21,,
-   Cumulative App Wasted Time,,03:44:11,03:37:54,07:22:48,04:04:04,01:51:26,01:08:56,01:29:55,01:05:12,00:47:07,02:30:33,03:41:04,04:14:06,02:04:55,00:22:13,01:30:00,01:48:48
-   Last Whitelist Request Stated Reason,,,,,,,,,,,,,,,,,
-   Whitelist Timestamp? (overrides lockouts for 5 minutes),,,,,,,,,,,,,,,,,
+,"Opened ""Time Wasting"" App Most Recently",,Fri Oct 18 2024 0:14:20,,,Sun Oct 20 2024 23:13:12,,,,,,,,,Tue Oct 29 2024 21:46:21,,
+,   Cumulative App Wasted Time,03:44:11,03:37:54,07:22:48,04:04:04,01:51:26,01:08:56,01:29:55,01:05:12,00:47:07,02:30:33,03:41:04,04:14:06,02:04:55,00:22:13,01:30:00,01:48:48
+,   Last Whitelist Request Stated Reason,,,,,,,,,,,,,,,,
+,   Whitelist Timestamp? (overrides lockouts for 5 minutes),,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-SAS Started Work (most recently),,,,,,,,,,,,,,,,,
-   SAS Cumulative Time Worked (Personal),,,,,,00:00:05,,,,,,,,,,,
+,SAS Started Work (most recently),,,,,,,,,,,,,,,,
+,   SAS Cumulative Time Worked (Personal),,,,,00:00:05,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-AS Contracting Started Work (most recently),,,,,,,,,,,,,,,,,
-   AS Contracting Cumulative Time Worked (Personal),,,,,,,,,,,,,,,,,
+,AS Contracting Started Work (most recently),,,,,,,,,,,,,,,,
+,   AS Contracting Cumulative Time Worked (Personal),,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-Terry Contracting Started Work (most recently),,,,,,,,,,,,,,,,,
-   Terry Contracting Cumulative Time Worked (Personal),,,,,,,,,,,,,,,,,
+,Terry Contracting Started Work (most recently),,,,,,,,,,,,,,,,
+,   Terry Contracting Cumulative Time Worked (Personal),,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-Smoothie,,,,,,,,,,,,,,,,,
+,Smoothie,,,,,,,,,,,,,,,,
