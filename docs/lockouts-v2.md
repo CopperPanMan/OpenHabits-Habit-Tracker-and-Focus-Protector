@@ -23,7 +23,7 @@
 - Disallowed Entry:
     - If the user opens an app at a time when entry is blocked, the app closes with a “blockMessage”. The blockMessage tells them what they need to do to unlock the app, ie which configured block is currently applying (message set in config).
     - Taking the prompted action that would cause that block to no longer apply is the primary way that users will unlock apps. However, there are two other ways a user can circumvent any block in the event of an emergency or weak will, so as to dissuade a user from ever turning the automation off entirely, and they consist of adding a specific event to their google calendar. Note: this section is entirely handled by the “client” app, like apple shortcuts, or google chrome on desktop. No additional apps script code is needed for this.
-        - Illegitimate Unlock: (for a low point when the user really wants into the app, and where if this did not exist, the user would just turn the whole iOS automation off) → If the user opens calendar and places an event called “illegal_unlock” there, they get a one-time override. When they open the app again, it (again) closes the app, but this time tells them that they will have to wait 30s to open the app, and that they will lose X points by doing so (set in the shortcut). If they try to open before a full 30s has elapsed, it resets the timer. When the user finally opens after 30s, it lets them in, and the client sends to the separate habits code to record the habit with taskID “illegal_unlock”, and also starts a timer. It also deletes the “illegal_unlock” event from calendar. This whole unlock event is time limited to 10 minutes. After 10 minutes, it is as if this unlock attempt never happened. If illegal_unlock is left in calendar after 10 minutes, it gets deleted.
+        - Illegitimate Unlock: (for a low point when the user really wants into the app, and where if this did not exist, the user would just turn the whole iOS automation off) → If the user opens calendar and places an event called “illegal_unlock” there, they get a one-time override. When they open the app again, it (again) closes the app, but this time tells them that they will have to wait 30s to open the app, and that they will lose X points by doing so (set in the shortcut). If they try to open before a full 30s has elapsed, it resets the timer. When the user finally opens after 30s, it lets them in, and the client sends to the separate habits code to record the metric with metricID “illegal_unlock”, and also starts a timer. It also deletes the “illegal_unlock” event from calendar. This whole unlock event is time limited to 10 minutes. After 10 minutes, it is as if this unlock attempt never happened. If illegal_unlock is left in calendar after 10 minutes, it gets deleted.
         - Legit Unlock: (for when I legitimately need to access a tutorial or other valid information) → I open calendar, and place an event called “legitimate_unlock” there. When I open again, it again closes the app, and tells me that I will have to wait 60s to open the app. If I try to open during that time, it resets the timer. When I finally open after 60s, it lets me in, time limited to 20 minutes. It also starts a timer. After 20 minutes, it is as if nothing ever happened.
 
 ## Block Objects:
@@ -51,13 +51,13 @@
     [
     	{
     		id: "Plan Workday", // just a name for this block. Pick anything.
-    		type: "task_block", // types include: duration_block (max X minutes), task_block (blocks based on task completion),and firstXMinutesAfterTimestamp_block (first X minutes after Y timestamp)
+    		type: "completion_block", // types include: duration_block (max X minutes), completion_block (blocks based on task/metric completion),and firstXMinutesAfterTimestamp_block (first X minutes after Y timestamp)
     		presets: ["workday_rules","weekend_rules"], // all of the "presets" that a block pertains to. eg: ["weekend_rules","workday_rules"].
     		times: {beg: "09:00", end: "17:00"}, //when this block begins and ends to take effect (1-24). Can cross over midnight.
     		typeSpecific: {
     			duration: {maxMinutes: null, screenTimeID: null, rationing: {isON: true, begMinutes: 25, endMinutes: 300}}, //if a duration_block type, maxMinutes is the max screentime that can be hit during the timespan this block is active, and where to find that cumulative screenTime value in the sheet. A total block can be achieved by setting this to 0. rationing is explained in the notes above.
-    			task_block_ID: "plan_workday", //if a task_block type, this is what taskID to search for to check for completion. If there is data there, it is complete. Or call a new habit status function.
-    			firstXMinutes: {minutes: null, timestampID: null} //if a firstXHoursFromTimestamp type, this is how many hours and what taskID timestamp to reference as the "beginning" of the block.
+    			completion_block_ID: "plan_workday", //if a completion_block type, this is what metricID to search for to check for completion. If there is data there, it is complete. Or call a new metric status function.
+    			firstXMinutes: {minutes: null, timestampID: null} //if a firstXHoursFromTimestamp type, this is how many hours and what metricID timestamp to reference as the "beginning" of the block.
     		}
     		onBlock: {message: "Plan Workday to Unlock.", shortcutName: "open notion dashboard", shortcutInput: ""} //the message that is shown when an app is blocked by this, and the shortcut to run (if any) upon a block applying. NOTE: anything 
     	},
@@ -68,7 +68,7 @@
     		times: {beg: "09:00", end: "24:00"},
     		typeSpecific: {
     			duration: {maxMinutes: 120, screenTimeID: "cumulativeScreentime", rationing: {isON: true, begMinutes: 25, endMinutes: 200}},
-    			task_block_ID: "plan_workday",
+    			completion_block_ID: "plan_workday",
     			firstXMinutes: {minutes: null, timestampID: null}
     		}
     		onBlock: {message: "{screenTimeBar} \n {maxMinutes} Min limit reached. ", shortcutName: "", shortcutInput: ""}
@@ -80,7 +80,7 @@
     		times: {beg: "09:00", end: "17:00"},
     		typeSpecific: {
     			duration: {maxMinutes: null, screenTimeID: "screentime", rationing: {isON: true, begMinutes: 25, endMinutes: 300}},
-    			task_block_ID: "plan_workday",
+    			completion_block_ID: "plan_workday",
     			firstXMinutes: {minutes: 120, timestampID: "wake_up_timestamp"}
     		}
     		onBlock: {message: "Lock ends at {endTime}", shortcutName: "", shortcutInput: ""}
@@ -108,7 +108,7 @@
     Example:
     
     - `duration_block` requires: `typeSpecific.duration.maxMinutes`, `typeSpecific.duration.screenTimeID` (or allow null if you want “just show no bar”), `times`.
-    - `task_block` requires: `typeSpecific.task_block_ID`.
+    - `completion_block` requires: `typeSpecific.completion_block_ID`.
     - `firstXMinutesAfterTimestamp_block` requires: `typeSpecific.firstXMinutes.minutes`, `typeSpecific.firstXMinutes.timestampID`.
     
     If missing, return `status:"blocked"` or `status:"allowed"` isn’t the right response — return `status:"error"` (or `status:"blocked"` with a loud debug error) so you don’t silently mis-enforce rules.
@@ -154,7 +154,7 @@
             - keeps roughly the same structure. “keys” and “metrics” input are joined by a new “data” input. This new data input is not required for many existing and unrelated keys (ie features).
             - keys (ie features):
                 - *app_closer* → what runs this lockout code.
-                - *habit_status* → returns true or false, depending on whether a habit is complete, or not.
+                - *metric_status* → returns true or false, depending on whether a metric is complete, or not.
         - *c[onfig.gs](http://Copnfig.gs):* all blocking configuration happens in a dictionary/JSON format inside here.
     - Google sheets (relevant tabs):
         - *Tracking Data* → the log where truth is recorded. All values referenced by lockouts come from this sheet.
@@ -173,7 +173,7 @@
       "status": "blocked",
       "block": {
         "id": "workday_plan_block",
-        "type": "task_block",
+        "type": "completion_block",
         "message": "Plan workday at your desk to unlock."
       },
       "ui": {
@@ -226,7 +226,7 @@
     
     write now + 10 minutes to unlockedUntil.txt
     
-    send taskID: “illegitimate_unlock” to code to log the occurrence
+    send metricID: “illegitimate_unlock” to code to log the occurrence
     
     stop this shortcut
     
