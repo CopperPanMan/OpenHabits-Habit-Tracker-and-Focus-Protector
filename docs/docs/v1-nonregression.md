@@ -1,0 +1,22 @@
+- Current App Script Keys (functions)
+    - (Outdated) next_habit_check → returns what the next habit is. Was already replaced by PPN V2
+    - (Stays Unchanged) append_to_notion_inbox → paired with shortcut to append to my notion inbox via siri
+    - (Stays Unchanged) nighttime_away_notifier → if away from home, tell me when to leave to get to bed on time
+    - (Stays Unchanged) nighttime_notifier → if at home, tell me when to go to bed
+    - (Stays Unchanged) check_341_tasks → returns a list of all personal notion tasks that are 341. I believe this was part of the original task check feature, that would not open the task view unless something was actually on it. I want to keep this, it could be useful in the future.
+    - (To Be Superceded by V2) set_notion_plan_workday_complete → superseded by complete by new complete by taskID feature
+    - (To Be Superceded by V2) set_notion_plan_personal_day_complete → superseded by complete by new complete by taskID feature
+    - (To Be Superceded by V2) start_work → was purpose built to specifically handle work timers. Superseded by habits V2 → will write
+    - (To Be Superceded by V2) stop_work → was purpose built to specifically handle work timers. Superseded by habits V2
+    - (Needs Updated in V2) is_nfc_completed → returns no/yes depending on if habit is complete. Needs updated.
+    - (Outdated) dashboard_view → this seems like an alternate habit_dashboard output layout that never got used.
+    - (To Be Superceded by V2) positive_push_notification → tells you what the next thing to do is, and what the streak is. Can be better.
+        - this
+        - this can return what to do, when it is due by, the points you will gain by doing it or lose by not doing it.
+    - (To Be Superceded by V2) habit_dashboard → displays list of streak values for a list of tasks. Old feature, deprecated for the below reasons:
+        - it only shows up sometimes, not always. You can’t see it by accident.
+        - it ultimately only shows streaks. This works for a time, but then… why am I doing this? What does it lead to?
+        - points, (and ones that can be spent) show a tangible thing you *earn* every single day, and that doesn’t go away from a bad day.
+    - (To Be Superceded by V2) record_new_screentime → this is just like stop_work (it records the elapsed time between a start time and now(), but unlike stop_work, it also outputs a different message.
+    - (Needs Updated in V2) app_closer → locks app out. Will be updated with app lockouts V2
+    - (To Be Superceded by V2) all regular habit recordings → cascading if statements inside settings block. Will be updated to support new “find by ID” lingo. I think.
