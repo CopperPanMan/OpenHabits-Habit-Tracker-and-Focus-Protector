@@ -93,7 +93,7 @@ On any request that needs to read/write today’s values:
 
 ## 3.1 Files
 
-- `Apps Script Sheets Main.gs`
+- `Main.gs`
     - Contains logic for routing by key, validation, sheet writes, optional Notion updates, and computed outputs.
 - `config.gs`
     - Contains configuration (global settings + metricSettings array).
