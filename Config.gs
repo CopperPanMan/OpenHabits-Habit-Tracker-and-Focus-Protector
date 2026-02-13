@@ -5,6 +5,12 @@ function getAppConfig() {
       homeWifiName: "homeWifiName",
       workWifiName: "workWifiName"
     },
+    trackingSheetName: "Tracking Data",
+    writeToNotion: false,
+    dailyPointsID: "point_total_today",
+    cumulativePointsID: "point_total_alltime",
+    lateExtensionHours: 5,
+    metricSettings: [],
     sheetConfig: {
       trackingSheetName: "Tracking Data",
       separatorChar: "Ù",
@@ -203,7 +209,7 @@ function getAppConfig() {
         dataLabel: "SAS Time Worked"
       }
     ],
-    metricSettings: {
+    legacyMetricSettings: {
       habit_stack_1: [
         {
           taskId: "habit_stack_1_1",
