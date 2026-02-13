@@ -877,6 +877,18 @@ function isHabitsV2Key_(requestKey) {
 function parseHabitsV2Data_(rawData) {
   var parsedData;
   var results = [];
+  var allErrors = [];
+  var allWarnings = [];
+  var trackingSheet;
+
+  try {
+    trackingSheet = getTrackingSheet_();
+  } catch (error) {
+    return {
+      ok: false,
+      errors: ["Unable to load tracking sheet: " + error.message]
+    };
+  }
 
   try {
     parsedData = JSON.parse(rawData);
@@ -911,17 +923,94 @@ function parseHabitsV2Data_(rawData) {
       };
     }
 
+    var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+    var entryErrors = [];
+    var entryWarnings = [];
+
+    if (rowLookup.error) {
+      entryErrors.push(rowLookup.error);
+      allErrors.push(rowLookup.error);
+    }
+    if (rowLookup.warnings && rowLookup.warnings.length > 0) {
+      Array.prototype.push.apply(entryWarnings, rowLookup.warnings);
+      Array.prototype.push.apply(allWarnings, rowLookup.warnings);
+    }
+
     results.push({
       metricID: metricID,
-      status: "parsed",
-      errors: []
+      row: rowLookup.row,
+      status: rowLookup.row ? "parsed" : "error",
+      errors: entryErrors,
+      warnings: entryWarnings
     });
   }
 
   return {
     ok: true,
     results: results,
-    errors: []
+    errors: allErrors,
+    warnings: allWarnings
+  };
+}
+
+function findRowByMetricId_(metricID, optionalSheet) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  var result = {
+    row: null,
+    error: null,
+    warnings: []
+  };
+
+  if (typeof metricID !== "string" || !metricID.trim()) {
+    result.error = "Invalid metricID for row lookup.";
+    return result;
+  }
+
+  var lastRow = trackingSheet.getLastRow();
+  if (lastRow < 2) {
+    result.error = "metricID not found in sheet: " + metricID;
+    return result;
+  }
+
+  var metricIdValues = trackingSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var matchedRows = [];
+
+  for (var i = 0; i < metricIdValues.length; i++) {
+    if (String(metricIdValues[i][0]).trim() === metricID) {
+      matchedRows.push(i + 2);
+    }
+  }
+
+  if (matchedRows.length === 0) {
+    result.error = "metricID not found in sheet: " + metricID;
+    return result;
+  }
+
+  result.row = matchedRows[0];
+
+  if (matchedRows.length > 1) {
+    var warning = "Duplicate metricID found in sheet column A for " + metricID + ". Using first match at row " + matchedRows[0] + ".";
+    result.warnings.push(warning);
+    Logger.log(warning);
+  }
+
+  return result;
+}
+
+function ensureRowExistsForId_(metricID, displayName, optionalSheet) {
+  var lookup = findRowByMetricId_(metricID, optionalSheet);
+  if (!lookup.row) {
+    return {
+      row: null,
+      error: lookup.error || ("metricID not found in sheet: " + metricID),
+      warnings: lookup.warnings || []
+    };
+  }
+
+  return {
+    row: lookup.row,
+    error: null,
+    warnings: lookup.warnings || []
   };
 }
 
