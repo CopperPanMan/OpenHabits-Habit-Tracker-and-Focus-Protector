@@ -108,6 +108,10 @@ function doGet(e) {
       return ContentService.createTextOutput(recordMetricIOS_(e && e.parameters ? e.parameters.data : undefined));
     }
 
+    if (key === "record_metric_notion") {
+      return ContentService.createTextOutput(recordMetricNotion_(e && e.parameters ? e.parameters.data : undefined));
+    }
+
     var parsedHabitsV2Data = parseHabitsV2Data_(e && e.parameters ? e.parameters.data : undefined);
     if (!parsedHabitsV2Data.ok) {
       return ContentService.createTextOutput(buildHabitsV2Response({
@@ -958,6 +962,23 @@ function parseHabitsV2Data_(rawData) {
 }
 
 function recordMetricIOS_(rawData) {
+  return recordMetricBySource_(rawData, {
+    source: "iOS",
+    skipNotionStatusComplete: false
+  });
+}
+
+function recordMetricNotion_(rawData) {
+  return recordMetricBySource_(rawData, {
+    source: "Notion",
+    skipNotionStatusComplete: true
+  });
+}
+
+function recordMetricBySource_(rawData, options) {
+  var sourceOptions = options || {};
+  var source = sourceOptions.source || "iOS";
+  var skipNotionStatusComplete = !!sourceOptions.skipNotionStatusComplete;
   var parsedData;
   var results = [];
   var errors = [];
@@ -995,9 +1016,11 @@ function recordMetricIOS_(rawData) {
     var resultEntry = {
       metricID: null,
       row: null,
+      source: source,
       status: "error",
       value: null,
       complete: false,
+      notionStatusCompleteSkipped: skipNotionStatusComplete,
       errors: entryErrors
     };
 
