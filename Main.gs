@@ -100,6 +100,20 @@ function doGet(e) {
   var scriptProperties = PropertiesService.getScriptProperties();
 
   key = JSON.parse(e.parameters.key);
+  if (isHabitsV2Key_(key)) {
+    var parsedHabitsV2Data = parseHabitsV2Data_(e && e.parameters ? e.parameters.data : undefined);
+    if (!parsedHabitsV2Data.ok) {
+      return ContentService.createTextOutput(buildHabitsV2Response({
+        ok: false,
+        errors: parsedHabitsV2Data.errors
+      }));
+    }
+
+    return ContentService.createTextOutput(buildHabitsV2Response({
+      ok: true,
+      results: parsedHabitsV2Data.results
+    }));
+  }
   //key = "append_to_notion_inbox";
 
   var allMetricSettings = loadSettings(key);
@@ -849,6 +863,76 @@ else if (key == "habit_dashboard") {//JAN 27 THIS CAN BE superceded by or MERGED
   console.log(tempString);
   return ContentService.createTextOutput(tempString);
 }
+
+function isHabitsV2Key_(requestKey) {
+  return requestKey === "record_metric_iOS" ||
+    requestKey === "record_metric_notion" ||
+    requestKey === "positive_push_notification" ||
+    requestKey === "current_metric_status";
+}
+
+function parseHabitsV2Data_(rawData) {
+  var parsedData;
+  var results = [];
+
+  try {
+    parsedData = JSON.parse(rawData);
+  } catch (error) {
+    return {
+      ok: false,
+      errors: ["Malformed JSON in data parameter."]
+    };
+  }
+
+  if (!Array.isArray(parsedData)) {
+    return {
+      ok: false,
+      errors: ["Invalid data payload. Expected an array of tuples."]
+    };
+  }
+
+  for (var i = 0; i < parsedData.length; i++) {
+    var tuple = parsedData[i];
+    if (!Array.isArray(tuple) || tuple.length === 0 || tuple.length > 2) {
+      return {
+        ok: false,
+        errors: ["Invalid tuple at data[" + i + "]. Expected [metricID] or [metricID, value]."]
+      };
+    }
+
+    var metricID = tuple[0];
+    if (typeof metricID !== "string" || metricID.trim() === "") {
+      return {
+        ok: false,
+        errors: ["Invalid metricID at data[" + i + "]."]
+      };
+    }
+
+    results.push({
+      metricID: metricID,
+      status: "parsed",
+      errors: []
+    });
+  }
+
+  return {
+    ok: true,
+    results: results,
+    errors: []
+  };
+}
+
+function buildHabitsV2Response(response) {
+  var payload = response || {};
+
+  return JSON.stringify({
+    ok: !!payload.ok,
+    results: Array.isArray(payload.results) ? payload.results : [],
+    errors: Array.isArray(payload.errors) ? payload.errors : [],
+    warnings: Array.isArray(payload.warnings) ? payload.warnings : []
+  });
+}
+
 
 function loadSettings(global_key) {
 
