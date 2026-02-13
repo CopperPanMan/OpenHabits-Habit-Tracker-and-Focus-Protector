@@ -46,7 +46,7 @@
 
 ### 2.1 Files
 
-- **Apps Script Sheets Main.gs**
+- **Main.gs**
     - Contains the main request router and feature handlers.
     - Supports older unrelated “keys/features” and must not break them.
     - Adds/uses these keys (features):
