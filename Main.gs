@@ -104,6 +104,10 @@ function doGet(e) {
     loadSettings(key);
     activeCol = ensureTodayColumn_(sheet1, currentTimeStamp);
 
+    if (key === "record_metric_iOS") {
+      return ContentService.createTextOutput(recordMetricIOS_(e && e.parameters ? e.parameters.data : undefined));
+    }
+
     var parsedHabitsV2Data = parseHabitsV2Data_(e && e.parameters ? e.parameters.data : undefined);
     if (!parsedHabitsV2Data.ok) {
       return ContentService.createTextOutput(buildHabitsV2Response({
@@ -951,6 +955,338 @@ function parseHabitsV2Data_(rawData) {
     errors: allErrors,
     warnings: allWarnings
   };
+}
+
+function recordMetricIOS_(rawData) {
+  var parsedData;
+  var results = [];
+  var errors = [];
+  var warnings = [];
+  var trackingSheet;
+
+  try {
+    trackingSheet = getTrackingSheet_();
+  } catch (error) {
+    return buildHabitsV2Response({
+      ok: false,
+      errors: ["Unable to load tracking sheet: " + error.message]
+    });
+  }
+
+  try {
+    parsedData = JSON.parse(rawData);
+  } catch (error) {
+    return buildHabitsV2Response({
+      ok: false,
+      errors: ["Malformed JSON in data parameter."]
+    });
+  }
+
+  if (!Array.isArray(parsedData)) {
+    return buildHabitsV2Response({
+      ok: false,
+      errors: ["Invalid data payload. Expected an array of tuples."]
+    });
+  }
+
+  for (var i = 0; i < parsedData.length; i++) {
+    var tuple = parsedData[i];
+    var entryErrors = [];
+    var resultEntry = {
+      metricID: null,
+      row: null,
+      status: "error",
+      value: null,
+      complete: false,
+      errors: entryErrors
+    };
+
+    if (!Array.isArray(tuple) || tuple.length === 0 || tuple.length > 2) {
+      entryErrors.push("Invalid tuple at data[" + i + "]. Expected [metricID] or [metricID, value].");
+      results.push(resultEntry);
+      Array.prototype.push.apply(errors, entryErrors);
+      continue;
+    }
+
+    var metricID = tuple[0];
+    resultEntry.metricID = metricID;
+    if (typeof metricID !== "string" || metricID.trim() === "") {
+      entryErrors.push("Invalid metricID at data[" + i + "].");
+      results.push(resultEntry);
+      Array.prototype.push.apply(errors, entryErrors);
+      continue;
+    }
+
+    var settingLookup = getMetricSettingById(metricID);
+    if (!settingLookup.setting) {
+      entryErrors.push("metricID not found in metricSettings: " + metricID);
+      results.push(resultEntry);
+      Array.prototype.push.apply(errors, entryErrors);
+      continue;
+    }
+
+    if (settingLookup.errors && settingLookup.errors.length) {
+      Array.prototype.push.apply(warnings, settingLookup.errors);
+    }
+
+    var setting = settingLookup.setting;
+    var metricType = setting.type || setting.unitType;
+    var recordType = normalizeRecordType_(setting.recordType);
+    var row = (typeof setting.rowNumber === "number" && setting.rowNumber > 0) ? setting.rowNumber : null;
+
+    if (!row) {
+      var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+      if (!rowLookup.row) {
+        entryErrors.push(rowLookup.error || ("Unable to resolve row for metricID: " + metricID));
+        results.push(resultEntry);
+        Array.prototype.push.apply(errors, entryErrors);
+        continue;
+      }
+      row = rowLookup.row;
+      if (rowLookup.warnings && rowLookup.warnings.length) {
+        Array.prototype.push.apply(warnings, rowLookup.warnings);
+      }
+    }
+    resultEntry.row = row;
+
+    var validated = validateMetricValueForRecord_(metricType, tuple.length > 1 ? tuple[1] : null);
+    if (!validated.ok) {
+      entryErrors.push(validated.error);
+      results.push(resultEntry);
+      Array.prototype.push.apply(errors, entryErrors);
+      continue;
+    }
+
+    var cell = trackingSheet.getRange(row, activeCol);
+    var currentValue = cell.getValue();
+    var isCurrentEmpty = currentValue === "" || currentValue === null;
+
+    if (recordType === "keep_first" && !isCurrentEmpty) {
+      resultEntry.status = "kept_first";
+      resultEntry.value = currentValue;
+      resultEntry.complete = true;
+      results.push(resultEntry);
+      continue;
+    }
+
+    if (recordType === "add") {
+      if (metricType !== "number" && metricType !== "duration") {
+        resultEntry.status = "ignored";
+        resultEntry.value = currentValue;
+        resultEntry.complete = currentValue !== "" && currentValue !== null;
+        results.push(resultEntry);
+        continue;
+      }
+
+      if (metricType === "number") {
+        var existingNumber = parseStoredNumberForAdd_(currentValue);
+        if (existingNumber === null) {
+          entryErrors.push("Cannot add to non-numeric existing value for metricID: " + metricID);
+          results.push(resultEntry);
+          Array.prototype.push.apply(errors, entryErrors);
+          continue;
+        }
+
+        var summedValue = existingNumber + validated.value;
+        cell.setValue(summedValue);
+        resultEntry.status = "written";
+        resultEntry.value = summedValue;
+        resultEntry.complete = true;
+        results.push(resultEntry);
+        continue;
+      }
+
+      var existingDurationSeconds = parseDurationToSeconds_(currentValue, true);
+      if (existingDurationSeconds === null) {
+        entryErrors.push("Cannot add to non-duration existing value for metricID: " + metricID);
+        results.push(resultEntry);
+        Array.prototype.push.apply(errors, entryErrors);
+        continue;
+      }
+
+      var addedSeconds = existingDurationSeconds + validated.seconds;
+      if (addedSeconds > 99 * 3600 + 59 * 60 + 59) {
+        entryErrors.push("Duration exceeds max 99:59:59 for metricID: " + metricID);
+        results.push(resultEntry);
+        Array.prototype.push.apply(errors, entryErrors);
+        continue;
+      }
+
+      var addedDuration = secondsToDurationString_(addedSeconds);
+      cell.setValue(addedDuration);
+      resultEntry.status = "written";
+      resultEntry.value = addedDuration;
+      resultEntry.complete = true;
+      results.push(resultEntry);
+      continue;
+    }
+
+    cell.setValue(validated.value);
+    resultEntry.status = "written";
+    resultEntry.value = validated.value;
+    resultEntry.complete = validated.value !== "" && validated.value !== null;
+    results.push(resultEntry);
+  }
+
+  return buildHabitsV2Response({
+    ok: true,
+    results: results,
+    errors: errors,
+    warnings: warnings
+  });
+}
+
+function validateMetricValueForRecord_(metricType, rawValue) {
+  var normalizedType = metricType || "number";
+
+  if (normalizedType === "number") {
+    var parsedNumber = parseStrictNumber_(rawValue);
+    if (parsedNumber === null) {
+      return {
+        ok: false,
+        error: "Invalid number value. Expected strict numeric input without commas."
+      };
+    }
+
+    return {
+      ok: true,
+      value: parsedNumber
+    };
+  }
+
+  if (normalizedType === "duration") {
+    var durationSeconds = parseDurationToSeconds_(rawValue, false);
+    if (durationSeconds === null) {
+      return {
+        ok: false,
+        error: "Invalid duration value. Use MM:SS or HH:MM:SS."
+      };
+    }
+
+    return {
+      ok: true,
+      value: secondsToDurationString_(durationSeconds),
+      seconds: durationSeconds
+    };
+  }
+
+  if (normalizedType === "timestamp" ||
+      normalizedType === "due_by" ||
+      normalizedType === "start_timer" ||
+      normalizedType === "stop_timer") {
+    return {
+      ok: true,
+      value: new Date()
+    };
+  }
+
+  return {
+    ok: false,
+    error: "Unsupported metric type: " + normalizedType
+  };
+}
+
+
+function normalizeRecordType_(recordType) {
+  if (recordType === 2 || recordType === "2" || recordType === "keep_first") {
+    return "keep_first";
+  }
+
+  if (recordType === 3 || recordType === "3" || recordType === "add") {
+    return "add";
+  }
+
+  return "overwrite";
+}
+
+function parseStrictNumber_(value) {
+  if (typeof value === "number") {
+    return isFinite(value) ? value : null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  var trimmed = value.trim();
+  if (!trimmed || trimmed.indexOf(",") !== -1) {
+    return null;
+  }
+
+  if (!/^-?(?:\d+\.?\d*|\.\d+)$/.test(trimmed)) {
+    return null;
+  }
+
+  var parsed = Number(trimmed);
+  return isFinite(parsed) ? parsed : null;
+}
+
+function parseStoredNumberForAdd_(value) {
+  if (value === "" || value === null) {
+    return 0;
+  }
+
+  return parseStrictNumber_(value);
+}
+
+function parseDurationToSeconds_(value, allowEmptyAsZero) {
+  if (value === "" || value === null || value === undefined) {
+    return allowEmptyAsZero ? 0 : null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  var trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  var parts = trimmed.split(":");
+  if (parts.length !== 2 && parts.length !== 3) {
+    return null;
+  }
+
+  for (var i = 0; i < parts.length; i++) {
+    if (!/^\d+$/.test(parts[i])) {
+      return null;
+    }
+  }
+
+  var hours = 0;
+  var minutes;
+  var seconds;
+
+  if (parts.length === 2) {
+    minutes = Number(parts[0]);
+    seconds = Number(parts[1]);
+  } else {
+    hours = Number(parts[0]);
+    minutes = Number(parts[1]);
+    seconds = Number(parts[2]);
+  }
+
+  if (minutes > 59 || seconds > 59) {
+    return null;
+  }
+
+  var totalSeconds = hours * 3600 + minutes * 60 + seconds;
+  if (totalSeconds > 99 * 3600 + 59 * 60 + 59) {
+    return null;
+  }
+
+  return totalSeconds;
+}
+
+function secondsToDurationString_(totalSeconds) {
+  var hours = Math.floor(totalSeconds / 3600);
+  var minutes = Math.floor((totalSeconds % 3600) / 60);
+  var seconds = totalSeconds % 60;
+
+  return String(hours).padStart(2, '0') + ":" +
+    String(minutes).padStart(2, '0') + ":" +
+    String(seconds).padStart(2, '0');
 }
 
 function findRowByMetricId_(metricID, optionalSheet) {
