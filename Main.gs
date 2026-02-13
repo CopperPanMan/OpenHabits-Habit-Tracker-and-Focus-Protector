@@ -101,6 +101,9 @@ function doGet(e) {
 
   key = JSON.parse(e.parameters.key);
   if (isHabitsV2Key_(key)) {
+    loadSettings(key);
+    activeCol = ensureTodayColumn_(sheet1, currentTimeStamp);
+
     var parsedHabitsV2Data = parseHabitsV2Data_(e && e.parameters ? e.parameters.data : undefined);
     if (!parsedHabitsV2Data.ok) {
       return ContentService.createTextOutput(buildHabitsV2Response({
@@ -934,6 +937,92 @@ function buildHabitsV2Response(response) {
 }
 
 
+function getTrackingSheet_() {
+  var config = getAppConfig();
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var resolvedSpreadsheetID = spreadsheetID || scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
+  var resolvedTrackingSheetName = trackingSheetName || config.trackingSheetName || (config.sheetConfig && config.sheetConfig.trackingSheetName);
+
+  if (!resolvedSpreadsheetID) {
+    throw new Error('Missing spreadsheet ID script property: ' + config.scriptProperties.spreadsheetId);
+  }
+  if (!resolvedTrackingSheetName) {
+    throw new Error('Missing trackingSheetName in config.');
+  }
+
+  var trackingSheet = SpreadsheetApp.openById(resolvedSpreadsheetID).getSheetByName(resolvedTrackingSheetName);
+  if (!trackingSheet) {
+    throw new Error('Tracking sheet not found: ' + resolvedTrackingSheetName);
+  }
+
+  spreadsheetID = resolvedSpreadsheetID;
+  trackingSheetName = resolvedTrackingSheetName;
+  sheet1 = trackingSheet;
+  return trackingSheet;
+}
+
+function getEffectiveDayKey_(dateObj, extensionHours) {
+  var hours = Number(extensionHours);
+  if (!isFinite(hours) || hours < 0) {
+    hours = 0;
+  }
+
+  var shiftedDate = new Date(dateObj.getTime() - hours * 60 * 60 * 1000);
+  return Utilities.formatDate(shiftedDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function ensureTodayColumn_(optionalSheet, optionalNow) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  var now = optionalNow || new Date();
+
+  if (trackingSheet.getRange(1, 1).getValue() === '') {
+    trackingSheet.getRange(1, 1).setValue('Metric ID');
+  }
+  if (trackingSheet.getRange(1, 2).getValue() === '') {
+    trackingSheet.getRange(1, 2).setValue('Metric');
+  }
+
+  var maxLastColumn = Math.max(trackingSheet.getLastColumn(), dataStartColumn || 3);
+  var headerRangeWidth = maxLastColumn - (dataStartColumn || 3) + 1;
+  var headerValues = trackingSheet.getRange(1, dataStartColumn || 3, 1, headerRangeWidth).getValues()[0];
+
+  var lastDateHeaderCol = (dataStartColumn || 3) - 1;
+  var lastHeaderValue = null;
+
+  for (var i = headerValues.length - 1; i >= 0; i--) {
+    if (headerValues[i] !== '' && headerValues[i] !== null) {
+      lastDateHeaderCol = (dataStartColumn || 3) + i;
+      lastHeaderValue = headerValues[i];
+      break;
+    }
+  }
+
+  if (lastDateHeaderCol < (dataStartColumn || 3)) {
+    trackingSheet.getRange(1, dataStartColumn || 3).setValue(now);
+    firstHabitofDay = 1;
+    return dataStartColumn || 3;
+  }
+
+  var parsedLastHeader = lastHeaderValue instanceof Date ? lastHeaderValue : new Date(lastHeaderValue);
+  if (isNaN(parsedLastHeader.getTime())) {
+    trackingSheet.getRange(1, lastDateHeaderCol).setValue(now);
+    return lastDateHeaderCol;
+  }
+
+  var currentDayKey = getEffectiveDayKey_(now, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension);
+  var lastHeaderDayKey = getEffectiveDayKey_(parsedLastHeader, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension);
+
+  if (currentDayKey === lastHeaderDayKey) {
+    return lastDateHeaderCol;
+  }
+
+  var newColumn = lastDateHeaderCol + 1;
+  trackingSheet.getRange(1, newColumn).setValue(now);
+  firstHabitofDay = 1;
+  return newColumn;
+}
+
+
 function loadSettings(global_key) {
 
   key = global_key;
@@ -1000,7 +1089,7 @@ function loadSettings(global_key) {
   //the timestamp of the very first nfc recording event for the current day is what you use to gauge when the lockout begins. This happens WHENEVER this script first runs, for any reason. This way, even if you sleep in, you are STILL locked out for an hour. Known vulnerability is waking up in the night before "lateExtension, and triggering a recording, thus when you truly wake up a few hours later you're already run up your duration and it doesn't trigger.
 
   spreadsheetID = scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
-  sheet1 = SpreadsheetApp.openById(spreadsheetID).getSheetByName(trackingSheetName); //replace with your sheet's info
+  sheet1 = getTrackingSheet_();
   separatorChar = config.sheetConfig.separatorChar;  // this character should be one that you'll never use. It must match what's in your apple shortcuts. It's "Ù" by default.
   taskIdRowMap = buildTaskIdRowMap_(sheet1, taskIdColumn);
 
@@ -1530,24 +1619,7 @@ function calculateFirstLineMessage() {
 }
 
 function findactiveCol() {
-  var today = (new Date());
-  var lastCol = sheet1.getLastColumn();
-  //console.log("value in sheet: " + String(sheet1.getRange(1,lastCol).getValues()).slice(0,15) + " vs value of today's date: " + today)
-
-  if (String(sheet1.getRange(1,lastCol).getValues()).slice(0,15) == String(today).slice(0,15)) { //if the last column written to is today, then that col is today.
-    return lastCol;
-  }
-
-  else { 
-    if (today.getHours() < lateExtension) { //if current hour is before the late exension, act like it's the same day
-      return lastCol;
-    }
-    else {
-      sheet1.getRange(1,lastCol+1).setValue(String(today).slice(0,24)); //otherwise, it's a new day. Make a new date column, and set activeCol to it.
-      firstHabitofDay = 1;
-    }
-    return lastCol+1;
-  }
+  return ensureTodayColumn_(sheet1, new Date());
 }
 
 function writeDataToSheet(allMetricSettings, metrics, i) {
