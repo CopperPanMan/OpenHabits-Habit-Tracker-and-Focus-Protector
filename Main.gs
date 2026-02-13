@@ -64,6 +64,11 @@ var firstHabitofDay = 0;
 var tomorrowGoalRow;
 var appCloserRow;
 var lateExtension;
+var lateExtensionHours;
+var trackingSheetName;
+var writeToNotion;
+var dailyPointsID;
+var cumulativePointsID;
 var morningAppLockoutDuration;
 var time_elapsed = [];
 var nextActionSetting; //ALL 3 OF THESE SHOULD BE REPLACED BY NEXT HABIT CHECK OR PPN
@@ -869,7 +874,13 @@ function loadSettings(global_key) {
 
   appCloserRow = config.rows.appCloserRow;
   personalPlanningRow = config.rows.personalPlanningRow;
-  lateExtension = config.rows.lateExtension; //This sets how many hours into the next day a task will be recorded to the prior one. For example, a value of 4 means tasks recorded up to 4AM will be recorded the prior day.
+  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours : config.rows.lateExtension;
+  lateExtension = lateExtensionHours; // Backward compatible alias for existing behavior.
+
+  trackingSheetName = config.trackingSheetName || config.sheetConfig.trackingSheetName;
+  writeToNotion = !!config.writeToNotion;
+  dailyPointsID = config.dailyPointsID;
+  cumulativePointsID = config.cumulativePointsID;
 
   homeWifiName = scriptProperties.getProperty(config.scriptProperties.homeWifiName);
   workWifiName = scriptProperties.getProperty(config.scriptProperties.workWifiName);
@@ -905,7 +916,7 @@ function loadSettings(global_key) {
   //the timestamp of the very first nfc recording event for the current day is what you use to gauge when the lockout begins. This happens WHENEVER this script first runs, for any reason. This way, even if you sleep in, you are STILL locked out for an hour. Known vulnerability is waking up in the night before "lateExtension, and triggering a recording, thus when you truly wake up a few hours later you're already run up your duration and it doesn't trigger.
 
   spreadsheetID = scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
-  sheet1 = SpreadsheetApp.openById(spreadsheetID).getSheetByName(config.sheetConfig.trackingSheetName); //replace with your sheet's info
+  sheet1 = SpreadsheetApp.openById(spreadsheetID).getSheetByName(trackingSheetName); //replace with your sheet's info
   separatorChar = config.sheetConfig.separatorChar;  // this character should be one that you'll never use. It must match what's in your apple shortcuts. It's "Ù" by default.
   taskIdRowMap = buildTaskIdRowMap_(sheet1, taskIdColumn);
 
@@ -994,11 +1005,120 @@ function loadSettings(global_key) {
     return [];
   }
 
-  if (config.metricSettings[key]) {
+  if (config.legacyMetricSettings && config.legacyMetricSettings[key]) {
+    return resolveMetricSettings_(config.legacyMetricSettings[key], config, taskIdRowMap);
+  }
+
+  if (config.metricSettings && !Array.isArray(config.metricSettings) && config.metricSettings[key]) {
     return resolveMetricSettings_(config.metricSettings[key], config, taskIdRowMap);
   }
 
   return ContentService.createTextOutput("Invalid Key. Please try again.");
+}
+
+function getMetricSettingById(metricID) {
+  var config = getAppConfig();
+  var settings = Array.isArray(config.metricSettings) ? config.metricSettings : [];
+  var errors = [];
+  var firstMatchIndex = -1;
+
+  for (var i = 0; i < settings.length; i++) {
+    if (!settings[i] || settings[i].metricID !== metricID) {
+      continue;
+    }
+    if (firstMatchIndex === -1) {
+      firstMatchIndex = i;
+    } else {
+      errors.push('Duplicate metricID found in metricSettings: ' + metricID + '. Using first match at index ' + firstMatchIndex + '.');
+    }
+  }
+
+  return {
+    setting: firstMatchIndex === -1 ? null : settings[firstMatchIndex],
+    index: firstMatchIndex,
+    errors: errors
+  };
+}
+
+function validateConfig() {
+  var config = getAppConfig();
+  var errors = [];
+  var warnings = [];
+
+  if (!config.trackingSheetName && !(config.sheetConfig && config.sheetConfig.trackingSheetName)) {
+    errors.push('Missing trackingSheetName.');
+  }
+
+  if (!config.dailyPointsID) {
+    warnings.push('dailyPointsID is not set.');
+  }
+  if (!config.cumulativePointsID) {
+    warnings.push('cumulativePointsID is not set.');
+  }
+
+  if (config.lateExtensionHours === undefined && !(config.rows && config.rows.lateExtension !== undefined)) {
+    warnings.push('lateExtensionHours is not set. Falling back to default behavior may be inconsistent.');
+  }
+
+  var settings = Array.isArray(config.metricSettings) ? config.metricSettings : [];
+  var metricIds = {};
+
+  for (var i = 0; i < settings.length; i++) {
+    var setting = settings[i] || {};
+    if (!setting.metricID) {
+      errors.push('metricSettings[' + i + '] is missing metricID.');
+      continue;
+    }
+    if (metricIds[setting.metricID] !== undefined) {
+      errors.push('Duplicate metricID in metricSettings: ' + setting.metricID + ' (indexes ' + metricIds[setting.metricID] + ' and ' + i + ').');
+    } else {
+      metricIds[setting.metricID] = i;
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: errors,
+    warnings: warnings
+  };
+}
+
+function normalizeMetricInput(data) {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  var normalized = [];
+  for (var i = 0; i < data.length; i++) {
+    var entry = data[i];
+
+    if (Array.isArray(entry)) {
+      if (entry.length === 0 || entry[0] === undefined || entry[0] === null || String(entry[0]).trim() === '') {
+        continue;
+      }
+      normalized.push(entry.length > 1 ? [String(entry[0]), entry[1]] : [String(entry[0])]);
+      continue;
+    }
+
+    if (entry && typeof entry === 'object' && entry.metricID !== undefined && entry.metricID !== null) {
+      var metricID = String(entry.metricID);
+      if (!metricID.trim()) {
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(entry, 'value')) {
+        normalized.push([metricID, entry.value]);
+      } else {
+        normalized.push([metricID]);
+      }
+      continue;
+    }
+
+    if (entry !== undefined && entry !== null && String(entry).trim() !== '') {
+      normalized.push([String(entry)]);
+    }
+  }
+
+  return normalized;
 }
 
 function applyKeySettings_(keySettings) {
