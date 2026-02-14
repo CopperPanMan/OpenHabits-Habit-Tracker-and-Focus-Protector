@@ -1115,6 +1115,11 @@ function recordMetricBySource_(rawData, options) {
         resultEntry.status = "written";
         resultEntry.value = summedValue;
         resultEntry.complete = true;
+        if (setting.streaks && setting.streaks.streaksID) {
+          var numberAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
+          writeStreakToSheet_(setting.streaks.streaksID, numberAddStreakValue, activeCol, trackingSheet);
+          resultEntry.streak = numberAddStreakValue;
+        }
         results.push(resultEntry);
         continue;
       }
@@ -1140,6 +1145,11 @@ function recordMetricBySource_(rawData, options) {
       resultEntry.status = "written";
       resultEntry.value = addedDuration;
       resultEntry.complete = true;
+      if (setting.streaks && setting.streaks.streaksID) {
+        var durationAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
+        writeStreakToSheet_(setting.streaks.streaksID, durationAddStreakValue, activeCol, trackingSheet);
+        resultEntry.streak = durationAddStreakValue;
+      }
       results.push(resultEntry);
       continue;
     }
@@ -1148,6 +1158,13 @@ function recordMetricBySource_(rawData, options) {
     resultEntry.status = "written";
     resultEntry.value = validated.value;
     resultEntry.complete = validated.value !== "" && validated.value !== null;
+
+    if (setting.streaks && setting.streaks.streaksID) {
+      var streakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
+      writeStreakToSheet_(setting.streaks.streaksID, streakValue, activeCol, trackingSheet);
+      resultEntry.streak = streakValue;
+    }
+
     results.push(resultEntry);
   }
 
@@ -1157,6 +1174,132 @@ function recordMetricBySource_(rawData, options) {
     errors: errors,
     warnings: warnings
   });
+}
+
+function calculateStreak_(metricID, activeColInput, lateExtensionInput, optionalSheet) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  var dataColumn = dataStartColumn || 3;
+  var resolvedActiveCol = Number(activeColInput) || ensureTodayColumn_(trackingSheet, new Date());
+  var extensionHours = lateExtensionInput !== undefined ? lateExtensionInput : (lateExtensionHours !== undefined ? lateExtensionHours : lateExtension);
+
+  var settingLookup = getMetricSettingById(metricID);
+  if (!settingLookup.setting) {
+    return 0;
+  }
+
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    return 0;
+  }
+
+  var row = rowLookup.row;
+  var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
+  var useScheduleFilter = scheduleDays.length > 0;
+  var streakCount = 0;
+
+  for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
+    if (!isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours)) {
+      continue;
+    }
+
+    var historicalValue = trackingSheet.getRange(row, col).getValue();
+    if (!isCompletedCellValue_(historicalValue)) {
+      break;
+    }
+
+    streakCount += 1;
+  }
+
+  var todayScheduled = isScheduledColumn_(trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
+  var todayValue = trackingSheet.getRange(row, resolvedActiveCol).getValue();
+
+  if (todayScheduled) {
+    return isCompletedCellValue_(todayValue) ? streakCount + 1 : 0;
+  }
+
+  return streakCount;
+}
+
+function writeStreakToSheet_(streaksID, streakValue, activeColInput, optionalSheet) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  var resolvedActiveCol = Number(activeColInput) || ensureTodayColumn_(trackingSheet, new Date());
+
+  if (!streaksID) {
+    return {
+      ok: false,
+      error: 'Missing streaksID.'
+    };
+  }
+
+  var rowLookup = findRowByMetricId_(streaksID, trackingSheet);
+  if (!rowLookup.row) {
+    return {
+      ok: false,
+      error: rowLookup.error || ('metricID not found in sheet: ' + streaksID)
+    };
+  }
+
+  trackingSheet.getRange(rowLookup.row, resolvedActiveCol).setValue(streakValue);
+  return {
+    ok: true,
+    row: rowLookup.row,
+    value: streakValue
+  };
+}
+
+function normalizeScheduledDays_(datesConfig) {
+  if (!Array.isArray(datesConfig) || datesConfig.length === 0) {
+    return [];
+  }
+
+  var seen = {};
+  var normalized = [];
+
+  for (var i = 0; i < datesConfig.length; i++) {
+    var entry = datesConfig[i];
+    var day = null;
+
+    if (Array.isArray(entry) && entry.length > 0) {
+      day = entry[0];
+    } else if (typeof entry === 'string') {
+      day = entry;
+    }
+
+    if (typeof day !== 'string') {
+      continue;
+    }
+
+    var normalizedDay = day.trim().toLowerCase();
+    if (!normalizedDay || seen[normalizedDay]) {
+      continue;
+    }
+
+    seen[normalizedDay] = true;
+    normalized.push(normalizedDay);
+  }
+
+  return normalized;
+}
+
+function isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours) {
+  if (!useScheduleFilter) {
+    return true;
+  }
+
+  var headerValue = trackingSheet.getRange(1, col).getValue();
+  var dateValue = headerValue instanceof Date ? headerValue : new Date(headerValue);
+
+  if (!(dateValue instanceof Date) || isNaN(dateValue.getTime())) {
+    return false;
+  }
+
+  var shiftedDate = new Date(dateValue.getTime() - Number(extensionHours || 0) * 60 * 60 * 1000);
+  var dayName = Utilities.formatDate(shiftedDate, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
+  return scheduleDays.indexOf(dayName) !== -1;
+}
+
+function isCompletedCellValue_(value) {
+  return !(value === '' || value === null);
 }
 
 function validateMetricValueForRecord_(metricType, rawValue) {
