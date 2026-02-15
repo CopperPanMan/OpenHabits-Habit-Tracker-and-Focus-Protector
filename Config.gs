@@ -7,6 +7,19 @@ function getAppConfig() {
     },
     trackingSheetName: "Tracking Data",
     writeToNotion: false,
+    notion: {
+      databaseIdsScriptProperty: "notionMetricDatabaseIDs",
+      pointBlockIdScriptProperty: "pointBlock",
+      insightBlockIdScriptProperty: "insightBlock",
+      propertyNames: {
+        metricId: "metricID",
+        status: "Status",
+        streak: "Streak",
+        pointMultiplier: "Point Multiplier",
+        points: "Points"
+      },
+      completeStatusName: "Complete"
+    },
     dailyPointsID: "point_total_today",
     cumulativePointsID: "point_total_alltime",
     lateExtensionHours: 5,
