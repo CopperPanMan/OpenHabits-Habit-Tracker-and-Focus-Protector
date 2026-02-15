@@ -1439,6 +1439,8 @@ function recordMetricBySource_(rawData, options) {
     incrementPointsRowById_(cumulativePointsID, totalPointsDelta, activeCol, trackingSheet, warnings);
   }
 
+  syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors, warnings, trackingSheet);
+
   return buildHabitsV2Response({
     ok: true,
     messages: messages,
@@ -1446,6 +1448,250 @@ function recordMetricBySource_(rawData, options) {
     errors: errors,
     warnings: warnings
   });
+}
+
+function syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors, warnings, trackingSheet) {
+  if (!writeToNotion) {
+    return;
+  }
+
+  var config = getAppConfig();
+  var notionConfig = config && config.notion ? config.notion : {};
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var databaseIdsRaw = scriptProperties.getProperty(notionConfig.databaseIdsScriptProperty || 'notionMetricDatabaseIDs');
+  var databaseIds = parseNotionDatabaseIds_(databaseIdsRaw);
+
+  if (!databaseIds.length) {
+    warnings.push('Notion sync skipped: no configured Notion database IDs.');
+    return;
+  }
+
+  var sourceIsNotion = !!(sourceOptions && sourceOptions.skipNotionStatusComplete);
+  var metricsUpdated = 0;
+  var eligibleMetricCount = 0;
+
+  for (var i = 0; i < results.length; i++) {
+    var result = results[i] || {};
+    if (!result.metricID || result.status !== 'written' && result.status !== 'kept_first') {
+      continue;
+    }
+
+    var settingLookup = getMetricSettingById(result.metricID);
+    var setting = settingLookup && settingLookup.setting ? settingLookup.setting : null;
+    if (!setting || !setting.writeToNotion) {
+      continue;
+    }
+
+    eligibleMetricCount++;
+    var syncOutcome = syncSingleMetricToNotion_(result, setting, notionConfig, databaseIds, sourceIsNotion);
+    if (syncOutcome.warnings && syncOutcome.warnings.length) {
+      Array.prototype.push.apply(warnings, syncOutcome.warnings);
+    }
+    if (syncOutcome.errors && syncOutcome.errors.length) {
+      Array.prototype.push.apply(errors, syncOutcome.errors);
+    }
+    metricsUpdated += syncOutcome.updatedCount || 0;
+  }
+
+  if (eligibleMetricCount > 0) {
+    updateNotionDashboardBlocks_(notionConfig, messages, errors, warnings, trackingSheet);
+  }
+
+  if (metricsUpdated > 0) {
+    messages.push('Notion task updates: ' + metricsUpdated + '.');
+  }
+}
+
+function syncSingleMetricToNotion_(result, setting, notionConfig, databaseIds, sourceIsNotion) {
+  var outcome = { updatedCount: 0, warnings: [], errors: [] };
+  var propertyNames = notionConfig && notionConfig.propertyNames ? notionConfig.propertyNames : {};
+  var metricIdPropertyName = propertyNames.metricId || 'metricID';
+  var matches = [];
+
+  for (var i = 0; i < databaseIds.length; i++) {
+    var pages = findNotionPagesByMetricId_(databaseIds[i], metricIdPropertyName, result.metricID);
+    Array.prototype.push.apply(matches, pages);
+  }
+
+  if (!matches.length) {
+    outcome.warnings.push('No Notion task found for metricID: ' + result.metricID);
+    return outcome;
+  }
+
+  if (matches.length > 1) {
+    outcome.errors.push('Duplicate Notion tasks found for metricID: ' + result.metricID + '. Updating all matches (' + matches.length + ').');
+  }
+
+  var properties = {};
+  var pointsName = propertyNames.points || 'Points';
+  var multiplierName = propertyNames.pointMultiplier || 'Point Multiplier';
+  var streakName = propertyNames.streak || 'Streak';
+  var statusName = propertyNames.status || 'Status';
+  var completeStatusName = notionConfig.completeStatusName || 'Complete';
+
+  properties[pointsName] = { number: roundToOneDecimal_(Number(result.metricPointsToday || 0)) };
+  properties[multiplierName] = { number: Number(result.multiplier || 1) };
+  if (result.streak !== undefined && result.streak !== null && result.streak !== '') {
+    properties[streakName] = { number: Number(result.streak) };
+  }
+  if (!sourceIsNotion) {
+    properties[statusName] = { status: { name: completeStatusName } };
+  }
+
+  for (var m = 0; m < matches.length; m++) {
+    try {
+      updateNotionPageProperties_(matches[m].id, properties);
+      outcome.updatedCount++;
+    } catch (error) {
+      outcome.errors.push('Failed Notion update for metricID ' + result.metricID + ': ' + error.message);
+    }
+  }
+
+  return outcome;
+}
+
+function parseNotionDatabaseIds_(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    var parsed = JSON.parse(rawValue);
+    if (Array.isArray(parsed)) {
+      return parsed.map(function (id) { return String(id || '').trim(); }).filter(function (id) { return !!id; });
+    }
+  } catch (error) {
+  }
+
+  return String(rawValue)
+    .split(',')
+    .map(function (id) { return id.trim(); })
+    .filter(function (id) { return !!id; });
+}
+
+function findNotionPagesByMetricId_(databaseId, metricIdPropertyName, metricID) {
+  var payload = {
+    filter: {
+      property: metricIdPropertyName,
+      rich_text: {
+        equals: metricID
+      }
+    },
+    page_size: 100
+  };
+
+  var response = notionApiRequest_('/v1/databases/' + normalizeNotionId_(databaseId) + '/query', 'post', payload);
+  return response && response.results ? response.results : [];
+}
+
+function updateNotionPageProperties_(pageId, properties) {
+  notionApiRequest_('/v1/pages/' + normalizeNotionId_(pageId), 'patch', {
+    properties: properties
+  });
+}
+
+function updateNotionDashboardBlocks_(notionConfig, messages, errors, warnings, trackingSheet) {
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var pointBlockId = scriptProperties.getProperty(notionConfig.pointBlockIdScriptProperty || 'pointBlock');
+  var insightBlockId = scriptProperties.getProperty(notionConfig.insightBlockIdScriptProperty || 'insightBlock');
+
+  if (pointBlockId) {
+    try {
+      var pointTotalToday = getCurrentPointsValueById_(dailyPointsID, activeCol, trackingSheet);
+      notionOverwriteBlockText_(pointBlockId, String(roundToOneDecimal_(pointTotalToday)));
+    } catch (error) {
+      warnings.push('Failed to update pointBlock: ' + error.message);
+    }
+  }
+
+  if (insightBlockId) {
+    try {
+      var insightLines = [];
+      if (Array.isArray(messages) && messages.length) {
+        insightLines.push(messages.join(' | '));
+      }
+      if (Array.isArray(errors) && errors.length) {
+        insightLines.push('Errors: ' + errors.join(' | '));
+      }
+      if (!insightLines.length) {
+        insightLines.push('No new insights.');
+      }
+      notionOverwriteBlockText_(insightBlockId, insightLines.join('\n'));
+    } catch (error2) {
+      warnings.push('Failed to update insightBlock: ' + error2.message);
+    }
+  }
+}
+
+function getCurrentPointsValueById_(metricID, col, trackingSheet) {
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    throw new Error(rowLookup.error || ('metricID not found in sheet: ' + metricID));
+  }
+
+  var value = trackingSheet.getRange(rowLookup.row, col).getValue();
+  var num = Number(value);
+  return isFinite(num) ? num : 0;
+}
+
+function roundToOneDecimal_(value) {
+  var numeric = Number(value);
+  if (!isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(numeric * 10) / 10;
+}
+
+function notionOverwriteBlockText_(blockId, text) {
+  var block = notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'get');
+  var blockType = block && block.type ? block.type : 'paragraph';
+  var richText = [{ type: 'text', text: { content: String(text) } }];
+  var payload = {};
+
+  if (blockType === 'heading_1' || blockType === 'heading_2' || blockType === 'heading_3' || blockType === 'paragraph' || blockType === 'bulleted_list_item' || blockType === 'numbered_list_item' || blockType === 'quote' || blockType === 'to_do') {
+    payload[blockType] = { rich_text: richText };
+    if (blockType === 'to_do') {
+      payload[blockType].checked = false;
+    }
+  } else {
+    payload.paragraph = { rich_text: richText };
+  }
+
+  notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'patch', payload);
+}
+
+function notionApiRequest_(path, method, payload) {
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var notionToken = scriptProperties.getProperty('notionAPIKey');
+  var notionVersion = scriptProperties.getProperty('notionVersion') || '2025-09-03';
+
+  if (!notionToken) {
+    throw new Error('Missing script property: notionAPIKey');
+  }
+
+  var options = {
+    method: String(method || 'get').toLowerCase(),
+    muteHttpExceptions: true,
+    headers: {
+      'Authorization': 'Bearer ' + notionToken,
+      'Notion-Version': notionVersion
+    }
+  };
+
+  if (payload !== undefined) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(payload);
+  }
+
+  var response = UrlFetchApp.fetch('https://api.notion.com' + path, options);
+  var code = response.getResponseCode();
+  var body = response.getContentText();
+
+  if (code < 200 || code >= 300) {
+    throw new Error('Notion API request failed (' + code + '): ' + body);
+  }
+
+  return body ? JSON.parse(body) : {};
 }
 
 function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSheet, activeColInput, multiplier, warnings) {
