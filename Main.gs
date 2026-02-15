@@ -1040,19 +1040,18 @@ function positivePushNotificationV2_() {
 function currentMetricStatusV2_(rawData) {
   var parsedData;
   var statuses = [];
-  var errors = [];
 
   try {
     parsedData = JSON.parse(rawData);
   } catch (error) {
-    return buildHabitsV2Response({
+    return JSON.stringify({
       ok: false,
       errors: ["Malformed JSON in data parameter."]
     });
   }
 
   if (!Array.isArray(parsedData)) {
-    return buildHabitsV2Response({
+    return JSON.stringify({
       ok: false,
       errors: ["Invalid data payload. Expected an array of metricIDs."]
     });
@@ -1061,14 +1060,12 @@ function currentMetricStatusV2_(rawData) {
   for (var i = 0; i < parsedData.length; i++) {
     var metricID = parsedData[i];
     if (typeof metricID !== 'string' || metricID.trim() === '') {
-      errors.push("Invalid metricID at data[" + i + "].");
       statuses.push(false);
       continue;
     }
 
     var rowLookup = findRowByMetricId_(metricID, sheet1);
     if (!rowLookup.row) {
-      errors.push(rowLookup.error || ("metricID not found in sheet: " + metricID));
       statuses.push(false);
       continue;
     }
@@ -1077,11 +1074,7 @@ function currentMetricStatusV2_(rawData) {
     statuses.push(isCompletedCellValue_(value));
   }
 
-  return buildHabitsV2Response({
-    ok: errors.length === 0,
-    results: statuses,
-    errors: errors
-  });
+  return JSON.stringify(statuses);
 }
 
 function isMetricEligibleForPPNNow_(metric, now, extensionHours) {
