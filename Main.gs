@@ -95,40 +95,60 @@ var appLockSettings = {};
 var nighttime_notifier_settings = [];
 var habitChain; //used for PPN V2 (updated version of ppndict)
 
+function parseRequest_(e) {
+  var parameters = e && e.parameters ? e.parameters : {};
+  return {
+    key: JSON.parse(parameters.key),
+    metricsRaw: parameters.metrics,
+    dataRaw: parameters.data
+  };
+}
+
+function respondText_(s) {
+  return ContentService.createTextOutput(s);
+}
+
+function respondJson_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 //main function
 function doGet(e) {
   var scriptProperties = PropertiesService.getScriptProperties();
+  var request = parseRequest_(e);
 
-  key = JSON.parse(e.parameters.key);
+  key = request.key;
   if (isHabitsV2Key_(key)) {
     loadSettings(key);
     activeCol = ensureTodayColumn_(sheet1, currentTimeStamp);
 
     if (key === "record_metric_iOS") {
-      return ContentService.createTextOutput(recordMetricIOS_(e && e.parameters ? e.parameters.data : undefined));
+      return respondText_(recordMetricIOS_(request.dataRaw));
     }
 
     if (key === "record_metric_notion") {
-      return ContentService.createTextOutput(recordMetricNotion_(e && e.parameters ? e.parameters.data : undefined));
+      return respondText_(recordMetricNotion_(request.dataRaw));
     }
 
     if (key === "positive_push_notification") {
-      return ContentService.createTextOutput(positivePushNotificationV2_());
+      return respondText_(positivePushNotificationV2_());
     }
 
     if (key === "current_metric_status") {
-      return ContentService.createTextOutput(currentMetricStatusV2_(e && e.parameters ? e.parameters.data : undefined));
+      return respondText_(currentMetricStatusV2_(request.dataRaw));
     }
 
-    var parsedHabitsV2Data = parseHabitsV2Data_(e && e.parameters ? e.parameters.data : undefined);
+    var parsedHabitsV2Data = parseHabitsV2Data_(request.dataRaw);
     if (!parsedHabitsV2Data.ok) {
-      return ContentService.createTextOutput(buildHabitsV2Response({
+      return respondText_(buildHabitsV2Response({
         ok: false,
         errors: parsedHabitsV2Data.errors
       }));
     }
 
-    return ContentService.createTextOutput(buildHabitsV2Response({
+    return respondText_(buildHabitsV2Response({
       ok: true,
       results: parsedHabitsV2Data.results
     }));
@@ -141,7 +161,7 @@ function doGet(e) {
   activeCol = findactiveCol();
   if (activeCol > lastCol) {updateAllRanges()}
 
-  var metrics = createMetricsArray(JSON.parse(e.parameters.metrics));
+  var metrics = createMetricsArray(JSON.parse(request.metricsRaw));
   //var metrics = createMetricsArray("the thing"); //"-54Ù8.1Ù6:30"
 
 
