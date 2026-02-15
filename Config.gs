@@ -102,6 +102,14 @@ function getAppConfig() {
         overrideKey: "app_closer"
       }
     },
+    lockoutsV2: {
+      globals: {
+        cumulativeScreentimeID: null,
+        barLength: 20,
+        presetCalendarName: ""
+      },
+      blocks: []
+    },
     messages: {
       firstLineMessage: [
         "Great Job!",
@@ -1007,11 +1015,28 @@ function getAppConfig() {
     },
     noMetricKeys: [
       "app_closer",
+      "app_closer_v2",
       "is_nfc_completed",
       "positive_push_notification",
       "habit_dashboard",
       "nighttime_notifier",
       "nighttime_away_notifier"
     ]
+  };
+}
+
+function getLockoutsV2Config_() {
+  var config = getAppConfig();
+  if (config && config.lockoutsV2) {
+    return config.lockoutsV2;
+  }
+
+  return {
+    globals: {
+      cumulativeScreentimeID: null,
+      barLength: 20,
+      presetCalendarName: ""
+    },
+    blocks: []
   };
 }

@@ -153,6 +153,21 @@ function doGet(e) {
       results: parsedHabitsV2Data.results
     }));
   }
+  if (key === "app_closer_v2") {
+    var lockoutsTrackingSheet = getTrackingSheet_();
+    var lockoutsTodayCol = getCurrentTrackingDayColumn_(lockoutsTrackingSheet);
+    return respondJson_(lockoutsV2_handleAppCloser_({
+      data: request.dataRaw
+    }, {
+      now: currentTimeStamp,
+      trackingSheet: lockoutsTrackingSheet,
+      todayCol: lockoutsTodayCol,
+      activeCol: lockoutsTodayCol,
+      tz: Session.getScriptTimeZone(),
+      config: getLockoutsV2Config_()
+    }));
+  }
+
   //key = "append_to_notion_inbox";
 
   var allMetricSettings = loadSettings(key);
