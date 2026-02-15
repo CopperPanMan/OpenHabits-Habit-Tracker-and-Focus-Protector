@@ -983,6 +983,7 @@ function recordMetricBySource_(rawData, options) {
   var results = [];
   var errors = [];
   var warnings = [];
+  var totalPointsDelta = 0;
   var trackingSheet;
 
   try {
@@ -1083,6 +1084,10 @@ function recordMetricBySource_(rawData, options) {
     var cell = trackingSheet.getRange(row, activeCol);
     var currentValue = cell.getValue();
     var isCurrentEmpty = currentValue === "" || currentValue === null;
+    var streakBeforeLog = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
+    var multiplier = getMultiplier_(metricID, streakBeforeLog);
+    var metricPointsDelta = 0;
+    var metricPointsToday = null;
 
     if (recordType === "keep_first" && !isCurrentEmpty) {
       resultEntry.status = "kept_first";
@@ -1094,9 +1099,12 @@ function recordMetricBySource_(rawData, options) {
 
     if (recordType === "add") {
       if (metricType !== "number" && metricType !== "duration") {
+        var addWarning = "Add recordType ignored for non-addable metric type (" + metricType + ") for metricID: " + metricID;
+        warnings.push(addWarning);
         resultEntry.status = "ignored";
         resultEntry.value = currentValue;
         resultEntry.complete = currentValue !== "" && currentValue !== null;
+        resultEntry.warnings = [addWarning];
         results.push(resultEntry);
         continue;
       }
@@ -1115,11 +1123,18 @@ function recordMetricBySource_(rawData, options) {
         resultEntry.status = "written";
         resultEntry.value = summedValue;
         resultEntry.complete = true;
+        metricPointsDelta = calculatePointsDelta_(metricID, metricType, summedValue, validated.value, multiplier);
+        metricPointsToday = calculatePointsDelta_(metricID, metricType, summedValue, null, multiplier);
+        writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings);
+        totalPointsDelta += metricPointsDelta;
         if (setting.streaks && setting.streaks.streaksID) {
           var numberAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
           writeStreakToSheet_(setting.streaks.streaksID, numberAddStreakValue, activeCol, trackingSheet);
           resultEntry.streak = numberAddStreakValue;
         }
+        resultEntry.multiplier = multiplier;
+        resultEntry.pointsDelta = metricPointsDelta;
+        resultEntry.metricPointsToday = metricPointsToday;
         results.push(resultEntry);
         continue;
       }
@@ -1145,11 +1160,18 @@ function recordMetricBySource_(rawData, options) {
       resultEntry.status = "written";
       resultEntry.value = addedDuration;
       resultEntry.complete = true;
+      metricPointsDelta = calculatePointsDelta_(metricID, metricType, addedDuration, validated.value, multiplier);
+      metricPointsToday = calculatePointsDelta_(metricID, metricType, addedDuration, null, multiplier);
+      writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings);
+      totalPointsDelta += metricPointsDelta;
       if (setting.streaks && setting.streaks.streaksID) {
         var durationAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
         writeStreakToSheet_(setting.streaks.streaksID, durationAddStreakValue, activeCol, trackingSheet);
         resultEntry.streak = durationAddStreakValue;
       }
+      resultEntry.multiplier = multiplier;
+      resultEntry.pointsDelta = metricPointsDelta;
+      resultEntry.metricPointsToday = metricPointsToday;
       results.push(resultEntry);
       continue;
     }
@@ -1158,6 +1180,10 @@ function recordMetricBySource_(rawData, options) {
     resultEntry.status = "written";
     resultEntry.value = validated.value;
     resultEntry.complete = validated.value !== "" && validated.value !== null;
+    metricPointsDelta = calculatePointsDelta_(metricID, metricType, validated.value, null, multiplier);
+    metricPointsToday = metricPointsDelta;
+    writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings);
+    totalPointsDelta += metricPointsDelta;
 
     if (setting.streaks && setting.streaks.streaksID) {
       var streakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
@@ -1165,7 +1191,16 @@ function recordMetricBySource_(rawData, options) {
       resultEntry.streak = streakValue;
     }
 
+    resultEntry.multiplier = multiplier;
+    resultEntry.pointsDelta = metricPointsDelta;
+    resultEntry.metricPointsToday = metricPointsToday;
+
     results.push(resultEntry);
+  }
+
+  if (totalPointsDelta !== 0) {
+    incrementPointsRowById_(dailyPointsID, totalPointsDelta, activeCol, trackingSheet, warnings);
+    incrementPointsRowById_(cumulativePointsID, totalPointsDelta, activeCol, trackingSheet, warnings);
   }
 
   return buildHabitsV2Response({
@@ -1174,6 +1209,109 @@ function recordMetricBySource_(rawData, options) {
     errors: errors,
     warnings: warnings
   });
+}
+
+function getMultiplier_(metricID, streakCountBeforeLog) {
+  var settingLookup = getMetricSettingById(metricID);
+  var pointsConfig = settingLookup.setting && settingLookup.setting.points ? settingLookup.setting.points : {};
+  var multiplierDays = parseStrictNumber_(pointsConfig.multiplierDays);
+  var maxMultiplier = parseStrictNumber_(pointsConfig.maxMultiplier);
+
+  if (multiplierDays === null || multiplierDays <= 0) {
+    multiplierDays = 1;
+  }
+  if (maxMultiplier === null) {
+    maxMultiplier = 1;
+  }
+  if (maxMultiplier === 0) {
+    return 0;
+  }
+
+  var streakPrior = parseStrictNumber_(streakCountBeforeLog);
+  if (streakPrior === null || streakPrior < 0) {
+    streakPrior = 0;
+  }
+
+  var effectiveStreak = Math.min(streakPrior, multiplierDays);
+  var multiplier = (((maxMultiplier - 1) / multiplierDays) * effectiveStreak) + 1;
+  return Math.min(multiplier, maxMultiplier);
+}
+
+function calculatePointsDelta_(metricID, type, value, addedValue, multiplier) {
+  var settingLookup = getMetricSettingById(metricID);
+  var pointsConfig = settingLookup.setting && settingLookup.setting.points ? settingLookup.setting.points : null;
+  if (!pointsConfig) {
+    return 0;
+  }
+
+  var basePoints = parseStrictNumber_(pointsConfig.value);
+  if (basePoints === null) {
+    return 0;
+  }
+
+  var resolvedMultiplier = parseStrictNumber_(multiplier);
+  if (resolvedMultiplier === null) {
+    resolvedMultiplier = 1;
+  }
+
+  if (type === "number") {
+    var numericValue = parseStrictNumber_(addedValue !== undefined && addedValue !== null ? addedValue : value);
+    if (numericValue === null) {
+      return 0;
+    }
+    return basePoints * numericValue * resolvedMultiplier;
+  }
+
+  if (type === "duration") {
+    var durationSource = addedValue !== undefined && addedValue !== null ? addedValue : value;
+    var durationSeconds = parseDurationToSeconds_(durationSource, false);
+    if (durationSeconds === null) {
+      return 0;
+    }
+    var roundedMinutes = Math.round(durationSeconds / 60);
+    return basePoints * roundedMinutes * resolvedMultiplier;
+  }
+
+  if (type === "timestamp" || type === "due_by") {
+    return basePoints * resolvedMultiplier;
+  }
+
+  return 0;
+}
+
+function writeMetricPointsRow_(setting, pointsValue, activeColInput, trackingSheet, warnings) {
+  if (!setting || !setting.points || !setting.points.pointsID) {
+    return;
+  }
+
+  var rowLookup = findRowByMetricId_(setting.points.pointsID, trackingSheet);
+  if (!rowLookup.row) {
+    warnings.push(rowLookup.error || ("metricID not found in sheet: " + setting.points.pointsID));
+    return;
+  }
+
+  trackingSheet.getRange(rowLookup.row, activeColInput).setValue(pointsValue);
+}
+
+function incrementPointsRowById_(metricID, delta, activeColInput, trackingSheet, warnings) {
+  if (!metricID) {
+    return;
+  }
+
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    warnings.push(rowLookup.error || ("metricID not found in sheet: " + metricID));
+    return;
+  }
+
+  var targetCell = trackingSheet.getRange(rowLookup.row, activeColInput);
+  var existingValue = targetCell.getValue();
+  var currentNumber = parseStoredNumberForAdd_(existingValue);
+  if (currentNumber === null) {
+    currentNumber = 0;
+  }
+
+  targetCell.setValue(currentNumber + delta);
 }
 
 function calculateStreak_(metricID, activeColInput, lateExtensionInput, optionalSheet) {
