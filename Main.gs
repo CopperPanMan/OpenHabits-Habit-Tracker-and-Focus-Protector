@@ -1073,6 +1073,22 @@ function recordMetricBySource_(rawData, options) {
     }
     resultEntry.row = row;
 
+    var dueByGate = evaluateDueByWriteGate_(setting, currentTimeStamp, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension);
+    if (dueByGate.warning) {
+      warnings.push(dueByGate.warning);
+      resultEntry.warnings = resultEntry.warnings || [];
+      resultEntry.warnings.push(dueByGate.warning);
+    }
+
+    if (dueByGate.isLate) {
+      resultEntry.status = "late_no_write";
+      resultEntry.complete = false;
+      resultEntry.pointsDelta = 0;
+      resultEntry.metricPointsToday = 0;
+      results.push(resultEntry);
+      continue;
+    }
+
     var validated = validateMetricValueForRecord_(metricType, tuple.length > 1 ? tuple[1] : null);
     if (!validated.ok) {
       entryErrors.push(validated.error);
@@ -1487,6 +1503,127 @@ function validateMetricValueForRecord_(metricType, rawValue) {
   return {
     ok: false,
     error: "Unsupported metric type: " + normalizedType
+  };
+}
+
+function evaluateDueByWriteGate_(setting, now, extensionHours) {
+  var metricType = setting && (setting.type || setting.unitType);
+  if (metricType !== 'due_by') {
+    return {
+      isLate: false
+    };
+  }
+
+  var dueByLookup = getDueByTimeForCurrentEffectiveDay_(setting && setting.dates, now || new Date(), extensionHours);
+  if (dueByLookup.warning) {
+    return {
+      isLate: false,
+      warning: dueByLookup.warning
+    };
+  }
+
+  if (!dueByLookup.dueDateTime) {
+    return {
+      isLate: false
+    };
+  }
+
+  return {
+    isLate: now.getTime() > dueByLookup.dueDateTime.getTime()
+  };
+}
+
+function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
+  if (!Array.isArray(datesConfig) || datesConfig.length === 0) {
+    return {
+      dueDateTime: null
+    };
+  }
+
+  var extensionMs = normalizeExtensionMs_(extensionHours);
+  var effectiveNow = new Date(now.getTime() - extensionMs);
+  var effectiveDayName = Utilities.formatDate(effectiveNow, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
+  var seenDays = {};
+
+  for (var i = 0; i < datesConfig.length; i++) {
+    var entry = datesConfig[i];
+    if (!Array.isArray(entry) || entry.length === 0) {
+      continue;
+    }
+
+    var dayValue = entry[0];
+    if (typeof dayValue !== 'string') {
+      continue;
+    }
+
+    var normalizedDay = dayValue.trim().toLowerCase();
+    if (!normalizedDay || seenDays[normalizedDay]) {
+      continue;
+    }
+    seenDays[normalizedDay] = true;
+
+    if (normalizedDay !== effectiveDayName) {
+      continue;
+    }
+
+    var dueByTime = entry.length > 1 ? entry[1] : null;
+    if (dueByTime === null || dueByTime === undefined || String(dueByTime).trim() === '') {
+      return {
+        dueDateTime: null
+      };
+    }
+
+    var parsedDueByTime = parseDueByTime_(dueByTime);
+    if (!parsedDueByTime) {
+      return {
+        dueDateTime: null,
+        warning: 'Invalid dueByTime for day ' + normalizedDay + ': ' + dueByTime
+      };
+    }
+
+    var dueDateTimeInEffectiveDay = new Date(
+      effectiveNow.getFullYear(),
+      effectiveNow.getMonth(),
+      effectiveNow.getDate(),
+      parsedDueByTime.hours,
+      parsedDueByTime.minutes,
+      0,
+      0
+    );
+
+    return {
+      dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs)
+    };
+  }
+
+  return {
+    dueDateTime: null
+  };
+}
+
+function normalizeExtensionMs_(extensionHours) {
+  var numericHours = Number(extensionHours);
+  if (!isFinite(numericHours) || numericHours < 0) {
+    numericHours = 0;
+  }
+
+  return numericHours * 60 * 60 * 1000;
+}
+
+function parseDueByTime_(dueByTime) {
+  if (typeof dueByTime !== 'string') {
+    return null;
+  }
+
+  var trimmed = dueByTime.trim();
+  var matches = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!matches) {
+    return null;
+  }
+
+  return {
+    hours: Number(matches[1]),
+    minutes: Number(matches[2])
   };
 }
 
