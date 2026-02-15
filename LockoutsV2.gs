@@ -1,52 +1,224 @@
 /**
- * Lockouts V2 skeleton module.
+ * Lockouts V2 module.
  *
- * NOTE:
- * - This file intentionally defines only placeholder helpers.
- * - No calls are wired into doGet(e) yet.
- * - Existing app_closer behavior remains unchanged.
+ * This file contains read-only evaluation helpers for `key="app_closer_v2"`.
+ * Existing V1 app_closer behavior is intentionally untouched.
  */
 
 /**
- * Placeholder handler for the Lockouts V2 app_closer flow.
+ * Handler for the Lockouts V2 app_closer flow.
  *
  * @param {*} payload Lockouts V2 payload (preset override, app info, etc.)
  * @param {*} ctx Execution context object for shared services/helpers.
  * @return {!Object} Lockouts V2 response-shaped JSON object.
  */
 function lockoutsV2_handleAppCloser_(payload, ctx) {
-  return {
-    status: 'error',
+  var context = ctx || {};
+  var debugErrors = [];
+  var now = context.now instanceof Date ? context.now : new Date();
+  var response = {
+    status: 'allowed',
+    block: null,
     ui: {
       showMessage: false,
       message: ''
     },
-    block: null,
     shortcut: {
       name: '',
       input: ''
     },
     debug: {
       preset: null,
-      serverTimeISO: new Date().toISOString(),
-      errors: ['Lockouts V2 skeleton is defined but not wired into doGet(e).']
+      serverTimeISO: now.toISOString(),
+      errors: []
     }
+  };
+
+  var config = context.config || getLockoutsV2Config_();
+  var configValidation = lockoutsV2_validateConfig_(config);
+  if (!configValidation.isValid) {
+    response.status = 'error';
+    debugErrors = debugErrors.concat(configValidation.errors);
+    response.debug.errors = debugErrors;
+    return response;
+  }
+
+  var presetResolution = lockoutsV2_resolvePreset_(payload, {
+    now: now,
+    config: config,
+    calendarLookup: context.calendarLookup
+  });
+  debugErrors = debugErrors.concat(presetResolution.errors);
+  response.debug.preset = presetResolution.preset;
+
+  var evalResult = lockoutsV2_evaluateBlocks_(
+    now,
+    presetResolution.preset,
+    config.blocks,
+    context
+  );
+  debugErrors = debugErrors.concat(evalResult.debugErrors || []);
+
+  if (evalResult.status === 'error') {
+    response.status = 'error';
+    response.debug.errors = debugErrors;
+    return response;
+  }
+
+  if (evalResult.status === 'blocked' && evalResult.winningBlock) {
+    var blockedPayload = lockoutsV2_buildBlockedUi_(now, evalResult.winningBlock, evalResult.uiComputedFields, config, context);
+    response.status = 'blocked';
+    response.block = blockedPayload.block;
+    response.ui = blockedPayload.ui;
+    response.shortcut = blockedPayload.shortcut;
+    debugErrors = debugErrors.concat(blockedPayload.errors);
+    response.debug.errors = debugErrors;
+    return response;
+  }
+
+  response.status = 'allowed';
+  response.ui = lockoutsV2_buildAllowedUi_(now, presetResolution.preset, config, context, debugErrors);
+  response.debug.errors = debugErrors;
+  return {
+    status: response.status,
+    block: response.block,
+    ui: response.ui,
+    shortcut: response.shortcut,
+    debug: response.debug
   };
 }
 
 /**
- * Placeholder preset resolver for Lockouts V2.
+ * Preset resolver for Lockouts V2.
  *
  * @param {*} payload Lockouts V2 payload.
  * @param {*} ctx Execution context object.
  * @return {{preset: (string|null), source: string, errors: !Array<string>}}
  */
 function lockoutsV2_resolvePreset_(payload, ctx) {
+  var context = ctx || {};
+  var config = context.config || {};
+  var errors = [];
+  var overridePreset = lockoutsV2_parsePresetOverride_(payload && payload.data);
+
+  if (overridePreset) {
+    return {
+      preset: overridePreset,
+      source: 'override',
+      errors: errors
+    };
+  }
+
+  var calendarName = config.globals && config.globals.presetCalendarName;
+  if (!calendarName) {
+    return {
+      preset: null,
+      source: 'none',
+      errors: errors
+    };
+  }
+
+  var calendarResult = lockoutsV2_lookupCalendarPreset_(calendarName, context.now, config, context.calendarLookup);
+  errors = errors.concat(calendarResult.errors || []);
   return {
-    preset: null,
-    source: 'none',
-    errors: []
+    preset: calendarResult.preset,
+    source: calendarResult.preset ? 'calendar' : 'none',
+    errors: errors
   };
+}
+
+function lockoutsV2_parsePresetOverride_(rawData) {
+  if (rawData == null) {
+    return null;
+  }
+
+  var trimmed = String(rawData).trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if ((trimmed.charAt(0) === '"' && trimmed.charAt(trimmed.length - 1) === '"') ||
+      (trimmed.charAt(0) === '\'' && trimmed.charAt(trimmed.length - 1) === '\'')) {
+    try {
+      var parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'string' && parsed.trim()) {
+        return parsed.trim();
+      }
+    } catch (err) {
+      // Best-effort only; fall through to plain string handling.
+    }
+  }
+
+  return trimmed;
+}
+
+function lockoutsV2_lookupCalendarPreset_(calendarName, now, config, overrideLookupFn) {
+  var errors = [];
+  var presetNames = lockoutsV2_getPresetNamesFromBlocks_(config && config.blocks);
+  var resolvedPreset = null;
+
+  try {
+    var lookupFn = typeof overrideLookupFn === 'function' ? overrideLookupFn : lockoutsV2_defaultCalendarLookup_;
+    var matches = lookupFn(calendarName, now, presetNames) || [];
+    if (matches.length > 1) {
+      errors.push('Multiple preset calendar events matched; using first: ' + matches.join(', '));
+    }
+    if (matches.length > 0) {
+      resolvedPreset = matches[0];
+    }
+  } catch (error) {
+    errors.push('Preset calendar lookup failed: ' + (error && error.message ? error.message : String(error)));
+  }
+
+  return {
+    preset: resolvedPreset,
+    errors: errors
+  };
+}
+
+function lockoutsV2_defaultCalendarLookup_(calendarName, now, presetNames) {
+  var calendars = CalendarApp.getCalendarsByName(String(calendarName));
+  if (!calendars || calendars.length === 0) {
+    return [];
+  }
+
+  var localNow = now instanceof Date ? now : new Date();
+  var events = calendars[0].getEventsForDay(localNow);
+  var validPreset = {};
+  for (var i = 0; i < presetNames.length; i++) {
+    validPreset[presetNames[i]] = true;
+  }
+
+  var matches = [];
+  for (var e = 0; e < events.length; e++) {
+    var title = String(events[e].getTitle() || '').trim();
+    if (title && validPreset[title]) {
+      matches.push(title);
+    }
+  }
+
+  return matches;
+}
+
+function lockoutsV2_getPresetNamesFromBlocks_(blocks) {
+  var list = [];
+  var seen = {};
+  var effectiveBlocks = Array.isArray(blocks) ? blocks : [];
+  for (var i = 0; i < effectiveBlocks.length; i++) {
+    var presets = effectiveBlocks[i] && effectiveBlocks[i].presets;
+    if (!Array.isArray(presets)) {
+      continue;
+    }
+    for (var j = 0; j < presets.length; j++) {
+      var preset = String(presets[j] || '').trim();
+      if (!preset || seen[preset]) {
+        continue;
+      }
+      seen[preset] = true;
+      list.push(preset);
+    }
+  }
+  return list;
 }
 
 /**
@@ -812,6 +984,213 @@ function lockoutsV2_humanizeMinutes_(mins) {
   var hours = Math.floor(rounded / 60);
   var minutes = rounded % 60;
   return minutes === 0 ? (hours + 'h') : (hours + 'h ' + minutes + 'm');
+}
+
+function lockoutsV2_validateConfig_(config) {
+  var errors = [];
+  if (!config || typeof config !== 'object') {
+    return {
+      isValid: false,
+      errors: ['Missing Lockouts V2 config object.']
+    };
+  }
+
+  if (!Array.isArray(config.blocks)) {
+    errors.push('Lockouts V2 config.blocks must be an array.');
+  }
+
+  var globals = config.globals || {};
+  if (!isFinite(Number(globals.barLength))) {
+    errors.push('Lockouts V2 globals.barLength must be numeric.');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors: errors
+  };
+}
+
+function lockoutsV2_buildBlockedUi_(now, block, uiComputedFields, config, ctx) {
+  var blockOn = block.onBlock || {};
+  var globals = (config && config.globals) || {};
+  var barLength = Number(globals.barLength) || 20;
+  var computed = uiComputedFields || {};
+  var ui = {
+    showMessage: true,
+    message: ''
+  };
+  var tokenMap = lockoutsV2_buildTokenMap_(now, block, computed, barLength, ctx);
+  var messageTemplate = typeof blockOn.message === 'string' ? blockOn.message : '';
+  var finalMessage = lockoutsV2_tokenSubstitute_(messageTemplate, tokenMap);
+
+  ui.message = finalMessage;
+  lockoutsV2_mergeUiFields_(ui, tokenMap);
+
+  return {
+    block: {
+      id: String(block.id || ''),
+      type: String(block.type || ''),
+      message: finalMessage
+    },
+    ui: ui,
+    shortcut: {
+      name: String(blockOn.shortcutName || ''),
+      input: String(blockOn.shortcutInput || '')
+    },
+    errors: []
+  };
+}
+
+function lockoutsV2_buildAllowedUi_(now, resolvedPreset, config, ctx, debugErrors) {
+  var globals = (config && config.globals) || {};
+  var barLength = Number(globals.barLength) || 20;
+  var blocks = Array.isArray(config && config.blocks) ? config.blocks : [];
+  var tz = ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone();
+
+  var durationCtx = lockoutsV2_findFirstApplicableDurationContext_(now, resolvedPreset, blocks, ctx, tz);
+  if (durationCtx) {
+    var durationTokenMap = lockoutsV2_buildTokenMap_(now, durationCtx.block, durationCtx.uiComputedFields, barLength, ctx);
+    var remainingMinutes = Math.max(0, Number(durationTokenMap.maxMinutes || 0) - Number(durationTokenMap.usedMinutes || 0));
+    return {
+      showMessage: true,
+      message: String(durationTokenMap.screenTimeBar || '') + '\n' +
+        String(durationTokenMap.usedHuman || '0m') + ' used, ' +
+        lockoutsV2_humanizeMinutes_(remainingMinutes) + ' remaining',
+      usedMinutes: durationTokenMap.usedMinutes,
+      maxMinutes: durationTokenMap.maxMinutes,
+      allowedNowMinutes: durationTokenMap.allowedNowMinutes,
+      screenTimeBar: durationTokenMap.screenTimeBar,
+      endTimeISO: durationTokenMap.endTimeISO
+    };
+  }
+
+  var cumulativeMetricID = globals.cumulativeScreentimeID;
+  if (cumulativeMetricID) {
+    var usedMinutes = lockoutsV2_readDurationMinutesByMetricID_(cumulativeMetricID, ctx);
+    if (usedMinutes == null) {
+      debugErrors.push('cumulativeScreentimeID metric missing/invalid: ' + cumulativeMetricID);
+    } else {
+      var capped = Math.max(0, Math.min(24 * 60, usedMinutes));
+      var screenTimeBar = lockoutsV2_renderBar_({
+        usedMinutes: capped,
+        maxMinutes: 24 * 60,
+        allowedNowMinutes: 24 * 60,
+        barLength: barLength,
+        showMarker: false
+      });
+      return {
+        showMessage: true,
+        message: screenTimeBar + '\n' + lockoutsV2_humanizeMinutes_(usedMinutes) + ' used',
+        usedMinutes: usedMinutes,
+        maxMinutes: 24 * 60,
+        allowedNowMinutes: 24 * 60,
+        screenTimeBar: screenTimeBar
+      };
+    }
+  }
+
+  return {
+    showMessage: false,
+    message: ''
+  };
+}
+
+function lockoutsV2_findFirstApplicableDurationContext_(now, resolvedPreset, blocks, ctx, tz) {
+  var effectiveBlocks = Array.isArray(blocks) ? blocks : [];
+  for (var i = 0; i < effectiveBlocks.length; i++) {
+    var block = effectiveBlocks[i];
+    if (!block || block.type !== 'duration_block') {
+      continue;
+    }
+
+    if (resolvedPreset != null) {
+      if (!Array.isArray(block.presets) || block.presets.indexOf(resolvedPreset) === -1) {
+        continue;
+      }
+    }
+
+    var validation = lockoutsV2_validateBlock_(block);
+    if (!validation.isValid) {
+      continue;
+    }
+
+    if (!lockoutsV2_isNowInTimesWindow_(now, block.times, tz)) {
+      continue;
+    }
+
+    var durationEval = lockoutsV2_evaluateDurationBlock_(now, block, ctx || {}, tz);
+    if (durationEval.errors && durationEval.errors.length > 0) {
+      continue;
+    }
+
+    return {
+      block: block,
+      uiComputedFields: durationEval.uiComputedFields || {}
+    };
+  }
+
+  return null;
+}
+
+function lockoutsV2_buildTokenMap_(now, block, uiComputedFields, barLength, ctx) {
+  var computed = uiComputedFields || {};
+  var tokenMap = {
+    usedMinutes: computed.usedMinutes,
+    maxMinutes: computed.maxMinutes,
+    allowedNowMinutes: computed.allowedNowMinutes,
+    usedHuman: computed.usedHuman,
+    maxHuman: computed.maxHuman,
+    allowedNowHuman: computed.allowedNowHuman,
+    screenTimeBar: '',
+    remainingMinutes: null,
+    remainingHuman: null,
+    endTime: '',
+    endTimeISO: ''
+  };
+
+  if (computed.usedMinutes != null && computed.maxMinutes != null) {
+    tokenMap.remainingMinutes = Math.max(0, Number(computed.maxMinutes) - Number(computed.usedMinutes));
+    tokenMap.remainingHuman = lockoutsV2_humanizeMinutes_(tokenMap.remainingMinutes);
+    tokenMap.screenTimeBar = lockoutsV2_renderBar_({
+      usedMinutes: computed.usedMinutes,
+      maxMinutes: computed.maxMinutes,
+      allowedNowMinutes: computed.allowedNowMinutes,
+      barLength: barLength,
+      showMarker: computed.rationingOn === true
+    });
+  }
+
+  if (block && block.type === 'firstXMinutesAfterTimestamp_block' && computed.cutoffISO) {
+    var tz = ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone();
+    var cutoffDate = new Date(computed.cutoffISO);
+    tokenMap.endTimeISO = cutoffDate.toISOString();
+    tokenMap.endTime = Utilities.formatDate(cutoffDate, tz, 'h:mm a');
+  } else if (block && block.type === 'duration_block' && block.times) {
+    var bounds = lockoutsV2_getWindowBoundsForNow_(now, block.times, ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone());
+    tokenMap.endTimeISO = bounds.windowEnd.toISOString();
+    tokenMap.endTime = Utilities.formatDate(bounds.windowEnd, ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone(), 'h:mm a');
+  }
+
+  tokenMap.rationMarker = computed.rationingOn === true ? '·' : '';
+  return tokenMap;
+}
+
+function lockoutsV2_mergeUiFields_(ui, tokenMap) {
+  if (tokenMap.usedMinutes != null) {
+    ui.usedMinutes = tokenMap.usedMinutes;
+  }
+  if (tokenMap.maxMinutes != null) {
+    ui.maxMinutes = tokenMap.maxMinutes;
+  }
+  if (tokenMap.allowedNowMinutes != null) {
+    ui.allowedNowMinutes = tokenMap.allowedNowMinutes;
+  }
+  if (tokenMap.screenTimeBar) {
+    ui.screenTimeBar = tokenMap.screenTimeBar;
+  }
+  if (tokenMap.endTimeISO) {
+    ui.endTimeISO = tokenMap.endTimeISO;
+  }
 }
 
 /**
