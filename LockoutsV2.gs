@@ -194,15 +194,438 @@ function lockoutsV2__debugTimesTests_() {
 }
 
 /**
- * Placeholder block validation helper.
+ * Validates a Lockouts V2 block config object.
  *
  * @param {!Object} block Lockouts V2 block configuration object.
- * @return {{ok: boolean, errors: !Array<string>}}
+ * @return {{isValid: boolean, errors: !Array<string>}}
  */
 function lockoutsV2_validateBlock_(block) {
+  var errors = [];
+  var allowedTypes = {
+    duration_block: true,
+    task_block: true,
+    firstXMinutesAfterTimestamp_block: true
+  };
+
+  if (!block || typeof block !== 'object') {
+    return {
+      isValid: false,
+      errors: ['Block must be an object.']
+    };
+  }
+
+  if (typeof block.id !== 'string' || block.id.trim() === '') {
+    errors.push('Missing required field: id (non-empty string).');
+  }
+
+  if (typeof block.type !== 'string' || !allowedTypes[block.type]) {
+    errors.push('Missing/invalid required field: type.');
+  }
+
+  if (!block.times || typeof block.times !== 'object') {
+    errors.push('Missing required field: times.');
+  } else {
+    if (lockoutsV2_parseHHMMToMinutes_(block.times.beg) == null) {
+      errors.push('Invalid required field: times.beg (HH:MM).');
+    }
+    if (lockoutsV2_parseHHMMToMinutes_(block.times.end) == null) {
+      errors.push('Invalid required field: times.end (HH:MM).');
+    }
+  }
+
+  if (block.presets !== undefined && !Array.isArray(block.presets)) {
+    errors.push('Invalid field: presets must be an array when provided.');
+  }
+
+  var typeSpecific = block.typeSpecific || {};
+
+  if (block.type === 'task_block') {
+    if (!Array.isArray(typeSpecific.task_block_IDs) || typeSpecific.task_block_IDs.length === 0) {
+      errors.push('task_block requires typeSpecific.task_block_IDs (non-empty array).');
+    }
+  }
+
+  if (block.type === 'duration_block') {
+    var durationCfg = typeSpecific.duration;
+    if (!durationCfg || typeof durationCfg !== 'object') {
+      errors.push('duration_block requires typeSpecific.duration object.');
+    } else {
+      var maxMinutes = Number(durationCfg.maxMinutes);
+      if (!isFinite(maxMinutes) || maxMinutes < 0) {
+        errors.push('duration_block requires typeSpecific.duration.maxMinutes >= 0.');
+      }
+
+      if (typeof durationCfg.screenTimeID !== 'string' || durationCfg.screenTimeID.trim() === '') {
+        errors.push('duration_block requires typeSpecific.duration.screenTimeID.');
+      }
+
+      if (durationCfg.rationing !== undefined && durationCfg.rationing !== null) {
+        if (typeof durationCfg.rationing !== 'object') {
+          errors.push('duration_block rationing must be an object when provided.');
+        } else {
+          if (durationCfg.rationing.isON !== undefined && typeof durationCfg.rationing.isON !== 'boolean') {
+            errors.push('duration_block rationing.isON must be boolean when provided.');
+          }
+          if (durationCfg.rationing.begMinutes !== undefined && !isFinite(Number(durationCfg.rationing.begMinutes))) {
+            errors.push('duration_block rationing.begMinutes must be numeric when provided.');
+          }
+          if (durationCfg.rationing.endMinutes !== undefined && !isFinite(Number(durationCfg.rationing.endMinutes))) {
+            errors.push('duration_block rationing.endMinutes must be numeric when provided.');
+          }
+        }
+      }
+    }
+  }
+
+  if (block.type === 'firstXMinutesAfterTimestamp_block') {
+    var firstXCfg = typeSpecific.firstXMinutes;
+    if (!firstXCfg || typeof firstXCfg !== 'object') {
+      errors.push('firstXMinutesAfterTimestamp_block requires typeSpecific.firstXMinutes object.');
+    } else {
+      var xMinutes = Number(firstXCfg.minutes);
+      if (!isFinite(xMinutes) || xMinutes < 0) {
+        errors.push('firstXMinutesAfterTimestamp_block requires firstXMinutes.minutes >= 0.');
+      }
+      if (typeof firstXCfg.timestampID !== 'string' || firstXCfg.timestampID.trim() === '') {
+        errors.push('firstXMinutesAfterTimestamp_block requires firstXMinutes.timestampID.');
+      }
+    }
+  }
+
   return {
-    ok: true,
+    isValid: errors.length === 0,
+    errors: errors
+  };
+}
+
+/**
+ * Evaluates Lockouts V2 blocks and returns first matching block.
+ *
+ * @param {!Date} now Current time.
+ * @param {(string|null)} preset Resolved preset, null means no preset filtering.
+ * @param {!Array<!Object>} blocks Lockout block configs in priority order.
+ * @param {!Object=} ctx Context overrides for reads/timezone.
+ * @return {{status:string,winningBlock:(Object|null),uiComputedFields:Object,debugErrors:!Array<string>}}
+ */
+function lockoutsV2_evaluateBlocks_(now, preset, blocks, ctx) {
+  var context = ctx || {};
+  var effectiveNow = now instanceof Date ? now : new Date(now);
+  var effectiveBlocks = Array.isArray(blocks) ? blocks : [];
+  var debugErrors = [];
+  var uiComputedFields = {};
+  var tz = context.tz || Session.getScriptTimeZone();
+
+  if (!(effectiveNow instanceof Date) || isNaN(effectiveNow.getTime())) {
+    return {
+      status: 'error',
+      winningBlock: null,
+      uiComputedFields: {},
+      debugErrors: ['Invalid now value passed to lockoutsV2_evaluateBlocks_.']
+    };
+  }
+
+  for (var i = 0; i < effectiveBlocks.length; i++) {
+    var block = effectiveBlocks[i];
+    var blockId = block && block.id ? String(block.id) : ('index_' + i);
+
+    if (preset != null) {
+      if (!Array.isArray(block && block.presets) || block.presets.indexOf(preset) === -1) {
+        continue;
+      }
+    }
+
+    var validation = lockoutsV2_validateBlock_(block);
+    if (!validation.isValid) {
+      debugErrors.push('Block ' + blockId + ' invalid: ' + validation.errors.join(' | '));
+      continue;
+    }
+
+    if (!lockoutsV2_isNowInTimesWindow_(effectiveNow, block.times, tz)) {
+      continue;
+    }
+
+    if (block.type === 'task_block') {
+      var taskEval = lockoutsV2_evaluateTaskBlock_(block, context);
+      debugErrors = debugErrors.concat(taskEval.errors);
+      if (taskEval.shouldBlock) {
+        uiComputedFields = taskEval.uiComputedFields;
+        return {
+          status: 'blocked',
+          winningBlock: block,
+          uiComputedFields: uiComputedFields,
+          debugErrors: debugErrors
+        };
+      }
+      continue;
+    }
+
+    if (block.type === 'duration_block') {
+      var durationEval = lockoutsV2_evaluateDurationBlock_(effectiveNow, block, context, tz);
+      debugErrors = debugErrors.concat(durationEval.errors);
+      if (durationEval.shouldBlock) {
+        uiComputedFields = durationEval.uiComputedFields;
+        return {
+          status: 'blocked',
+          winningBlock: block,
+          uiComputedFields: uiComputedFields,
+          debugErrors: debugErrors
+        };
+      }
+      continue;
+    }
+
+    if (block.type === 'firstXMinutesAfterTimestamp_block') {
+      var firstXEval = lockoutsV2_evaluateFirstXAfterTimestampBlock_(effectiveNow, block, context);
+      debugErrors = debugErrors.concat(firstXEval.errors);
+      if (firstXEval.shouldBlock) {
+        uiComputedFields = firstXEval.uiComputedFields;
+        return {
+          status: 'blocked',
+          winningBlock: block,
+          uiComputedFields: uiComputedFields,
+          debugErrors: debugErrors
+        };
+      }
+      continue;
+    }
+  }
+
+  return {
+    status: 'allowed',
+    winningBlock: null,
+    uiComputedFields: uiComputedFields,
+    debugErrors: debugErrors
+  };
+}
+
+function lockoutsV2_evaluateTaskBlock_(block, ctx) {
+  var metricIDs = block.typeSpecific.task_block_IDs;
+  var incompleteMetricIDs = [];
+  var errors = [];
+
+  for (var i = 0; i < metricIDs.length; i++) {
+    var metricID = String(metricIDs[i] || '').trim();
+    if (!metricID) {
+      continue;
+    }
+
+    var cellValue = lockoutsV2_readTodayValueByMetricID_(metricID, ctx);
+    if (!cellValue.found) {
+      errors.push('task_block metric not found: ' + metricID);
+      incompleteMetricIDs.push(metricID);
+      continue;
+    }
+
+    if (!isCompletedCellValue_(cellValue.value)) {
+      incompleteMetricIDs.push(metricID);
+    }
+  }
+
+  return {
+    shouldBlock: incompleteMetricIDs.length > 0,
+    uiComputedFields: {
+      incompleteMetricIDs: incompleteMetricIDs
+    },
+    errors: errors
+  };
+}
+
+function lockoutsV2_evaluateDurationBlock_(now, block, ctx, tz) {
+  var durationCfg = block.typeSpecific.duration;
+  var usedMinutes = lockoutsV2_readDurationMinutesByMetricID_(durationCfg.screenTimeID, ctx);
+  var errors = [];
+
+  if (usedMinutes == null) {
+    errors.push('duration_block metric missing/invalid: ' + durationCfg.screenTimeID);
+    return {
+      shouldBlock: false,
+      uiComputedFields: {},
+      errors: errors
+    };
+  }
+
+  var maxMinutes = Math.max(0, Number(durationCfg.maxMinutes) || 0);
+  var rationing = durationCfg.rationing || {};
+  var rationingOn = rationing.isON === true;
+  var allowedNowMinutes = maxMinutes;
+
+  if (rationingOn) {
+    var bounds = lockoutsV2_getWindowBoundsForNow_(now, block.times, tz);
+    allowedNowMinutes = lockoutsV2_computeAllowedSoFar_(
+      now,
+      bounds.windowStart,
+      bounds.windowEnd,
+      maxMinutes,
+      rationing
+    );
+  }
+
+  var ui = {
+    usedMinutes: usedMinutes,
+    maxMinutes: maxMinutes,
+    allowedNowMinutes: allowedNowMinutes,
+    usedHuman: lockoutsV2_humanizeMinutes_(usedMinutes),
+    maxHuman: lockoutsV2_humanizeMinutes_(maxMinutes),
+    allowedNowHuman: lockoutsV2_humanizeMinutes_(allowedNowMinutes),
+    rationingOn: rationingOn
+  };
+
+  return {
+    shouldBlock: usedMinutes >= allowedNowMinutes,
+    uiComputedFields: ui,
+    errors: errors
+  };
+}
+
+function lockoutsV2_evaluateFirstXAfterTimestampBlock_(now, block, ctx) {
+  var config = block.typeSpecific.firstXMinutes;
+  var timestampLookup = lockoutsV2_readTodayValueByMetricID_(config.timestampID, ctx);
+  if (!timestampLookup.found || timestampLookup.value === '' || timestampLookup.value === null) {
+    return {
+      shouldBlock: false,
+      uiComputedFields: {},
+      errors: []
+    };
+  }
+
+  var timestamp = timestampLookup.value instanceof Date ? timestampLookup.value : new Date(timestampLookup.value);
+  if (!(timestamp instanceof Date) || isNaN(timestamp.getTime())) {
+    return {
+      shouldBlock: false,
+      uiComputedFields: {},
+      errors: ['firstXMinutes timestamp invalid for metricID: ' + config.timestampID]
+    };
+  }
+
+  var xMinutes = Math.max(0, Number(config.minutes) || 0);
+  var cutoff = new Date(timestamp.getTime() + xMinutes * 60000);
+  return {
+    shouldBlock: now.getTime() < cutoff.getTime(),
+    uiComputedFields: {
+      timestampISO: timestamp.toISOString(),
+      cutoffISO: cutoff.toISOString(),
+      remainingMinutes: Math.max(0, (cutoff.getTime() - now.getTime()) / 60000)
+    },
     errors: []
+  };
+}
+
+function lockoutsV2_readTodayValueByMetricID_(metricID, ctx) {
+  var context = ctx || {};
+  var sourceMap = context.todayValuesByMetricID;
+  if (sourceMap && Object.prototype.hasOwnProperty.call(sourceMap, metricID)) {
+    return {
+      found: true,
+      value: sourceMap[metricID]
+    };
+  }
+
+  var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
+  var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup || !rowLookup.row) {
+    return {
+      found: false,
+      value: null
+    };
+  }
+
+  return {
+    found: true,
+    value: trackingSheet.getRange(rowLookup.row, todayCol).getValue()
+  };
+}
+
+function lockoutsV2_getWindowBoundsForNow_(now, times, tz) {
+  var effectiveTz = tz || Session.getScriptTimeZone();
+  var year = Number(Utilities.formatDate(now, effectiveTz, 'yyyy'));
+  var month = Number(Utilities.formatDate(now, effectiveTz, 'M')) - 1;
+  var day = Number(Utilities.formatDate(now, effectiveTz, 'd'));
+  var nowMinutes = Number(Utilities.formatDate(now, effectiveTz, 'H')) * 60 + Number(Utilities.formatDate(now, effectiveTz, 'm'));
+  var begMinutes = lockoutsV2_parseHHMMToMinutes_(times.beg);
+  var endMinutes = lockoutsV2_parseHHMMToMinutes_(times.end);
+
+  var dayMs = 24 * 60 * 60 * 1000;
+  var start = new Date(year, month, day, Math.floor(begMinutes / 60), begMinutes % 60, 0, 0);
+  var end = new Date(year, month, day, Math.floor(endMinutes / 60), endMinutes % 60, 0, 0);
+
+  if (begMinutes > endMinutes && nowMinutes < endMinutes) {
+    start = new Date(start.getTime() - dayMs);
+  }
+  if (begMinutes > endMinutes && nowMinutes >= begMinutes) {
+    end = new Date(end.getTime() + dayMs);
+  }
+  if (begMinutes === endMinutes) {
+    end = new Date(start.getTime() + dayMs);
+  }
+
+  return {
+    windowStart: start,
+    windowEnd: end
+  };
+}
+
+/**
+ * Debug helper for block evaluation using in-memory metric values.
+ */
+function lockoutsV2__debugEvalTests_() {
+  var now = new Date('2026-01-01T09:30:00Z');
+  var blocks = [
+    {
+      id: 'task_morning',
+      type: 'task_block',
+      presets: ['workday'],
+      times: { beg: '08:00', end: '12:00' },
+      typeSpecific: { task_block_IDs: ['planWorkday', 'sunscreen'] }
+    },
+    {
+      id: 'screen_cap',
+      type: 'duration_block',
+      presets: ['workday'],
+      times: { beg: '08:00', end: '22:00' },
+      typeSpecific: {
+        duration: {
+          maxMinutes: 120,
+          screenTimeID: 'screenTimeToday',
+          rationing: { isON: true, begMinutes: 0, endMinutes: 90 }
+        }
+      }
+    },
+    {
+      id: 'wake_cooldown',
+      type: 'firstXMinutesAfterTimestamp_block',
+      presets: ['workday'],
+      times: { beg: '00:00', end: '23:59' },
+      typeSpecific: { firstXMinutes: { minutes: 30, timestampID: 'wakeTs' } }
+    },
+    {
+      id: 'broken_block',
+      type: 'duration_block',
+      presets: ['workday'],
+      times: { beg: 'bogus', end: '22:00' },
+      typeSpecific: { duration: { maxMinutes: 10, screenTimeID: '' } }
+    }
+  ];
+
+  var ctx = {
+    tz: 'Etc/UTC',
+    todayValuesByMetricID: {
+      planWorkday: '',
+      sunscreen: 'done',
+      wakeTs: '2026-01-01T09:10:00Z',
+      screenTimeToday: '01:10:00'
+    }
+  };
+
+  var resultWorkday = lockoutsV2_evaluateBlocks_(now, 'workday', blocks, ctx);
+  var resultNoPreset = lockoutsV2_evaluateBlocks_(now, null, blocks, ctx);
+
+  console.log('workday result => ' + JSON.stringify(resultWorkday));
+  console.log('no-preset result => ' + JSON.stringify(resultNoPreset));
+
+  return {
+    workday: resultWorkday,
+    noPreset: resultNoPreset
   };
 }
 
@@ -215,6 +638,12 @@ function lockoutsV2_validateBlock_(block) {
  */
 function lockoutsV2_readDurationMinutesByMetricID_(metricID, ctx) {
   var context = ctx || {};
+  var map = context.todayValuesByMetricID;
+
+  if (map && Object.prototype.hasOwnProperty.call(map, metricID)) {
+    return lockoutsV2_parseDurationCellToMinutes_(map[metricID]);
+  }
+
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
   var rowLookup = findRowByMetricId_(metricID, trackingSheet);
