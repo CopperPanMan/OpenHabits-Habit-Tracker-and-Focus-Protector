@@ -1077,6 +1077,9 @@ function currentMetricStatusV2_(rawData) {
     });
   }
 
+  var trackingSheet = sheet1 || getTrackingSheet_();
+  var todayCol = getCurrentTrackingDayColumn_(trackingSheet);
+
   for (var i = 0; i < parsedData.length; i++) {
     var metricID = parsedData[i];
     if (typeof metricID !== 'string' || metricID.trim() === '') {
@@ -1084,13 +1087,13 @@ function currentMetricStatusV2_(rawData) {
       continue;
     }
 
-    var rowLookup = findRowByMetricId_(metricID, sheet1);
+    var rowLookup = findRowByMetricId_(metricID, trackingSheet);
     if (!rowLookup.row) {
       statuses.push(false);
       continue;
     }
 
-    var value = sheet1.getRange(rowLookup.row, activeCol).getValue();
+    var value = trackingSheet.getRange(rowLookup.row, todayCol).getValue();
     statuses.push(isCompletedCellValue_(value));
   }
 
@@ -2506,6 +2509,64 @@ function secondsToDurationString_(totalSeconds) {
     String(seconds).padStart(2, '0');
 }
 
+function getCurrentTrackingDayColumn_(optionalSheet) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  if (activeCol && Number(activeCol) >= (dataStartColumn || 3)) {
+    return Number(activeCol);
+  }
+
+  return ensureTodayColumn_(trackingSheet, new Date());
+}
+
+function getMetricIdRowMap_(optionalSheet) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  var lastRow = trackingSheet.getLastRow();
+  var emptyMap = {
+    firstRowById: {},
+    duplicateRowsById: {}
+  };
+
+  if (lastRow < 2) {
+    return emptyMap;
+  }
+
+  var cacheKey = String(trackingSheet.getSheetId()) + ':' + String(lastRow);
+  if (!taskIdRowMap || taskIdRowMap.cacheKey !== cacheKey) {
+    var firstRowById = {};
+    var duplicateRowsById = {};
+    var metricIdValues = trackingSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+
+    for (var i = 0; i < metricIdValues.length; i++) {
+      var rawMetricId = metricIdValues[i][0];
+      var normalizedMetricId = String(rawMetricId == null ? '' : rawMetricId).trim();
+      if (!normalizedMetricId) {
+        continue;
+      }
+
+      var rowNumber = i + 2;
+      if (!Object.prototype.hasOwnProperty.call(firstRowById, normalizedMetricId)) {
+        firstRowById[normalizedMetricId] = rowNumber;
+      } else {
+        if (!duplicateRowsById[normalizedMetricId]) {
+          duplicateRowsById[normalizedMetricId] = [firstRowById[normalizedMetricId]];
+        }
+        duplicateRowsById[normalizedMetricId].push(rowNumber);
+      }
+    }
+
+    taskIdRowMap = {
+      cacheKey: cacheKey,
+      firstRowById: firstRowById,
+      duplicateRowsById: duplicateRowsById
+    };
+  }
+
+  return {
+    firstRowById: taskIdRowMap.firstRowById || {},
+    duplicateRowsById: taskIdRowMap.duplicateRowsById || {}
+  };
+}
+
 function findRowByMetricId_(metricID, optionalSheet) {
   var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
   var result = {
@@ -2519,30 +2580,20 @@ function findRowByMetricId_(metricID, optionalSheet) {
     return result;
   }
 
-  var lastRow = trackingSheet.getLastRow();
-  if (lastRow < 2) {
+  var metricLookup = getMetricIdRowMap_(trackingSheet);
+  var normalizedMetricId = metricID.trim();
+  var row = metricLookup.firstRowById[normalizedMetricId];
+
+  if (!row) {
     result.error = "metricID not found in sheet: " + metricID;
     return result;
   }
 
-  var metricIdValues = trackingSheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  var matchedRows = [];
+  result.row = row;
 
-  for (var i = 0; i < metricIdValues.length; i++) {
-    if (String(metricIdValues[i][0]).trim() === metricID) {
-      matchedRows.push(i + 2);
-    }
-  }
-
-  if (matchedRows.length === 0) {
-    result.error = "metricID not found in sheet: " + metricID;
-    return result;
-  }
-
-  result.row = matchedRows[0];
-
-  if (matchedRows.length > 1) {
-    var warning = "Duplicate metricID found in sheet column A for " + metricID + ". Using first match at row " + matchedRows[0] + ".";
+  var duplicateRows = metricLookup.duplicateRowsById[normalizedMetricId];
+  if (duplicateRows && duplicateRows.length > 1) {
+    var warning = "Duplicate metricID found in sheet column A for " + metricID + ". Using first match at row " + duplicateRows[0] + ".";
     result.warnings.push(warning);
     Logger.log(warning);
   }
