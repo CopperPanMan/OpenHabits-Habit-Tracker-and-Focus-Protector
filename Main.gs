@@ -2067,6 +2067,80 @@ function writeStreakToSheet_(streaksID, streakValue, activeColInput, optionalShe
   };
 }
 
+function recomputeAllStreaks() {
+  var config = getAppConfig();
+  var metricSettings = Array.isArray(config.metricSettings) ? config.metricSettings : [];
+  var warnings = [];
+  var updated = 0;
+  var skipped = 0;
+
+  taskIdColumn = config.sheetConfig.taskIdColumn || 1;
+  labelColumn = config.sheetConfig.labelColumn || (taskIdColumn + 1);
+  dataStartColumn = config.sheetConfig.dataStartColumn || (labelColumn + 1);
+  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours : (config.rows && config.rows.lateExtension !== undefined ? config.rows.lateExtension : 0);
+  lateExtension = lateExtensionHours;
+  trackingSheetName = config.trackingSheetName || (config.sheetConfig && config.sheetConfig.trackingSheetName);
+
+  var trackingSheet = getTrackingSheet_();
+  var now = new Date();
+  var resolvedActiveCol = ensureTodayColumn_(trackingSheet, now);
+
+  for (var i = 0; i < metricSettings.length; i++) {
+    var metric = metricSettings[i] || {};
+    var metricID = metric.metricID;
+    var streaksID = metric.streaks && metric.streaks.streaksID;
+
+    if (!metricID || !streaksID) {
+      skipped += 1;
+      continue;
+    }
+
+    var streakValue = calculateStreak_(metricID, resolvedActiveCol, lateExtensionHours, trackingSheet);
+    var writeResult = writeStreakToSheet_(streaksID, streakValue, resolvedActiveCol, trackingSheet);
+    if (!writeResult.ok) {
+      warnings.push(writeResult.error || ('Unable to write streak for metricID: ' + metricID));
+      continue;
+    }
+
+    updated += 1;
+  }
+
+  var result = {
+    ok: warnings.length === 0,
+    updated: updated,
+    skipped: skipped,
+    activeCol: resolvedActiveCol,
+    warnings: warnings
+  };
+
+  console.log('recomputeAllStreaks result: ' + JSON.stringify(result));
+  return result;
+}
+
+function installDailyStreakRecomputeTrigger() {
+  var handlerName = 'recomputeAllStreaks';
+  var triggers = ScriptApp.getProjectTriggers();
+
+  for (var i = 0; i < triggers.length; i++) {
+    var trigger = triggers[i];
+    if (trigger.getHandlerFunction() === handlerName) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  }
+
+  ScriptApp.newTrigger(handlerName)
+    .timeBased()
+    .atHour(1)
+    .everyDays(1)
+    .create();
+
+  return {
+    ok: true,
+    handler: handlerName,
+    scheduledAtHour: 1
+  };
+}
+
 function normalizeScheduledDays_(datesConfig) {
   if (!Array.isArray(datesConfig) || datesConfig.length === 0) {
     return [];
