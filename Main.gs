@@ -981,6 +981,7 @@ function recordMetricBySource_(rawData, options) {
   var skipNotionStatusComplete = !!sourceOptions.skipNotionStatusComplete;
   var parsedData;
   var results = [];
+  var messages = [];
   var errors = [];
   var warnings = [];
   var totalPointsDelta = 0;
@@ -1094,6 +1095,39 @@ function recordMetricBySource_(rawData, options) {
       entryErrors.push(validated.error);
       results.push(resultEntry);
       Array.prototype.push.apply(errors, entryErrors);
+      continue;
+    }
+
+    var timerHandledResult = processTimerMetric_(setting, metricID, tuple.length > 1 ? tuple[1] : null, recordType, trackingSheet, activeCol, multiplier, warnings);
+    if (timerHandledResult.handled) {
+      if (!timerHandledResult.ok) {
+        if (timerHandledResult.error) {
+          entryErrors.push(timerHandledResult.error);
+          Array.prototype.push.apply(errors, entryErrors);
+        }
+        results.push(resultEntry);
+        continue;
+      }
+
+      resultEntry.status = timerHandledResult.status;
+      resultEntry.value = timerHandledResult.value;
+      resultEntry.complete = timerHandledResult.complete;
+      resultEntry.multiplier = multiplier;
+      resultEntry.pointsDelta = timerHandledResult.pointsDelta;
+      resultEntry.metricPointsToday = timerHandledResult.metricPointsToday;
+      if (timerHandledResult.message) {
+        resultEntry.message = timerHandledResult.message;
+        messages.push(timerHandledResult.message);
+      }
+
+      if (setting.streaks && setting.streaks.streaksID) {
+        var timerStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
+        writeStreakToSheet_(setting.streaks.streaksID, timerStreakValue, activeCol, trackingSheet);
+        resultEntry.streak = timerStreakValue;
+      }
+
+      totalPointsDelta += timerHandledResult.pointsDelta || 0;
+      results.push(resultEntry);
       continue;
     }
 
@@ -1221,10 +1255,210 @@ function recordMetricBySource_(rawData, options) {
 
   return buildHabitsV2Response({
     ok: true,
+    messages: messages,
     results: results,
     errors: errors,
     warnings: warnings
   });
+}
+
+function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSheet, activeColInput, multiplier, warnings) {
+  var metricType = setting && (setting.type || setting.unitType);
+  if (metricType !== 'start_timer' && metricType !== 'stop_timer') {
+    return {
+      handled: false
+    };
+  }
+
+  var timerSettings = setting && setting.ifTimer_Settings ? setting.ifTimer_Settings : {};
+  var startMetricID = timerSettings.timerStartMetricID;
+  var durationMetricID = timerSettings.timerDurationMetricID;
+  var startLookup = findRowByMetricId_(startMetricID, trackingSheet);
+  var durationLookup = findRowByMetricId_(durationMetricID, trackingSheet);
+
+  if (!startMetricID || !durationMetricID) {
+    return {
+      handled: true,
+      ok: false,
+      error: 'Timer metric ' + metricID + ' missing ifTimer_Settings.timerStartMetricID or timerDurationMetricID.'
+    };
+  }
+
+  if (!startLookup.row || !durationLookup.row) {
+    return {
+      handled: true,
+      ok: false,
+      error: (!startLookup.row ? (startLookup.error || ('metricID not found in sheet: ' + startMetricID)) : (durationLookup.error || ('metricID not found in sheet: ' + durationMetricID)))
+    };
+  }
+
+  if (startLookup.warnings && startLookup.warnings.length) {
+    Array.prototype.push.apply(warnings, startLookup.warnings);
+  }
+  if (durationLookup.warnings && durationLookup.warnings.length) {
+    Array.prototype.push.apply(warnings, durationLookup.warnings);
+  }
+
+  var startCell = trackingSheet.getRange(startLookup.row, activeColInput);
+  var durationCell = trackingSheet.getRange(durationLookup.row, activeColInput);
+
+  if (metricType === 'start_timer') {
+    var currentStartValue = startCell.getValue();
+    var hasStartValue = !(currentStartValue === '' || currentStartValue === null);
+    if (recordType === 'keep_first' && hasStartValue) {
+      return {
+        handled: true,
+        ok: true,
+        status: 'kept_first',
+        value: currentStartValue,
+        complete: true,
+        pointsDelta: 0,
+        metricPointsToday: 0
+      };
+    }
+
+    var startTimestamp = new Date();
+    startCell.setValue(startTimestamp);
+    return {
+      handled: true,
+      ok: true,
+      status: 'written',
+      value: startTimestamp,
+      complete: true,
+      pointsDelta: 0,
+      metricPointsToday: 0
+    };
+  }
+
+  var storedStartValue = startCell.getValue();
+  if (storedStartValue === '' || storedStartValue === null) {
+    return {
+      handled: true,
+      ok: false,
+      error: 'No timer start timestamp found for metricID: ' + metricID
+    };
+  }
+
+  var startTime = storedStartValue instanceof Date ? storedStartValue : new Date(storedStartValue);
+  if (!(startTime instanceof Date) || isNaN(startTime.getTime())) {
+    return {
+      handled: true,
+      ok: false,
+      error: 'Invalid timer start timestamp for metricID: ' + metricID
+    };
+  }
+
+  var now = new Date();
+  var elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+  if (!isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+    return {
+      handled: true,
+      ok: false,
+      error: 'Timer stop occurred before start timestamp for metricID: ' + metricID
+    };
+  }
+
+  var existingDurationSeconds = parseStoredDurationForAdd_(durationCell.getValue());
+  if (existingDurationSeconds === null) {
+    return {
+      handled: true,
+      ok: false,
+      error: 'Cannot add to non-duration existing value for timer duration metricID: ' + durationMetricID
+    };
+  }
+
+  var totalDurationSeconds = existingDurationSeconds + elapsedSeconds;
+  if (totalDurationSeconds > 99 * 3600 + 59 * 60 + 59) {
+    return {
+      handled: true,
+      ok: false,
+      error: 'Duration exceeds max 99:59:59 for metricID: ' + durationMetricID
+    };
+  }
+
+  durationCell.setValue(secondsToDurationString_(totalDurationSeconds));
+  startCell.setValue('');
+
+  var addedDuration = secondsToDurationString_(elapsedSeconds);
+  var totalDuration = secondsToDurationString_(totalDurationSeconds);
+  var pointsDelta = calculateTimerPointsDelta_(setting, elapsedSeconds, multiplier);
+  var messageTemplate = timerSettings.stopTimerMessage || 'Added {addedTimeLong}! ({addedTimeDec})\nNew Score: {totalTimeLong}';
+  var timerMessage = replaceTimerMessageTokens_(messageTemplate, elapsedSeconds, totalDurationSeconds);
+
+  writeMetricPointsRow_(setting, pointsDelta, activeColInput, trackingSheet, warnings);
+
+  return {
+    handled: true,
+    ok: true,
+    status: 'written',
+    value: {
+      addedDuration: addedDuration,
+      totalDuration: totalDuration,
+      durationMetricID: durationMetricID,
+      startMetricID: startMetricID
+    },
+    complete: true,
+    pointsDelta: pointsDelta,
+    metricPointsToday: pointsDelta,
+    message: timerMessage
+  };
+}
+
+function calculateTimerPointsDelta_(setting, elapsedSeconds, multiplier) {
+  var pointsConfig = setting && setting.points ? setting.points : null;
+  if (!pointsConfig) {
+    return 0;
+  }
+
+  var basePoints = parseStrictNumber_(pointsConfig.value);
+  if (basePoints === null) {
+    return 0;
+  }
+
+  var resolvedMultiplier = parseStrictNumber_(multiplier);
+  if (resolvedMultiplier === null) {
+    resolvedMultiplier = 1;
+  }
+
+  var roundedMinutes = Math.round(Number(elapsedSeconds || 0) / 60);
+  return basePoints * roundedMinutes * resolvedMultiplier;
+}
+
+function replaceTimerMessageTokens_(template, addedSeconds, totalSeconds) {
+  if (typeof template !== 'string') {
+    return '';
+  }
+
+  var replacements = {
+    addedTimeLong: formatDurationLong_(addedSeconds),
+    addedTimeDec: formatDurationDecimalHours_(addedSeconds),
+    totalTimeLong: formatDurationLong_(totalSeconds),
+    totalTimeDec: formatDurationDecimalHours_(totalSeconds)
+  };
+
+  return template.replace(/\{([^}]+)\}/g, function(match, tokenName) {
+    if (Object.prototype.hasOwnProperty.call(replacements, tokenName)) {
+      return replacements[tokenName];
+    }
+    return match;
+  });
+}
+
+function formatDurationLong_(durationSeconds) {
+  var totalSeconds = Math.max(0, Math.floor(Number(durationSeconds || 0)));
+  var hours = Math.floor(totalSeconds / 3600);
+  var minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours === 0) {
+    return minutes + 'min';
+  }
+
+  return hours + 'h ' + minutes + 'min';
+}
+
+function formatDurationDecimalHours_(durationSeconds) {
+  var totalSeconds = Math.max(0, Number(durationSeconds || 0));
+  return (totalSeconds / 3600).toFixed(1) + 'h';
 }
 
 function getMultiplier_(metricID, streakCountBeforeLog) {
@@ -1670,6 +1904,22 @@ function parseStoredNumberForAdd_(value) {
   return parseStrictNumber_(value);
 }
 
+function parseStoredDurationForAdd_(value) {
+  if (value === '' || value === null || value === undefined) {
+    return 0;
+  }
+
+  if (value instanceof Date) {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    return null;
+  }
+
+  return parseDurationToSeconds_(value, true);
+}
+
 function parseDurationToSeconds_(value, allowEmptyAsZero) {
   if (value === "" || value === null || value === undefined) {
     return allowEmptyAsZero ? 0 : null;
@@ -1796,6 +2046,7 @@ function buildHabitsV2Response(response) {
 
   return JSON.stringify({
     ok: !!payload.ok,
+    messages: Array.isArray(payload.messages) ? payload.messages : [],
     results: Array.isArray(payload.results) ? payload.results : [],
     errors: Array.isArray(payload.errors) ? payload.errors : [],
     warnings: Array.isArray(payload.warnings) ? payload.warnings : []
