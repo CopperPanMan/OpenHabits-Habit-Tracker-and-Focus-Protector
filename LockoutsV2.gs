@@ -207,6 +207,242 @@ function lockoutsV2_validateBlock_(block) {
 }
 
 /**
+ * Reads today's duration value for a metricID and returns used minutes.
+ *
+ * @param {string} metricID Metric ID in Tracking Data column A.
+ * @param {!Object=} ctx Optional execution context overrides.
+ * @return {(number|null)} Parsed minutes, or null when lookup/parsing fails.
+ */
+function lockoutsV2_readDurationMinutesByMetricID_(metricID, ctx) {
+  var context = ctx || {};
+  var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
+  var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+
+  if (!rowLookup || !rowLookup.row) {
+    return null;
+  }
+
+  var durationCell = trackingSheet.getRange(rowLookup.row, todayCol);
+  var displayValue = durationCell.getDisplayValue();
+  var fallbackValue = durationCell.getValue();
+  var parsedMinutes = lockoutsV2_parseDurationCellToMinutes_(displayValue);
+
+  if (parsedMinutes == null) {
+    parsedMinutes = lockoutsV2_parseDurationCellToMinutes_(fallbackValue);
+  }
+
+  return parsedMinutes;
+}
+
+/**
+ * Parses common sheet duration cell representations into minutes.
+ *
+ * @param {*} value Raw/display duration cell value.
+ * @return {(number|null)}
+ */
+function lockoutsV2_parseDurationCellToMinutes_(value) {
+  if (value === '' || value === null || value === undefined) {
+    return 0;
+  }
+
+  if (typeof value === 'string') {
+    var trimmed = value.trim();
+    if (!trimmed) {
+      return 0;
+    }
+
+    var hhmmssMatch = /^\d{1,3}:[0-5]\d:[0-5]\d$/.exec(trimmed);
+    if (hhmmssMatch) {
+      // Reuse existing V1 helper where format is known-safe.
+      return convertTimeToMs(trimmed) / 60000;
+    }
+
+    return lockoutsV2_parseHHMMSSMinutesSafe_(trimmed);
+  }
+
+  if (typeof value === 'number' && isFinite(value)) {
+    // Spreadsheet durations can be numeric day-fractions.
+    return value * 24 * 60;
+  }
+
+  return null;
+}
+
+/**
+ * Safe parser for HH:MM:SS duration strings.
+ *
+ * @param {string} value Duration-like text.
+ * @return {(number|null)}
+ */
+function lockoutsV2_parseHHMMSSMinutesSafe_(value) {
+  var match = /^(\d{1,3}):([0-5]\d):([0-5]\d)$/.exec(String(value || '').trim());
+  if (!match) {
+    return null;
+  }
+
+  var hours = Number(match[1]);
+  var minutes = Number(match[2]);
+  var seconds = Number(match[3]);
+  return hours * 60 + minutes + (seconds / 60);
+}
+
+/**
+ * Computes rationed minutes allowed so far in a lockout window.
+ *
+ * @param {!Date} now Current time.
+ * @param {!Date} windowStart Window start instant.
+ * @param {!Date} windowEnd Window end instant.
+ * @param {number} maxMinutes Absolute hard cap.
+ * @param {{begMinutes:number, endMinutes:number}=} rationing Ration settings.
+ * @return {number}
+ */
+function lockoutsV2_computeAllowedSoFar_(now, windowStart, windowEnd, maxMinutes, rationing) {
+  var maxCap = Math.max(0, Number(maxMinutes) || 0);
+  var begMinutes = Number(rationing && rationing.begMinutes);
+  var endMinutes = Number(rationing && rationing.endMinutes);
+
+  if (!isFinite(begMinutes)) {
+    begMinutes = 0;
+  }
+  if (!isFinite(endMinutes)) {
+    endMinutes = maxCap;
+  }
+
+  var startMs = windowStart instanceof Date ? windowStart.getTime() : NaN;
+  var endMs = windowEnd instanceof Date ? windowEnd.getTime() : NaN;
+  var nowMs = now instanceof Date ? now.getTime() : NaN;
+
+  if (!isFinite(startMs) || !isFinite(endMs) || !isFinite(nowMs)) {
+    return Math.min(maxCap, Math.max(0, begMinutes));
+  }
+
+  if (endMs <= startMs) {
+    endMs += 24 * 60 * 60 * 1000;
+    if (nowMs < startMs) {
+      nowMs += 24 * 60 * 60 * 1000;
+    }
+  }
+
+  var windowLenMinutes = (endMs - startMs) / 60000;
+  if (windowLenMinutes <= 0) {
+    return Math.min(maxCap, Math.max(0, begMinutes));
+  }
+
+  var elapsedMinutes = (nowMs - startMs) / 60000;
+  var clampedElapsed = Math.max(0, Math.min(windowLenMinutes, elapsedMinutes));
+  var progress = clampedElapsed / windowLenMinutes;
+  var rationCap = begMinutes + (endMinutes - begMinutes) * progress;
+
+  return Math.min(maxCap, Math.max(0, rationCap));
+}
+
+/**
+ * Builds a lockouts progress bar with optional ration marker.
+ *
+ * @param {{usedMinutes:number,maxMinutes:number,allowedNowMinutes:number,barLength:number,showMarker:boolean}} input
+ * @return {string}
+ */
+function lockoutsV2_renderBar_(input) {
+  var options = input || {};
+  var barLength = Math.max(1, Math.floor(Number(options.barLength) || 20));
+  var usedMinutes = Math.max(0, Number(options.usedMinutes) || 0);
+  var maxMinutes = Math.max(0, Number(options.maxMinutes) || 0);
+  var allowedNowMinutes = Math.max(0, Number(options.allowedNowMinutes) || 0);
+  var showMarker = options.showMarker === true;
+
+  var fillRatio = maxMinutes > 0 ? Math.max(0, Math.min(1, usedMinutes / maxMinutes)) : 0;
+  var filledCells = Math.round(fillRatio * barLength);
+  var chars = [];
+
+  for (var i = 0; i < barLength; i++) {
+    chars.push(i < filledCells ? '▓' : '░');
+  }
+
+  if (showMarker && maxMinutes > 0) {
+    var markerRatio = Math.max(0, Math.min(1, allowedNowMinutes / maxMinutes));
+    var markerIndex = Math.round(markerRatio * (barLength - 1));
+    chars[markerIndex] = '·';
+  }
+
+  return chars.join('');
+}
+
+/**
+ * Formats minutes into compact human text.
+ *
+ * @param {number} mins
+ * @return {string}
+ */
+function lockoutsV2_humanizeMinutes_(mins) {
+  var rounded = Math.max(0, Math.round(Number(mins) || 0));
+  if (rounded < 60) {
+    return rounded + 'm';
+  }
+
+  var hours = Math.floor(rounded / 60);
+  var minutes = rounded % 60;
+  return minutes === 0 ? (hours + 'h') : (hours + 'h ' + minutes + 'm');
+}
+
+/**
+ * Debug helper for deterministic rationing/math outputs.
+ */
+function lockoutsV2__debugRationingTests_() {
+  var tests = [
+    {
+      name: '25% through window with 0→120 ramp',
+      now: new Date('2026-01-01T10:00:00Z'),
+      windowStart: new Date('2026-01-01T08:00:00Z'),
+      windowEnd: new Date('2026-01-01T16:00:00Z'),
+      maxMinutes: 180,
+      rationing: { begMinutes: 0, endMinutes: 120 },
+      expected: 30
+    },
+    {
+      name: 'clamps to maxMinutes when ramp exceeds max',
+      now: new Date('2026-01-01T14:00:00Z'),
+      windowStart: new Date('2026-01-01T08:00:00Z'),
+      windowEnd: new Date('2026-01-01T16:00:00Z'),
+      maxMinutes: 60,
+      rationing: { begMinutes: 0, endMinutes: 120 },
+      expected: 60
+    },
+    {
+      name: 'midnight-crossing window early morning',
+      now: new Date('2026-01-02T02:00:00Z'),
+      windowStart: new Date('2026-01-01T22:00:00Z'),
+      windowEnd: new Date('2026-01-01T06:00:00Z'),
+      maxMinutes: 120,
+      rationing: { begMinutes: 0, endMinutes: 120 },
+      expected: 60
+    }
+  ];
+
+  var passed = 0;
+  for (var i = 0; i < tests.length; i++) {
+    var t = tests[i];
+    var actual = lockoutsV2_computeAllowedSoFar_(t.now, t.windowStart, t.windowEnd, t.maxMinutes, t.rationing);
+    var ok = Math.abs(actual - t.expected) < 1e-9;
+    if (ok) {
+      passed++;
+    }
+
+    console.log((ok ? 'PASS' : 'FAIL') + ' | ' + t.name + ' | expected=' + t.expected + ' | actual=' + actual);
+  }
+
+  console.log('renderBar sample | ' + lockoutsV2_renderBar_({
+    usedMinutes: 27,
+    maxMinutes: 120,
+    allowedNowMinutes: 48,
+    barLength: 20,
+    showMarker: true
+  }));
+  console.log('humanize sample | 27 => ' + lockoutsV2_humanizeMinutes_(27) + ' | 72 => ' + lockoutsV2_humanizeMinutes_(72));
+  console.log('lockoutsV2__debugRationingTests_: ' + passed + '/' + tests.length + ' passed.');
+}
+
+/**
  * Placeholder token substitution helper.
  *
  * @param {string} template Message template containing tokens like {tokenName}.
