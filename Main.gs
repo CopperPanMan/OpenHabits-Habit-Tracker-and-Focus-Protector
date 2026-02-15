@@ -112,6 +112,14 @@ function doGet(e) {
       return ContentService.createTextOutput(recordMetricNotion_(e && e.parameters ? e.parameters.data : undefined));
     }
 
+    if (key === "positive_push_notification") {
+      return ContentService.createTextOutput(positivePushNotificationV2_());
+    }
+
+    if (key === "current_metric_status") {
+      return ContentService.createTextOutput(currentMetricStatusV2_(e && e.parameters ? e.parameters.data : undefined));
+    }
+
     var parsedHabitsV2Data = parseHabitsV2Data_(e && e.parameters ? e.parameters.data : undefined);
     if (!parsedHabitsV2Data.ok) {
       return ContentService.createTextOutput(buildHabitsV2Response({
@@ -973,6 +981,191 @@ function recordMetricNotion_(rawData) {
     source: "Notion",
     skipNotionStatusComplete: true
   });
+}
+
+function positivePushNotificationV2_() {
+  var config = getAppConfig();
+  var settings = Array.isArray(config.metricSettings) ? config.metricSettings : [];
+  var now = new Date();
+  var extensionHours = lateExtensionHours !== undefined ? lateExtensionHours : lateExtension;
+
+  if (positive_push_notifications === "Off") {
+    return buildHabitsV2Response({
+      ok: true,
+      messages: ["PPN is OFF"]
+    });
+  }
+
+  for (var i = 0; i < settings.length; i++) {
+    var metric = settings[i] || {};
+
+    if (!metric.ppnMessage) {
+      continue;
+    }
+
+    if (!isMetricEligibleForPPNNow_(metric, now, extensionHours)) {
+      continue;
+    }
+
+    var rowLookup = findRowByMetricId_(metric.metricID, sheet1);
+    if (!rowLookup.row) {
+      continue;
+    }
+
+    var cellValue = sheet1.getRange(rowLookup.row, activeCol).getValue();
+    if (isCompletedCellValue_(cellValue)) {
+      continue;
+    }
+
+    var streakCount = calculateStreak_(metric.metricID, activeCol, extensionHours, sheet1);
+    var message = composePpnMessage_(metric.ppnMessage, streakCount, metric.streaks && metric.streaks.unit);
+
+    return buildHabitsV2Response({
+      ok: true,
+      messages: [message],
+      results: [{
+        metricID: metric.metricID,
+        streak: streakCount,
+        row: rowLookup.row
+      }]
+    });
+  }
+
+  return buildHabitsV2Response({
+    ok: true,
+    messages: ["All habits completed for today!"]
+  });
+}
+
+function currentMetricStatusV2_(rawData) {
+  var parsedData;
+  var statuses = [];
+  var errors = [];
+
+  try {
+    parsedData = JSON.parse(rawData);
+  } catch (error) {
+    return buildHabitsV2Response({
+      ok: false,
+      errors: ["Malformed JSON in data parameter."]
+    });
+  }
+
+  if (!Array.isArray(parsedData)) {
+    return buildHabitsV2Response({
+      ok: false,
+      errors: ["Invalid data payload. Expected an array of metricIDs."]
+    });
+  }
+
+  for (var i = 0; i < parsedData.length; i++) {
+    var metricID = parsedData[i];
+    if (typeof metricID !== 'string' || metricID.trim() === '') {
+      errors.push("Invalid metricID at data[" + i + "].");
+      statuses.push(false);
+      continue;
+    }
+
+    var rowLookup = findRowByMetricId_(metricID, sheet1);
+    if (!rowLookup.row) {
+      errors.push(rowLookup.error || ("metricID not found in sheet: " + metricID));
+      statuses.push(false);
+      continue;
+    }
+
+    var value = sheet1.getRange(rowLookup.row, activeCol).getValue();
+    statuses.push(isCompletedCellValue_(value));
+  }
+
+  return buildHabitsV2Response({
+    ok: errors.length === 0,
+    results: statuses,
+    errors: errors
+  });
+}
+
+function isMetricEligibleForPPNNow_(metric, now, extensionHours) {
+  if (!metric || !Array.isArray(metric.dates) || metric.dates.length === 0) {
+    return true;
+  }
+
+  var effectiveDay = getEffectiveWeekdayName_(now, extensionHours);
+  var hasDayEntries = false;
+
+  for (var i = 0; i < metric.dates.length; i++) {
+    var entry = metric.dates[i];
+    if (typeof entry === 'string') {
+      hasDayEntries = true;
+      if (entry.trim().toLowerCase() === effectiveDay) {
+        return true;
+      }
+      continue;
+    }
+
+    if (!Array.isArray(entry) || entry.length === 0 || typeof entry[0] !== 'string') {
+      continue;
+    }
+
+    hasDayEntries = true;
+    var day = entry[0].trim().toLowerCase();
+    if (day !== effectiveDay) {
+      continue;
+    }
+
+    var startHour = parseOptionalHour_(entry.length > 2 ? entry[2] : null);
+    var endHour = parseOptionalHour_(entry.length > 3 ? entry[3] : null);
+
+    if (startHour === null || endHour === null) {
+      return true;
+    }
+
+    return isCurrentHourWithinRange_(now, startHour, endHour);
+  }
+
+  return !hasDayEntries;
+}
+
+function getEffectiveWeekdayName_(now, extensionHours) {
+  var extensionMs = normalizeExtensionMs_(extensionHours);
+  var effectiveNow = new Date(now.getTime() - extensionMs);
+  return Utilities.formatDate(effectiveNow, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
+}
+
+function parseOptionalHour_(value) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return null;
+  }
+
+  var numeric = Number(value);
+  if (!isFinite(numeric)) {
+    return null;
+  }
+
+  return numeric;
+}
+
+function isCurrentHourWithinRange_(now, startHour, endHour) {
+  var hourDecimal = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+
+  if (startHour <= endHour) {
+    return hourDecimal >= startHour && hourDecimal <= endHour;
+  }
+
+  return hourDecimal >= startHour || hourDecimal <= endHour;
+}
+
+function composePpnMessage_(ppnMessage, streakCount, streakUnit) {
+  var unit = streakUnit || 'days';
+
+  if (Array.isArray(ppnMessage)) {
+    var first = ppnMessage.length > 0 ? String(ppnMessage[0]) : '';
+    var second = ppnMessage.length > 1 ? String(ppnMessage[1]) : '';
+    var core = (first + ' ' + String(streakCount) + ' ' + unit + '.').replace(/\s+/g, ' ').trim();
+    return (core + ' ' + second).replace(/\s+/g, ' ').trim();
+  }
+
+  var text = String(ppnMessage);
+  return (text + ' ' + String(streakCount) + ' ' + unit).replace(/\s+/g, ' ').trim();
 }
 
 function recordMetricBySource_(rawData, options) {
