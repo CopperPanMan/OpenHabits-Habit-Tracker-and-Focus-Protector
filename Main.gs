@@ -39,7 +39,7 @@
   
 */
 
-//establishing global variables
+// Establishing global variables used by Habits V2 / Lockouts V2.
 var key;
 var spreadsheetID;
 var sheet1;
@@ -50,50 +50,14 @@ var labelColumn;
 var dataStartColumn;
 var taskIdRowMap = {};
 var currentTimeStamp = new Date();
-var originalComparisonArray  = [];
-var firstLineMessage = [];
-var firstLineMessageFreq;
-var posPerformanceFreq;
-var negPerformanceFreq;
-var averageSpan;
-var morningMessageStatus;
-var habitOrders;
-var nextTask;
-var thewhyoftoday;
 var firstHabitofDay = 0;
-var tomorrowGoalRow;
-var appCloserRow;
 var lateExtension;
 var lateExtensionHours;
 var trackingSheetName;
 var writeToNotion;
 var dailyPointsID;
 var cumulativePointsID;
-var morningAppLockoutDuration;
-var time_elapsed = [];
-var nextActionSetting; //ALL 3 OF THESE SHOULD BE REPLACED BY NEXT HABIT CHECK OR PPN
-var nextActionRow;
-var nextActionMessage;
-var homeWifiName;
-var personalPlanningRow;
-var screentimeTimeStampRow;
-var screenStartTime;
-var screenTimeLimit;
-var rationDuration;
-var screenTimeRationing;
-var cumulativeScreenTimeRow;
-var chartDataRanges;
-var sheetNames;
-var workWifiName;
-var arrivedAtWorkCell;
-var lastDepartedWorkCell;
-var toggleKey;
-var calendarOutput;
-var eventNameInput;
-var whiteListCell;
-var appLockSettings = {};
-var nighttime_notifier_settings = [];
-var habitChain; //used for PPN V2 (updated version of ppndict)
+var positive_push_notifications;
 
 function parseRequest_(e) {
   var parameters = e && e.parameters ? e.parameters : {};
@@ -1984,169 +1948,33 @@ function ensureTodayColumn_(optionalSheet, optionalNow) {
 
 
 function loadSettings(global_key) {
-
   key = global_key;
 
-  console.log("loading settings");
+  console.log('loading settings');
   var scriptProperties = PropertiesService.getScriptProperties();
   var config = getAppConfig();
 
-  positive_push_notifications = config.positive_push_notifications; // On/Off
+  positive_push_notifications = config.positive_push_notifications || 'On';
 
-  taskIdColumn = config.sheetConfig.taskIdColumn || 1;
-  labelColumn = config.sheetConfig.labelColumn || (taskIdColumn + 1);
-  dataStartColumn = config.sheetConfig.dataStartColumn || (labelColumn + 1);
+  taskIdColumn = config.sheetConfig && config.sheetConfig.taskIdColumn || 1;
+  labelColumn = config.sheetConfig && config.sheetConfig.labelColumn || (taskIdColumn + 1);
+  dataStartColumn = config.sheetConfig && config.sheetConfig.dataStartColumn || (labelColumn + 1);
 
-  //screen time features
-  screenTimeLimit = config.screenTime.limit; //total limit (hours)
-  cumulativeScreenTimeRow = config.screenTime.cumulativeRow;
-  screenTimeRationing = config.screenTime.rationing; //"ON" or "OFF", acts like this: if you are 50% through the day, and you are at or above 50% of your screentime, it blocks the app the next time you open the app to "ration" or cooldown your usage until more time has passed
-  screenStartTime = config.screenTime.startTime; //24h hour format, used with rationing feature
-  rationDuration = config.screenTime.rationDuration; //hours until your access is 100% -> used with rationing feature. Lower number means you get more time allowed earlier in the day
-  appLockSettings = Object.assign({}, config.appLockSettings);
+  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours :
+    (config.rows && config.rows.lateExtension !== undefined ? config.rows.lateExtension : 0);
+  lateExtension = lateExtensionHours; // Backward-compatible alias.
 
-  appCloserRow = config.rows.appCloserRow;
-  personalPlanningRow = config.rows.personalPlanningRow;
-  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours : config.rows.lateExtension;
-  lateExtension = lateExtensionHours; // Backward compatible alias for existing behavior.
-
-  trackingSheetName = config.trackingSheetName || config.sheetConfig.trackingSheetName;
+  trackingSheetName = config.trackingSheetName || (config.sheetConfig && config.sheetConfig.trackingSheetName) || 'Tracking Data';
   writeToNotion = !!config.writeToNotion;
   dailyPointsID = config.dailyPointsID;
   cumulativePointsID = config.cumulativePointsID;
 
-  homeWifiName = scriptProperties.getProperty(config.scriptProperties.homeWifiName);
-  workWifiName = scriptProperties.getProperty(config.scriptProperties.workWifiName);
-  lastDepartedWorkCell = config.rows.lastDepartedWorkCell;
-  calendarOutput = config.calendarOutput; // ON or OFF used with start stop work to write blocks to calendar
-  eventNameInput = config.eventNameInput; // ON or OFF used with start stop work to name blocks after their tasks (ON), or default to "work block" (OFF)
-
-  morningAppLockoutDuration = config.lockout.morningDuration; //how many hours after you wake up you want an app (chosen on phone) to be locked for. For apple automations that automatically close apps.
-  nightAppLockoutDuration = config.lockout.nightDuration; //hrs
-  nightAppLockoutStartTime = config.lockout.nightStartTime; //24h format of when my apps lock again
-  nightAppLockoutMessage = config.lockout.nightMessage;
-  whiteListCell = config.rows.whiteListCell; //cell that overrides app lockouts for 5 minutes
-
-  if (config.lockoutOverrides[key]) {
-    var lockoutOverride = config.lockoutOverrides[key];
-    if (lockoutOverride.screenTimeLimit !== undefined) {
-      screenTimeLimit = lockoutOverride.screenTimeLimit;
-    }
-    if (lockoutOverride.nightAppLockoutStartTime !== undefined) {
-      nightAppLockoutStartTime = lockoutOverride.nightAppLockoutStartTime;
-    }
-    if (lockoutOverride.appLockSettings) {
-      Object.keys(lockoutOverride.appLockSettings).forEach(function (settingKey) {
-        appLockSettings[settingKey] = lockoutOverride.appLockSettings[settingKey];
-      });
-    }
-    if (lockoutOverride.overrideKey) {
-      key = lockoutOverride.overrideKey;
-    }
-  }
-
-
-  //the timestamp of the very first nfc recording event for the current day is what you use to gauge when the lockout begins. This happens WHENEVER this script first runs, for any reason. This way, even if you sleep in, you are STILL locked out for an hour. Known vulnerability is waking up in the night before "lateExtension, and triggering a recording, thus when you truly wake up a few hours later you're already run up your duration and it doesn't trigger.
-
   spreadsheetID = scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
   sheet1 = getTrackingSheet_();
-  separatorChar = config.sheetConfig.separatorChar;  // this character should be one that you'll never use. It must match what's in your apple shortcuts. It's "Ù" by default.
+  separatorChar = (config.sheetConfig && config.sheetConfig.separatorChar) || 'Ù';
   taskIdRowMap = buildTaskIdRowMap_(sheet1, taskIdColumn);
 
-  firstLineMessage = config.messages.firstLineMessage;
-  firstLineMessageFreq = config.messages.firstLineMessageFreq; //how often you want a randomized first line message from above (0-1)
-  originalComparisonArray  = config.messages.originalComparisonArray;
-  posPerformanceFreq = config.messages.posPerformanceFreq;   //how often a message output is positive, 0-1 (roughly; actual frequency will be affected by your own performance)
-  negPerformanceFreq = config.messages.negPerformanceFreq;     //how often a message output is negative, 0-1
-  averageSpan = config.messages.averageSpan;            //how long of a period you want an average value to be calculated from
-
-  sheetNames = config.sheetNames.map(function (sheet) {
-    return Object.assign({}, sheet);
-  });
-  chartDataRanges = config.chartDataRanges.map(function (range) {
-    return Object.assign({}, range);
-  });
-
-  // NOTE: the allMetricSettings array stores the row number and return message settings for each metric you are recording in a given apple shortcut, as shown below.
-  // Keep in mind, all "messages" will come combined into one (1) bulleted list in one (1) single notification per NFC trigger.
-  
-  /* allMetricSettings CHEATSHEET:
-
-    - [POSITION 0 = dictionary for Metric 0 settings (always the timestamp)
-        {rowNumber:         where this metric is in google sheets,
-        insightChance:      chance of getting a performance insight at all (use decimal 0-1, 0 = 0% never recieve a message, 1 = 100% always recieve a message), (use 0 for things like text/journal entries that aren't comparable statistics),
-        dayToDayChance:     chance the performance insight compares day to day values instead of weekly avg to weekly avg. values. (use decimal 0-1, 0 = 0%, 1 = 100%),
-        dayToAvgChance:     if calculating using averages, chance the performance insight compares day to average instead of avg to avg (use decimal 0-1, 0 = 0%, 1 = 100%),
-        rawValueChance:     chance the performance insight displays in raw-value changes instead of percentage changes (use decimal 0-1, 0 = 0%, 1 = 100%),
-        increaseGood:       whether this metric increasing is good or decreasing is good (1 = increase is good, -1 = decrease is good),
-        insightFirstWords:  First text in output message (ie: "Weight: ", "Heart Rate: ", "Run Duration: "),
-        insightUnits:       (ie: "Kg", "BPM", "minutes"), 
-        unitType:          "timestamp", "minutes", or "number" ("minutes" represents values in "minute:second" format only, for decimal minutes just mark it as a number),
-        recordType:         1,2,3 for whether multiple recordings to the same cell should "overwrite", "keep_first_instance", or "add", to whatever is already there, respectively.
-      POSITION 1 = dictionary for metric 1 settings (if you have one)
-        {rowNumber:
-        insightChance:
-        dayToDayChance:
-        ... etc etc. - the order you list your metrics in these arrays must match the order in which you enter the metrics on your device.
-        ] */
-         
-  //each of these if statements correspond to a specific colored metric block in the google sheet.
-
-  if (key == "next_habit_check") { //OUTDATED: returns what the next habit is. Replaced by positive push notifications v2
-    return [];
-  }
-  if (key == "append_to_notion_inbox") {
-    return [];
-  }
-
-  if (config.keySettings[key]) {
-    applyKeySettings_(config.keySettings[key]);
-  }
-
-  if (key == "positive_push_notification" || key == "habit_dashboard") { // enhanced habit chain function -> JAN 27 THIS CAN BE MERGED WITH HABITS. can return what to do, when it is due by, the points you will gain by doing it or lose by not doing it.
-    habitChain = config.habitChain.map(function (habit) {
-      return Object.assign({}, habit);
-    });
-  }
-
-  if (key == "fanOnOff" || key == "teslaPortOnOff") {
-    var toggleSettings = config.toggleSettings[key];
-    activeCol = findactiveCol();
-    toggleKey = true;
-    return leToggler(0, 1, toggleSettings.dataRow, toggleSettings.onOutput, toggleSettings.offOutput);
-  }
-
-  if (config.notifierSettings[key]) {
-    nighttime_notifier_settings = config.notifierSettings[key];
-  }
-
-  if (config.timeElapsedSettings[key]) {
-    var timeElapsedConfig = config.timeElapsedSettings[key];
-    if (timeElapsedConfig.arrivedAtWorkCell !== undefined) {
-      arrivedAtWorkCell = timeElapsedConfig.arrivedAtWorkCell;
-    }
-    if (timeElapsedConfig.chartDataRangeIndex !== undefined) {
-      chartDataRanges = [chartDataRanges[timeElapsedConfig.chartDataRangeIndex]];
-    }
-    time_elapsed = timeElapsedConfig.timeElapsed.slice();
-    if (timeElapsedConfig.returnType === "time_elapsed") {
-      return time_elapsed;
-    }
-  }
-
-  if (config.noMetricKeys.indexOf(key) !== -1) {
-    return [];
-  }
-
-  if (config.legacyMetricSettings && config.legacyMetricSettings[key]) {
-    return resolveMetricSettings_(config.legacyMetricSettings[key], config, taskIdRowMap);
-  }
-
-  if (config.metricSettings && !Array.isArray(config.metricSettings) && config.metricSettings[key]) {
-    return resolveMetricSettings_(config.metricSettings[key], config, taskIdRowMap);
-  }
-
-  return ContentService.createTextOutput("Invalid Key. Please try again.");
+  return [];
 }
 
 function getMetricSettingById(metricID) {
@@ -2254,40 +2082,6 @@ function normalizeMetricInput(data) {
   return normalized;
 }
 
-function applyKeySettings_(keySettings) {
-  if (keySettings.arrivedAtWorkCell !== undefined) {
-    arrivedAtWorkCell = keySettings.arrivedAtWorkCell;
-  }
-  if (keySettings.nextActionSetting !== undefined) {
-    nextActionSetting = keySettings.nextActionSetting;
-  }
-  if (keySettings.nextActionRow !== undefined) {
-    nextActionRow = keySettings.nextActionRow;
-  }
-  if (keySettings.nextActionMessage !== undefined) {
-    nextActionMessage = keySettings.nextActionMessage;
-  }
-  if (keySettings.screentimeTimeStampRow !== undefined) {
-    screentimeTimeStampRow = keySettings.screentimeTimeStampRow;
-  }
-}
-
-function resolveMetricSettings_(metricSettings, config, taskIdRowMap) {
-  return metricSettings.map(function (metric) {
-    var resolvedMetric = Object.assign({}, metric);
-    if (resolvedMetric.taskId) {
-      resolvedMetric.rowNumber = resolveTaskIdRow_(resolvedMetric.taskId, taskIdRowMap);
-      return resolvedMetric;
-    }
-    if (resolvedMetric.rowNumberKey) {
-      resolvedMetric.rowNumber = config.rows[resolvedMetric.rowNumberKey];
-      delete resolvedMetric.rowNumberKey;
-      return resolvedMetric;
-    }
-    return resolvedMetric;
-  });
-}
-
 function buildTaskIdRowMap_(sheet, taskIdColumn) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) {
@@ -2313,13 +2107,6 @@ function buildTaskIdRowMap_(sheet, taskIdColumn) {
   });
 
   return map;
-}
-
-function resolveTaskIdRow_(taskId, taskIdRowMap) {
-  if (!taskIdRowMap || !taskIdRowMap[taskId]) {
-    throw new Error("taskID not found in sheet: " + taskId);
-  }
-  return taskIdRowMap[taskId];
 }
 
 function notionAppendToBlock_(blockId, text, opts) {
