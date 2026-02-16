@@ -248,8 +248,9 @@ function positivePushNotificationV2_() {
 
   for (var i = 0; i < settings.length; i++) {
     var metric = settings[i] || {};
+    var messageTemplate = getPpnMessageTemplate_(metric);
 
-    if (!metric.ppnMessage) {
+    if (!messageTemplate) {
       continue;
     }
 
@@ -268,7 +269,7 @@ function positivePushNotificationV2_() {
     }
 
     var streakCount = calculateStreak_(metric.metricID, activeCol, extensionHours, sheet1);
-    var message = composePpnMessage_(metric.ppnMessage, streakCount, metric.streaks && metric.streaks.unit);
+    var message = composePpnMessage_(messageTemplate, streakCount, metric.streaks && metric.streaks.unit);
 
     return buildHabitsV2Response({
       ok: true,
@@ -285,6 +286,18 @@ function positivePushNotificationV2_() {
     ok: true,
     messages: ["All habits completed for today!"]
   });
+}
+
+function getPpnMessageTemplate_(metric) {
+  if (!metric || typeof metric !== 'object') {
+    return null;
+  }
+
+  if (metric.ppnMessage === undefined || metric.ppnMessage === null || metric.ppnMessage === '') {
+    return null;
+  }
+
+  return metric.ppnMessage;
 }
 
 function currentMetricStatusV2_(rawData) {
