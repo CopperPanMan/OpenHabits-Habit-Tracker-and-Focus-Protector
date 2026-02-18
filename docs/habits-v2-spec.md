@@ -129,10 +129,17 @@ Each metric object:
     ["Tuesday","15:43",9,17],
     ["Friday","15:45",1,24]
   ],// streak row target + display unitstreaks: {unit:"days",streaksID:"weightNumberStreak" },// points configurationpoints: {value:1,multiplierDays:4,maxMultiplier:1.2,pointsID:"weightPoints"
-  },// performance insight configuration (used by existing function)metricInsightSettings: {/* passed to findPerformanceInsights */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timer-specific settings (used when type is start_timer or stop_timer)ifTimer_Settings: {stopTimerMessage:"Added {addedTimeLong}! (addedTimeDec)\nNew Score: {totalTimeLong}",timerStartMetricID:null,timerDurationMetricID:null
+  },// performance insight configuration (used by existing function)insights: {/* passed to findPerformanceInsightsV2_ (ex: {insightChance:1, streakProb:0.8, dayToDayChance:1, dayToAvgChance:0.5, rawValueChance:1, increaseGood:-1, firstWords:"Time Completed:", insightUnits:"minutes"}) */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timer-specific settings (used when type is start_timer or stop_timer)ifTimer_Settings: {stopTimerMessage:"Added {addedTimeLong}! (addedTimeDec)\nNew Score: {totalTimeLong}",timerStartMetricID:null,timerDurationMetricID:null
   }
 }
 ```
+
+### 4.2.1 Insights field naming (V2)
+
+- Habits V2 uses `insights` (not `metricInsightSettings`).
+- `insights.firstWords` is the preferred field name for message prefixes.
+- Backward compatibility: `insights.insightFirstWords` may still be accepted as an alias for `insights.firstWords`.
+- Insight text emitted in API `messages[]` is the same text written to the Notion `insightBlock`.
 
 ## 4.3 Duplicate IDs
 
