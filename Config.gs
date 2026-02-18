@@ -55,6 +55,8 @@ function getAppConfig() {
     },
 
     // Habits V2 settings
+    // dates format supports either legacy [day, dueByTime, startHour, endHour]
+    // or V2 multi-window [day, dueByTime, [[startHour, endHour], ...]].
     metricSettings: [],
     keySettings: {},
     noMetricKeys: [
