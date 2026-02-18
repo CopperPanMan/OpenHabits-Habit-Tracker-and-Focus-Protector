@@ -31,6 +31,28 @@ function getAppConfig() {
       dataStartColumn: 3
     },
     positive_push_notifications: 'On',
+    habitsV2Insights: {
+      comparisonArray: [
+        [1, 'yesterday'],
+        [2, '2 days ago'],
+        [3, '3 days ago'],
+        [4, '4 days ago'],
+        [5, '5 days ago'],
+        [6, '6 days ago'],
+        [7, '7 days ago'],
+        [14, 'two weeks ago'],
+        [21, '3 weeks ago'],
+        [30, 'this day last month'],
+        [60, '2 months ago'],
+        [90, '3 months ago'],
+        [180, '6 months ago'],
+        [365, 'one year ago today'],
+        [730, '2 years ago today']
+      ],
+      posPerformanceFreq: 0.75,
+      negPerformanceFreq: 0.25,
+      averageSpan: 7
+    },
 
     // Habits V2 settings
     metricSettings: [],

@@ -572,6 +572,12 @@ function recordMetricBySource_(rawData, options) {
         messages.push(timerHandledResult.message);
       }
 
+      var timerInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+      if (timerInsightMessage) {
+        resultEntry.insight = timerInsightMessage;
+        messages.push(timerInsightMessage);
+      }
+
       if (setting.streaks && setting.streaks.streaksID) {
         var timerStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
         writeStreakToSheet_(setting.streaks.streaksID, timerStreakValue, activeCol, trackingSheet);
@@ -637,6 +643,11 @@ function recordMetricBySource_(rawData, options) {
         resultEntry.multiplier = multiplier;
         resultEntry.pointsDelta = metricPointsDelta;
         resultEntry.metricPointsToday = metricPointsToday;
+        var numberAddInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+        if (numberAddInsightMessage) {
+          resultEntry.insight = numberAddInsightMessage;
+          messages.push(numberAddInsightMessage);
+        }
         results.push(resultEntry);
         continue;
       }
@@ -674,6 +685,11 @@ function recordMetricBySource_(rawData, options) {
       resultEntry.multiplier = multiplier;
       resultEntry.pointsDelta = metricPointsDelta;
       resultEntry.metricPointsToday = metricPointsToday;
+      var durationAddInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+      if (durationAddInsightMessage) {
+        resultEntry.insight = durationAddInsightMessage;
+        messages.push(durationAddInsightMessage);
+      }
       results.push(resultEntry);
       continue;
     }
@@ -697,6 +713,12 @@ function recordMetricBySource_(rawData, options) {
     resultEntry.pointsDelta = metricPointsDelta;
     resultEntry.metricPointsToday = metricPointsToday;
 
+    var overwriteInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+    if (overwriteInsightMessage) {
+      resultEntry.insight = overwriteInsightMessage;
+      messages.push(overwriteInsightMessage);
+    }
+
     results.push(resultEntry);
   }
 
@@ -714,6 +736,318 @@ function recordMetricBySource_(rawData, options) {
     errors: errors,
     warnings: warnings
   });
+}
+
+function resolveInsightsConfig_(setting) {
+  if (!setting || typeof setting !== 'object') {
+    return null;
+  }
+
+  var insights = setting.insights || setting.metricInsightSettings;
+  if (!insights || typeof insights !== 'object') {
+    return null;
+  }
+
+  var normalized = {};
+  for (var keyName in insights) {
+    if (Object.prototype.hasOwnProperty.call(insights, keyName)) {
+      normalized[keyName] = insights[keyName];
+    }
+  }
+
+  if (normalized.firstWords === undefined && normalized.insightFirstWords !== undefined) {
+    normalized.firstWords = normalized.insightFirstWords;
+  }
+  if (normalized.insightFirstWords === undefined && normalized.firstWords !== undefined) {
+    normalized.insightFirstWords = normalized.firstWords;
+  }
+
+  return normalized;
+}
+
+function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, dataRange, foundNegativeComp, foundPositiveComp) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  var resolvedActiveCol = Number(optionalActiveCol) || activeCol || getCurrentTrackingDayColumn_(trackingSheet);
+  var insights = resolveInsightsConfig_(setting);
+
+  if (!insights) {
+    return '';
+  }
+
+  if (insights.insightChance !== undefined && Math.random() > Number(insights.insightChance)) {
+    return '';
+  }
+
+  if (foundNegativeComp === undefined) {
+    foundNegativeComp = 0;
+  }
+  if (foundPositiveComp === undefined) {
+    foundPositiveComp = 0;
+  }
+
+  var appConfig = getAppConfig();
+  var v2InsightsConfig = appConfig && appConfig.habitsV2Insights ? appConfig.habitsV2Insights : {};
+  var originalComparisonArray = Array.isArray(v2InsightsConfig.comparisonArray) ? v2InsightsConfig.comparisonArray : [];
+  var comparisonArray = originalComparisonArray.slice();
+  var averageSpan = Number(v2InsightsConfig.averageSpan);
+  if (!isFinite(averageSpan) || averageSpan < 1) {
+    averageSpan = 7;
+  }
+
+  var posPerformanceFreq = Number(v2InsightsConfig.posPerformanceFreq);
+  if (!isFinite(posPerformanceFreq)) {
+    posPerformanceFreq = 1;
+  }
+  var negPerformanceFreq = Number(v2InsightsConfig.negPerformanceFreq);
+  if (!isFinite(negPerformanceFreq)) {
+    negPerformanceFreq = 1;
+  }
+
+  if (Math.random() <= Number(insights.streakProb || 0)) {
+    var extensionHours = lateExtensionHours !== undefined ? lateExtensionHours : lateExtension;
+    var streakCount = calculateStreak_(setting.metricID, resolvedActiveCol, extensionHours, trackingSheet);
+    return 'streak +1. Now = ' + streakCount + ' days';
+  }
+
+  var validSettings = checkInsightsSettingsV2_(insights);
+  if (validSettings !== 1) {
+    return validSettings;
+  }
+
+  if (resolvedActiveCol < 4) {
+    return 'Well done! Complete this tomorrow for new performance insights.';
+  } else if (Number(insights.dayToDayChance) < 1 && Number(insights.dayToDayChance) > 0 && resolvedActiveCol - averageSpan + 1 < 2) {
+    insights.dayToDayChance = 1;
+  } else if (Number(insights.dayToDayChance) === 0 && resolvedActiveCol - averageSpan + 1 < 2) {
+    return 'Nice job! Not enough data to compare averages yet.';
+  }
+
+  var chooseChance;
+  if (!Array.isArray(dataRange) || dataRange.length === 0) {
+    var resolvedRow = (typeof setting.rowNumber === 'number' && setting.rowNumber > 0) ? setting.rowNumber : null;
+    if (!resolvedRow) {
+      var rowLookup = findRowByMetricId_(setting.metricID, trackingSheet);
+      resolvedRow = rowLookup.row;
+    }
+
+    if (!resolvedRow) {
+      return '';
+    }
+
+    dataRange = trackingSheet.getRange(resolvedRow, 2, 1, resolvedActiveCol - 1).getValues()[0];
+    chooseChance = Math.round(1 / maxPossibleComparisonsV2_(insights, originalComparisonArray, averageSpan) * 100) / 100;
+  } else {
+    chooseChance = 1;
+    comparisonArray = shuffleV2_(comparisonArray);
+    posPerformanceFreq = 1;
+    negPerformanceFreq = 1;
+  }
+
+  var todaysValue;
+  var compValue;
+
+  if (Math.random() <= Number(insights.dayToDayChance)) {
+    todaysValue = turnToNumberV2_(setting, dataRange[resolvedActiveCol - 2]);
+
+    for (var i = 0; i < comparisonArray.length; i++) {
+      var compColumn = resolvedActiveCol - comparisonArray[i][0];
+      if (compColumn > 1 && compColumn < resolvedActiveCol) {
+        if (chooseChance !== 1) {
+          chooseChance = chooseChance / (1 - chooseChance);
+        }
+
+        compValue = turnToNumberV2_(setting, dataRange[resolvedActiveCol - 2 - comparisonArray[i][0]]);
+        if (compValue > 0) {
+          if ((todaysValue - compValue) * Number(insights.increaseGood) > 0) {
+            foundPositiveComp = 1;
+            if (Math.random() <= posPerformanceFreq * chooseChance) {
+              return insights.firstWords + ' ' + findMessageValueV2_(insights, todaysValue, compValue) + ' vs ' + comparisonArray[i][1] + '!';
+            }
+          } else {
+            foundNegativeComp = 1;
+            if (Math.random() <= negPerformanceFreq * chooseChance) {
+              return insights.firstWords + ' ' + findMessageValueV2_(insights, todaysValue, compValue) + ' vs ' + comparisonArray[i][1] + ' ';
+            }
+          }
+        }
+      }
+    }
+  } else {
+    var messageModifier;
+    if (Math.random() <= Number(insights.dayToAvgChance)) {
+      todaysValue = turnToNumberV2_(setting, dataRange[resolvedActiveCol - 2]);
+      messageModifier = 'today';
+    } else {
+      todaysValue = getAverageV2_(turnArrayToNumbersV2_(setting, dataRange.slice(resolvedActiveCol - 2 - averageSpan + 1, resolvedActiveCol - 2 + 1)));
+      messageModifier = 'this ' + averageSpan + ' day span';
+    }
+
+    for (var j = 0; j < comparisonArray.length; j++) {
+      var avgCompColumn = resolvedActiveCol - comparisonArray[j][0];
+      if ((avgCompColumn - averageSpan + 1) >= 2 && avgCompColumn < resolvedActiveCol) {
+        if (chooseChance !== 1) {
+          chooseChance = chooseChance / (1 - chooseChance);
+        }
+
+        compValue = getAverageV2_(turnArrayToNumbersV2_(setting, dataRange.slice(resolvedActiveCol - 2 - comparisonArray[j][0] - averageSpan + 1, resolvedActiveCol + 1 - 2 - comparisonArray[j][0])));
+        if (compValue !== 0) {
+          if ((todaysValue - compValue) * Number(insights.increaseGood) > 0) {
+            foundPositiveComp = 1;
+            if (Math.random() <= posPerformanceFreq * chooseChance) {
+              return insights.firstWords + ' ' + findMessageValueV2_(insights, todaysValue, compValue) + ' ' + messageModifier + ' vs ' + averageSpan + ' day span concluding ' + comparisonArray[j][1] + '!';
+            }
+          } else {
+            foundNegativeComp = 1;
+            if (Math.random() <= negPerformanceFreq * chooseChance) {
+              return insights.firstWords + ' ' + findMessageValueV2_(insights, todaysValue, compValue) + ' ' + messageModifier + ' vs ' + averageSpan + ' day span concluding ' + comparisonArray[j][1] + ' ';
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (foundNegativeComp === 0 && foundPositiveComp === 0) {
+    return 'Complete tomorrow for new performance comparisons!';
+  }
+
+  if ((foundPositiveComp === 0 && negPerformanceFreq === 0) || (foundNegativeComp === 0 && posPerformanceFreq === 0)) {
+    return '';
+  }
+
+  return findPerformanceInsightsV2_(setting, trackingSheet, resolvedActiveCol, dataRange, foundNegativeComp, foundPositiveComp);
+}
+
+function findMessageValueV2_(insights, todaysValue, compValue) {
+  var units = insights.insightUnits;
+
+  if (units === 'minutes' && (todaysValue - compValue > 60 || compValue - todaysValue > 60)) {
+    units = 'hours';
+    todaysValue = todaysValue / 60;
+    compValue = compValue / 60;
+  }
+
+  if (Math.random() <= Number(insights.rawValueChance)) {
+    var rawDelta = Math.round((todaysValue - compValue) * 100) / 100;
+    if (rawDelta > 0) {
+      return '+' + String(rawDelta) + ' ' + units;
+    }
+    return String(rawDelta) + ' ' + units;
+  }
+
+  var percentDelta = Math.round(((todaysValue / compValue - 1) * 100) * 100) / 100;
+  if (percentDelta > 0) {
+    return '+' + String(percentDelta) + '%';
+  }
+  return String(percentDelta) + '%';
+}
+
+function checkInsightsSettingsV2_(insights) {
+  if (!insights.firstWords) {
+    return 'Insights config error: missing insights.firstWords.';
+  }
+
+  var requiredNumericKeys = ['streakProb', 'dayToDayChance', 'dayToAvgChance', 'rawValueChance', 'increaseGood'];
+  for (var i = 0; i < requiredNumericKeys.length; i++) {
+    var keyName = requiredNumericKeys[i];
+    var numeric = Number(insights[keyName]);
+    if (!isFinite(numeric)) {
+      return 'Insights config error: insights.' + keyName + ' must be numeric.';
+    }
+    insights[keyName] = numeric;
+  }
+
+  if (!insights.insightUnits) {
+    return 'Insights config error: missing insights.insightUnits.';
+  }
+
+  return 1;
+}
+
+function maxPossibleComparisonsV2_(insights, comparisonArray, averageSpan) {
+  var dayToDayChance = Number(insights.dayToDayChance);
+  var dayToAvgChance = Number(insights.dayToAvgChance);
+  var dayToDayCount = Array.isArray(comparisonArray) ? comparisonArray.length : 1;
+  var avgCount = Array.isArray(comparisonArray) ? comparisonArray.length : 1;
+
+  if (!isFinite(dayToDayChance) || dayToDayChance < 0) {
+    dayToDayChance = 0;
+  }
+  if (!isFinite(dayToAvgChance) || dayToAvgChance < 0) {
+    dayToAvgChance = 0;
+  }
+  if (!isFinite(averageSpan) || averageSpan < 1) {
+    averageSpan = 7;
+  }
+
+  var weighted = dayToDayChance * dayToDayCount + (1 - dayToDayChance) * avgCount;
+  if (weighted <= 0) {
+    weighted = 1;
+  }
+
+  return weighted;
+}
+
+function turnToNumberV2_(setting, value) {
+  var metricType = setting && (setting.type || setting.unitType) || 'number';
+  if (metricType === 'duration') {
+    var seconds = parseDurationToSeconds_(value, false);
+    if (seconds === null) {
+      return 0;
+    }
+    return seconds / 60;
+  }
+
+  var numeric = parseStrictNumber_(value);
+  return numeric === null ? 0 : numeric;
+}
+
+function turnArrayToNumbersV2_(setting, arr) {
+  var result = [];
+  if (!Array.isArray(arr)) {
+    return result;
+  }
+
+  for (var i = 0; i < arr.length; i++) {
+    result.push(turnToNumberV2_(setting, arr[i]));
+  }
+
+  return result;
+}
+
+function getAverageV2_(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) {
+    return 0;
+  }
+
+  var total = 0;
+  var count = 0;
+  for (var i = 0; i < arr.length; i++) {
+    var numeric = Number(arr[i]);
+    if (!isFinite(numeric)) {
+      continue;
+    }
+    total += numeric;
+    count += 1;
+  }
+
+  return count ? total / count : 0;
+}
+
+function shuffleV2_(arr) {
+  if (!Array.isArray(arr)) {
+    return [];
+  }
+
+  var copy = arr.slice();
+  for (var i = copy.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = temp;
+  }
+
+  return copy;
 }
 
 function syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors, warnings, trackingSheet) {
