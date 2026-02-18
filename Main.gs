@@ -371,17 +371,63 @@ function isMetricEligibleForPPNNow_(metric, now, extensionHours) {
       continue;
     }
 
-    var startHour = parseOptionalHour_(entry.length > 2 ? entry[2] : null);
-    var endHour = parseOptionalHour_(entry.length > 3 ? entry[3] : null);
-
-    if (startHour === null || endHour === null) {
+    var hourRanges = parsePpnHourRanges_(entry);
+    if (!hourRanges) {
       return true;
     }
 
-    return isCurrentHourWithinRange_(now, startHour, endHour);
+    return isCurrentHourWithinAnyRange_(now, hourRanges);
   }
 
   return !hasDayEntries;
+}
+
+function parsePpnHourRanges_(dateEntry) {
+  if (!Array.isArray(dateEntry) || dateEntry.length < 3) {
+    return null;
+  }
+
+  var explicitRanges = dateEntry[2];
+  var legacyStart = parseOptionalHour_(explicitRanges);
+  var legacyEnd = parseOptionalHour_(dateEntry.length > 3 ? dateEntry[3] : null);
+
+  if (Array.isArray(explicitRanges)) {
+    var parsedRanges = [];
+
+    for (var i = 0; i < explicitRanges.length; i++) {
+      var rangeEntry = explicitRanges[i];
+      if (!Array.isArray(rangeEntry) || rangeEntry.length < 2) {
+        continue;
+      }
+
+      var startHour = parseOptionalHour_(rangeEntry[0]);
+      var endHour = parseOptionalHour_(rangeEntry[1]);
+
+      if (startHour === null || endHour === null) {
+        continue;
+      }
+
+      parsedRanges.push([startHour, endHour]);
+    }
+
+    return parsedRanges.length > 0 ? parsedRanges : null;
+  }
+
+  if (legacyStart === null || legacyEnd === null) {
+    return null;
+  }
+
+  return [[legacyStart, legacyEnd]];
+}
+
+function isCurrentHourWithinAnyRange_(now, ranges) {
+  for (var i = 0; i < ranges.length; i++) {
+    if (isCurrentHourWithinRange_(now, ranges[i][0], ranges[i][1])) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function getEffectiveWeekdayName_(now, extensionHours) {

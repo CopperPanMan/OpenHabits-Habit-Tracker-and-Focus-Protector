@@ -124,10 +124,10 @@ Optional global config (used only if Notion enabled):
 Each metric object:
 
 ```jsx
-{metricID:"weightNumber",// requiredtype:"number",// required enum: number | duration | timestamp | due_by | start_timer | stop_timerdisplayName:"Weight: ",// required (used in output messaging)recordType:"overwrite",// required enum: overwrite | keep_first | add// dates controls scheduling, streak-counting, and PPN filteringdates: [// [dayOfWeek, dueByTime, startHour, endHour]
-    ["Sunday","10:15",12,17],
-    ["Tuesday","15:43",9,17],
-    ["Friday","15:45",1,24]
+{metricID:"weightNumber",// requiredtype:"number",// required enum: number | duration | timestamp | due_by | start_timer | stop_timerdisplayName:"Weight: ",// required (used in output messaging)recordType:"overwrite",// required enum: overwrite | keep_first | add// dates controls scheduling, streak-counting, and PPN filteringdates: [// [dayOfWeek, dueByTime, [[startHour, endHour], ...]]
+    ["Sunday","10:15",[[12,17]]],
+    ["Tuesday","15:43",[[9,12],[14,17]]],
+    ["Friday","15:45",[[1,24]]]
   ],// streak row target + display unitstreaks: {unit:"days",streaksID:"weightNumberStreak" },// points configurationpoints: {value:1,multiplierDays:4,maxMultiplier:1.2,pointsID:"weightPoints"
   },// performance insight configuration (used by existing function)insights: {/* passed to findPerformanceInsightsV2_ (ex: {insightChance:1, streakProb:0.8, dayToDayChance:1, dayToAvgChance:0.5, rawValueChance:1, increaseGood:-1, firstWords:"Time Completed:", insightUnits:"minutes"}) */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timer-specific settings (used when type is start_timer or stop_timer)ifTimer_Settings: {stopTimerMessage:"Added {addedTimeLong}! (addedTimeDec)\nNew Score: {totalTimeLong}",timerStartMetricID:null,timerDurationMetricID:null
   }
@@ -289,7 +289,10 @@ The `dates` array drives:
 - positive push notification filtering,
 - due_by “time” meaning (only relevant for `due_by` metrics).
 
-Each entry: `[dayOfWeek, dueByTime, startHour, endHour]`
+Each entry: `[dayOfWeek, dueByTime, excludedWindows]` where `excludedWindows` is optional and can be one of:
+
+- **New format (preferred):** `[[startHour, endHour], ...]`
+- **Legacy format (still supported):** `startHour, endHour`
 
 Rules:
 
@@ -300,11 +303,12 @@ Rules:
 - `dueByTime`:
     - 24h `HH:MM`
     - Optional unless `type == "due_by"` (see assumptions list for exact requirement)
-- `startHour`, `endHour`:
-    - Integers, representing hours in 0–23 space
-    - **Inclusive** (simple mental model): `startHour <= hour <= endHour`
-    - Used only for PPN filtering.
-    - If missing, the metric is considered eligible for PPN filtering on that day (i.e., no hour restriction).
+- PPN hour windows (`excludedWindows` in the new format):
+    - Each pair is `[startHour, endHour]` with integer hours in 0–23 space.
+    - **Inclusive** (simple mental model): `startHour <= hour <= endHour`.
+    - Multiple pairs are allowed and interpreted with OR logic (if current hour matches any pair, day is eligible for PPN).
+    - Overnight windows are allowed (`startHour > endHour`) and wrap across midnight.
+    - If missing (or invalid/empty), the metric is considered eligible for PPN filtering on that day (i.e., no hour restriction).
 
 Edge case rule (explicit from your spec):
 
@@ -508,8 +512,8 @@ For each metric, determine if it should be included “right now”:
 - If `dates` has days listed:
     - If today’s weekday is not present → exclude.
     - If today’s weekday is present:
-        - If that weekday entry has no `startHour`/`endHour` → include.
-        - Else include only if `now()` is within `[startHour, endHour]`.
+        - If that weekday entry has no valid PPN windows → include.
+        - Else include only if `now()` is inside **any** configured window pair for that weekday.
 
 ## 15.3 “Next” metric
 
