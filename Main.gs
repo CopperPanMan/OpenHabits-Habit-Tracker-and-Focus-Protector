@@ -1697,18 +1697,29 @@ function incrementCumulativePointsRowById_(metricID, delta, activeColInput, trac
 
   var targetCell = trackingSheet.getRange(rowLookup.row, activeColInput);
   var existingValue = targetCell.getValue();
-  var currentNumber = parseStoredNumberForAdd_(existingValue);
-
-  if (currentNumber === null && activeColInput > (dataStartColumn || 3)) {
-    var priorValue = trackingSheet.getRange(rowLookup.row, activeColInput - 1).getValue();
-    currentNumber = parseStoredNumberForAdd_(priorValue);
-  }
+  var currentNumber = resolveStartingCumulativePoints_(existingValue, rowLookup.row, activeColInput, trackingSheet);
 
   if (currentNumber === null) {
     currentNumber = 0;
   }
 
   targetCell.setValue(currentNumber + delta);
+}
+
+function resolveStartingCumulativePoints_(existingValue, row, activeColInput, trackingSheet) {
+  var dataColumn = dataStartColumn || 3;
+  var hasExistingValue = !(existingValue === '' || existingValue === null || existingValue === undefined);
+
+  if (hasExistingValue) {
+    return parseStoredNumberForAdd_(existingValue);
+  }
+
+  if (activeColInput <= dataColumn) {
+    return null;
+  }
+
+  var priorValue = trackingSheet.getRange(row, activeColInput - 1).getValue();
+  return parseStoredNumberForAdd_(priorValue);
 }
 
 function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput, optionalSheet) {
