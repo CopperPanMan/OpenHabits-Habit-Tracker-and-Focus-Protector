@@ -1068,6 +1068,10 @@ function maxPossibleComparisonsV2_(insights, comparisonArray, averageSpan) {
 
 function turnToNumberV2_(setting, value) {
   var metricType = setting && (setting.type || setting.unitType) || 'number';
+  if (metricType === 'timestamp' || metricType === 'due_by') {
+    return convertTimestampToMinutesV2_(value);
+  }
+
   if (metricType === 'duration') {
     var seconds = parseDurationToSeconds_(value, false);
     if (seconds === null) {
@@ -1078,6 +1082,22 @@ function turnToNumberV2_(setting, value) {
 
   var numeric = parseStrictNumber_(value);
   return numeric === null ? 0 : numeric;
+}
+
+function convertTimestampToMinutesV2_(value) {
+  if (value === '' || value === null || value === undefined) {
+    return 0;
+  }
+
+  var parsedDate = value instanceof Date ? value : new Date(value);
+  if (!(parsedDate instanceof Date) || isNaN(parsedDate.getTime())) {
+    return 0;
+  }
+
+  var timezone = Session.getScriptTimeZone();
+  var hour = Number(Utilities.formatDate(parsedDate, timezone, 'H'));
+  var minute = Number(Utilities.formatDate(parsedDate, timezone, 'm'));
+  return hour * 60 + minute;
 }
 
 function turnArrayToNumbersV2_(setting, arr) {
