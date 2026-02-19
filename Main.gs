@@ -1461,7 +1461,7 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
   var addedDuration = secondsToDurationString_(elapsedSeconds);
   var totalDuration = secondsToDurationString_(totalDurationSeconds);
   var pointsDelta = calculateTimerPointsDelta_(setting, elapsedSeconds, multiplier);
-  var messageTemplate = timerSettings.stopTimerMessage || 'Added {addedTimeLong}! ({addedTimeDec})\nNew Score: {totalTimeLong}';
+  var messageTemplate = timerSettings.stopTimerMessage || 'Added +{addedTimeLong}! ({addedTimeDec})\nNew Score: {totalTimeLong}';
   var timerMessage = replaceTimerMessageTokens_(messageTemplate, elapsedSeconds, totalDurationSeconds);
 
   writeMetricPointsRow_(setting, pointsDelta, activeColInput, trackingSheet, warnings);
@@ -1537,7 +1537,7 @@ function formatDurationLong_(durationSeconds) {
 
 function formatDurationDecimalHours_(durationSeconds) {
   var totalSeconds = Math.max(0, Number(durationSeconds || 0));
-  return (totalSeconds / 3600).toFixed(1) + 'h';
+  return (totalSeconds / 3600).toFixed(2) + 'h';
 }
 
 function getMultiplier_(metricID, streakCountBeforeLog) {
@@ -2131,7 +2131,10 @@ function parseStoredDurationForAdd_(value) {
   }
 
   if (typeof value === 'number') {
-    return null;
+    if (!isFinite(value) || value < 0) {
+      return null;
+    }
+    return Math.round(value * 24 * 60 * 60);
   }
 
   return parseDurationToSeconds_(value, true);
