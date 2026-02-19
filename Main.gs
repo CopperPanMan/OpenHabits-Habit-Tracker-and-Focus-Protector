@@ -792,6 +792,11 @@ function resolveInsightsConfig_(setting) {
 
   var insights = setting.insights || setting.metricInsightSettings;
   if (!insights || typeof insights !== 'object') {
+    var legacyInsights = extractLegacyInsightsConfig_(setting);
+    insights = legacyInsights || insights;
+  }
+
+  if (!insights || typeof insights !== 'object') {
     return null;
   }
 
@@ -810,6 +815,32 @@ function resolveInsightsConfig_(setting) {
   }
 
   return normalized;
+}
+
+function extractLegacyInsightsConfig_(setting) {
+  var legacyKeys = [
+    'insightChance',
+    'streakProb',
+    'dayToDayChance',
+    'dayToAvgChance',
+    'rawValueChance',
+    'increaseGood',
+    'insightFirstWords',
+    'firstWords',
+    'insightUnits'
+  ];
+
+  var hasLegacy = false;
+  var extracted = {};
+  for (var i = 0; i < legacyKeys.length; i++) {
+    var keyName = legacyKeys[i];
+    if (setting[keyName] !== undefined) {
+      extracted[keyName] = setting[keyName];
+      hasLegacy = true;
+    }
+  }
+
+  return hasLegacy ? extracted : null;
 }
 
 function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, dataRange, foundNegativeComp, foundPositiveComp) {
@@ -1140,13 +1171,23 @@ function syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors,
     metricsUpdated += syncOutcome.updatedCount || 0;
   }
 
-  if (eligibleMetricCount > 0) {
+  if (shouldUpdateNotionDashboardBlocks_(eligibleMetricCount, messages, errors)) {
     updateNotionDashboardBlocks_(notionConfig, messages, errors, warnings, trackingSheet);
   }
 
   if (metricsUpdated > 0) {
     messages.push('Notion task updates: ' + metricsUpdated + '.');
   }
+}
+
+function shouldUpdateNotionDashboardBlocks_(eligibleMetricCount, messages, errors) {
+  if (Number(eligibleMetricCount) > 0) {
+    return true;
+  }
+
+  var hasMessages = Array.isArray(messages) && messages.length > 0;
+  var hasErrors = Array.isArray(errors) && errors.length > 0;
+  return hasMessages || hasErrors;
 }
 
 function syncSingleMetricToNotion_(result, setting, notionConfig, databaseIds, sourceIsNotion) {
