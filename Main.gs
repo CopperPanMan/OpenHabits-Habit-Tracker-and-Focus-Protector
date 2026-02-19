@@ -588,6 +588,9 @@ function recordMetricBySource_(rawData, options) {
       continue;
     }
 
+    var streakBeforeLog = calculateStreakBeforeLog_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
+    var multiplier = getMultiplier_(metricID, streakBeforeLog);
+
     var validated = validateMetricValueForRecord_(metricType, tuple.length > 1 ? tuple[1] : null);
     if (!validated.ok) {
       entryErrors.push(validated.error);
@@ -638,8 +641,6 @@ function recordMetricBySource_(rawData, options) {
     var cell = trackingSheet.getRange(row, activeCol);
     var currentValue = cell.getValue();
     var isCurrentEmpty = currentValue === "" || currentValue === null;
-    var streakBeforeLog = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
-    var multiplier = getMultiplier_(metricID, streakBeforeLog);
     var metricPointsDelta = 0;
     var metricPointsToday = null;
 
@@ -770,7 +771,7 @@ function recordMetricBySource_(rawData, options) {
 
   if (totalPointsDelta !== 0) {
     incrementPointsRowById_(dailyPointsID, totalPointsDelta, activeCol, trackingSheet, warnings);
-    incrementPointsRowById_(cumulativePointsID, totalPointsDelta, activeCol, trackingSheet, warnings);
+    incrementCumulativePointsRowById_(cumulativePointsID, totalPointsDelta, activeCol, trackingSheet, warnings);
   }
 
   syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors, warnings, trackingSheet);
@@ -1640,6 +1641,70 @@ function incrementPointsRowById_(metricID, delta, activeColInput, trackingSheet,
   }
 
   targetCell.setValue(currentNumber + delta);
+}
+
+function incrementCumulativePointsRowById_(metricID, delta, activeColInput, trackingSheet, warnings) {
+  if (!metricID) {
+    return;
+  }
+
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    warnings.push(rowLookup.error || ("metricID not found in sheet: " + metricID));
+    return;
+  }
+
+  var targetCell = trackingSheet.getRange(rowLookup.row, activeColInput);
+  var existingValue = targetCell.getValue();
+  var currentNumber = parseStoredNumberForAdd_(existingValue);
+
+  if (currentNumber === null && activeColInput > (dataStartColumn || 3)) {
+    var priorValue = trackingSheet.getRange(rowLookup.row, activeColInput - 1).getValue();
+    currentNumber = parseStoredNumberForAdd_(priorValue);
+  }
+
+  if (currentNumber === null) {
+    currentNumber = 0;
+  }
+
+  targetCell.setValue(currentNumber + delta);
+}
+
+function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput, optionalSheet) {
+  var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
+  var dataColumn = dataStartColumn || 3;
+  var resolvedActiveCol = Number(activeColInput) || ensureTodayColumn_(trackingSheet, new Date());
+  var extensionHours = lateExtensionInput !== undefined ? lateExtensionInput : (lateExtensionHours !== undefined ? lateExtensionHours : lateExtension);
+
+  var settingLookup = getMetricSettingById(metricID);
+  if (!settingLookup.setting) {
+    return 0;
+  }
+
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    return 0;
+  }
+
+  var row = rowLookup.row;
+  var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
+  var useScheduleFilter = scheduleDays.length > 0;
+  var streakCount = 0;
+
+  for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
+    if (!isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours)) {
+      continue;
+    }
+
+    var historicalValue = trackingSheet.getRange(row, col).getValue();
+    if (!isCompletedCellValue_(historicalValue)) {
+      break;
+    }
+
+    streakCount += 1;
+  }
+
+  return streakCount;
 }
 
 function calculateStreak_(metricID, activeColInput, lateExtensionInput, optionalSheet) {
