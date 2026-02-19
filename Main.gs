@@ -652,7 +652,9 @@ function recordMetricBySource_(rawData, options) {
       continue;
     }
 
-    if (recordType === "add") {
+    var treatAddAsOverwriteForType = recordType === "add" && (metricType === "timestamp" || metricType === "due_by");
+
+    if (recordType === "add" && !treatAddAsOverwriteForType) {
       if (metricType !== "number" && metricType !== "duration") {
         var addWarning = "Add recordType ignored for non-addable metric type (" + metricType + ") for metricID: " + metricID;
         warnings.push(addWarning);
@@ -745,8 +747,9 @@ function recordMetricBySource_(rawData, options) {
     resultEntry.status = "written";
     resultEntry.value = validated.value;
     resultEntry.complete = validated.value !== "" && validated.value !== null;
-    metricPointsDelta = calculatePointsDelta_(metricID, metricType, validated.value, null, multiplier);
-    metricPointsToday = metricPointsDelta;
+    metricPointsToday = calculatePointsDelta_(metricID, metricType, validated.value, null, multiplier);
+    var previousMetricPointsToday = getMetricPointsRowValue_(setting, activeCol, trackingSheet, warnings);
+    metricPointsDelta = metricPointsToday - previousMetricPointsToday;
     writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings);
     totalPointsDelta += metricPointsDelta;
 
@@ -1681,6 +1684,22 @@ function writeMetricPointsRow_(setting, pointsValue, activeColInput, trackingShe
   }
 
   trackingSheet.getRange(rowLookup.row, activeColInput).setValue(pointsValue);
+}
+
+function getMetricPointsRowValue_(setting, activeColInput, trackingSheet, warnings) {
+  if (!setting || !setting.points || !setting.points.pointsID) {
+    return 0;
+  }
+
+  var rowLookup = findRowByMetricId_(setting.points.pointsID, trackingSheet);
+  if (!rowLookup.row) {
+    warnings.push(rowLookup.error || ("metricID not found in sheet: " + setting.points.pointsID));
+    return 0;
+  }
+
+  var storedValue = trackingSheet.getRange(rowLookup.row, activeColInput).getValue();
+  var parsed = parseStoredNumberForAdd_(storedValue);
+  return parsed === null ? 0 : parsed;
 }
 
 function incrementPointsRowById_(metricID, delta, activeColInput, trackingSheet, warnings) {
