@@ -672,7 +672,7 @@ function recordMetricBySource_(rawData, options) {
         messages.push(timerHandledResult.message);
       }
 
-      var timerInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+      var timerInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol, undefined, undefined, undefined, activeColAccessor);
       if (timerInsightMessage) {
         resultEntry.insight = timerInsightMessage;
         messages.push(timerInsightMessage);
@@ -742,7 +742,7 @@ function recordMetricBySource_(rawData, options) {
         resultEntry.multiplier = multiplier;
         resultEntry.pointsDelta = metricPointsDelta;
         resultEntry.metricPointsToday = metricPointsToday;
-        var numberAddInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+        var numberAddInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol, undefined, undefined, undefined, activeColAccessor);
         if (numberAddInsightMessage) {
           resultEntry.insight = numberAddInsightMessage;
           messages.push(numberAddInsightMessage);
@@ -784,7 +784,7 @@ function recordMetricBySource_(rawData, options) {
       resultEntry.multiplier = multiplier;
       resultEntry.pointsDelta = metricPointsDelta;
       resultEntry.metricPointsToday = metricPointsToday;
-      var durationAddInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+      var durationAddInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol, undefined, undefined, undefined, activeColAccessor);
       if (durationAddInsightMessage) {
         resultEntry.insight = durationAddInsightMessage;
         messages.push(durationAddInsightMessage);
@@ -813,7 +813,7 @@ function recordMetricBySource_(rawData, options) {
     resultEntry.pointsDelta = metricPointsDelta;
     resultEntry.metricPointsToday = metricPointsToday;
 
-    var overwriteInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol);
+    var overwriteInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol, undefined, undefined, undefined, activeColAccessor);
     if (overwriteInsightMessage) {
       resultEntry.insight = overwriteInsightMessage;
       messages.push(overwriteInsightMessage);
@@ -898,7 +898,7 @@ function extractLegacyInsightsConfig_(setting) {
   return hasLegacy ? extracted : null;
 }
 
-function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, dataRange, foundNegativeComp, foundPositiveComp) {
+function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, dataRange, foundNegativeComp, foundPositiveComp, optionalAccessor) {
   var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
   var resolvedActiveCol = Number(optionalActiveCol) || activeCol || getCurrentTrackingDayColumn_(trackingSheet);
   var insights = resolveInsightsConfig_(setting);
@@ -938,7 +938,7 @@ function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, d
 
   if (Math.random() <= Number(insights.streakProb || 0)) {
     var extensionHours = lateExtensionHours !== undefined ? lateExtensionHours : lateExtension;
-    var streakCount = calculateStreak_(setting.metricID, resolvedActiveCol, extensionHours, trackingSheet);
+    var streakCount = calculateStreak_(setting.metricID, resolvedActiveCol, extensionHours, trackingSheet, optionalAccessor);
     return 'streak +1. Now = ' + streakCount + ' days';
   }
 
@@ -968,6 +968,9 @@ function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, d
     }
 
     dataRange = trackingSheet.getRange(resolvedRow, 2, 1, resolvedActiveCol - 1).getValues()[0];
+    if (optionalAccessor && resolvedActiveCol >= 2) {
+      dataRange[resolvedActiveCol - 2] = optionalAccessor.get(resolvedRow);
+    }
     chooseChance = Math.round(1 / maxPossibleComparisonsV2_(insights, originalComparisonArray, averageSpan) * 100) / 100;
   } else {
     chooseChance = 1;
@@ -1048,7 +1051,7 @@ function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, d
     return '';
   }
 
-  return findPerformanceInsightsV2_(setting, trackingSheet, resolvedActiveCol, dataRange, foundNegativeComp, foundPositiveComp);
+  return findPerformanceInsightsV2_(setting, trackingSheet, resolvedActiveCol, dataRange, foundNegativeComp, foundPositiveComp, optionalAccessor);
 }
 
 function findMessageValueV2_(insights, todaysValue, compValue) {
@@ -1872,7 +1875,7 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
   return streakCount;
 }
 
-function calculateStreak_(metricID, activeColInput, lateExtensionInput, optionalSheet) {
+function calculateStreak_(metricID, activeColInput, lateExtensionInput, optionalSheet, optionalAccessor) {
   var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
   var dataColumn = dataStartColumn || 3;
   var resolvedActiveCol = Number(activeColInput) || ensureTodayColumn_(trackingSheet, new Date());
@@ -1907,7 +1910,7 @@ function calculateStreak_(metricID, activeColInput, lateExtensionInput, optional
   }
 
   var todayScheduled = isScheduledColumn_(trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
-  var todayValue = trackingSheet.getRange(row, resolvedActiveCol).getValue();
+  var todayValue = optionalAccessor ? optionalAccessor.get(row) : trackingSheet.getRange(row, resolvedActiveCol).getValue();
 
   if (todayScheduled) {
     return isCompletedCellValue_(todayValue) ? streakCount + 1 : 0;
