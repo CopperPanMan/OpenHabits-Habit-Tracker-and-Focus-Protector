@@ -679,7 +679,7 @@ function recordMetricBySource_(rawData, options) {
       }
 
       if (setting.streaks && setting.streaks.streaksID) {
-        var timerStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
+        var timerStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
         writeStreakToSheet_(setting.streaks.streaksID, timerStreakValue, activeCol, trackingSheet, activeColAccessor);
         resultEntry.streak = timerStreakValue;
       }
@@ -735,7 +735,7 @@ function recordMetricBySource_(rawData, options) {
         writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
         totalPointsDelta += metricPointsDelta;
         if (setting.streaks && setting.streaks.streaksID) {
-          var numberAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
+          var numberAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
           writeStreakToSheet_(setting.streaks.streaksID, numberAddStreakValue, activeCol, trackingSheet, activeColAccessor);
           resultEntry.streak = numberAddStreakValue;
         }
@@ -777,7 +777,7 @@ function recordMetricBySource_(rawData, options) {
       writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
       totalPointsDelta += metricPointsDelta;
       if (setting.streaks && setting.streaks.streaksID) {
-        var durationAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
+        var durationAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
         writeStreakToSheet_(setting.streaks.streaksID, durationAddStreakValue, activeCol, trackingSheet, activeColAccessor);
         resultEntry.streak = durationAddStreakValue;
       }
@@ -804,7 +804,7 @@ function recordMetricBySource_(rawData, options) {
     totalPointsDelta += metricPointsDelta;
 
     if (setting.streaks && setting.streaks.streaksID) {
-      var streakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
+      var streakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
       writeStreakToSheet_(setting.streaks.streaksID, streakValue, activeCol, trackingSheet, activeColAccessor);
       resultEntry.streak = streakValue;
     }
