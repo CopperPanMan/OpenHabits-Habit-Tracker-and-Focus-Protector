@@ -187,26 +187,6 @@ function isHabitsV2Key_(requestKey) {
     requestKey === "current_metric_status";
 }
 
-function debugRunRecordMetricIOS_() {
-  var request = {
-    parameters: {
-      key: JSON.stringify('record_metric_iOS'),
-      data: JSON.stringify([['check_work_tasks']])
-    }
-  };
-
-  var response = doGet(request);
-  var text = response && response.getContent ? response.getContent() : String(response);
-  Logger.log('debugRunRecordMetricIOS_ response: %s', text);
-  return text;
-}
-
-function debugPreviewNotionMetricQueryPath_(databaseId) {
-  var path = '/v1/databases/' + normalizeNotionId_(databaseId) + '/query';
-  Logger.log('debugPreviewNotionMetricQueryPath_: %s', path);
-  return path;
-}
-
 function parseHabitsV2Data_(rawData) {
   var parsedData;
   var results = [];
@@ -1366,33 +1346,8 @@ function findNotionPagesByMetricId_(databaseId, metricIdPropertyName, metricID) 
     page_size: 100
   };
 
-  var response = notionApiRequest_(buildNotionMetricQueryPath_(databaseId), 'post', payload);
+  var response = notionApiRequest_('/v1/databases/' + normalizeNotionId_(databaseId) + '/query', 'post', payload);
   return response && response.results ? response.results : [];
-}
-
-function buildNotionMetricQueryPath_(databaseId) {
-  var normalizedId = normalizeNotionId_(databaseId);
-  var parentType = resolveNotionMetricQueryParentType_();
-  return '/v1/' + parentType + '/' + normalizedId + '/query';
-}
-
-function resolveNotionMetricQueryParentType_() {
-  var config = getAppConfig();
-  var notionConfig = config && config.notion ? config.notion : {};
-  var scriptProperties = PropertiesService.getScriptProperties();
-  var configuredValue = scriptProperties.getProperty(notionConfig.queryParentTypeScriptProperty || 'notionMetricQueryParentType');
-  var fallbackValue = notionConfig.metricQueryParentType;
-  var rawValue = configuredValue !== null && configuredValue !== undefined && String(configuredValue).trim() !== '' ? configuredValue : fallbackValue;
-  var normalized = String(rawValue || 'databases').toLowerCase().trim();
-
-  if (normalized === 'database' || normalized === 'databases') {
-    return 'databases';
-  }
-  if (normalized === 'data_source' || normalized === 'data_sources') {
-    return 'data_sources';
-  }
-
-  return 'databases';
 }
 
 function updateNotionPageProperties_(pageId, properties) {
@@ -1499,7 +1454,7 @@ function notionApiRequest_(path, method, payload) {
   var body = response.getContentText();
 
   if (code < 200 || code >= 300) {
-    throw new Error('Notion API request failed (' + code + ') [' + String(method || 'get').toUpperCase() + ' ' + path + ', Notion-Version: ' + notionVersion + ']: ' + body);
+    throw new Error('Notion API request failed (' + code + '): ' + body);
   }
 
   return body ? JSON.parse(body) : {};

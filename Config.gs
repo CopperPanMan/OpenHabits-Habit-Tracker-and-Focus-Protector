@@ -9,8 +9,6 @@ function getAppConfig() {
     writeToNotion: false,
     notion: {
       databaseIdsScriptProperty: 'notionMetricDatabaseIDs',
-      queryParentTypeScriptProperty: 'notionMetricQueryParentType',
-      metricQueryParentType: 'databases',
       pointBlockIdScriptProperty: 'pointBlock',
       insightBlockIdScriptProperty: 'insightBlock',
       propertyNames: {
