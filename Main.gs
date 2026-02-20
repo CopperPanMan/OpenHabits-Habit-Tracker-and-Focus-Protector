@@ -1409,15 +1409,7 @@ function roundToOneDecimal_(value) {
 }
 
 function notionOverwriteBlockText_(blockId, text) {
-  var normalizedBlockId = normalizeNotionId_(blockId);
-  var block = notionApiRequest_('/v1/blocks/' + normalizedBlockId, 'get');
-
-  if (block && block.type === 'synced_block') {
-    var writableBlockId = resolveWritableSyncedBlockId_(block, normalizedBlockId);
-    notionReplaceBlockChildrenWithText_(writableBlockId, text);
-    return;
-  }
-
+  var block = notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'get');
   var blockType = block && block.type ? block.type : 'paragraph';
   var richText = [{ type: 'text', text: { content: String(text) } }];
   var payload = {};
@@ -1431,81 +1423,7 @@ function notionOverwriteBlockText_(blockId, text) {
     payload.paragraph = { rich_text: richText };
   }
 
-  notionApiRequest_('/v1/blocks/' + normalizedBlockId, 'patch', payload);
-}
-
-function resolveWritableSyncedBlockId_(block, fallbackBlockId) {
-  var syncedFrom = block && block.synced_block ? block.synced_block.synced_from : null;
-  if (syncedFrom && syncedFrom.block_id) {
-    return normalizeNotionId_(syncedFrom.block_id);
-  }
-  return normalizeNotionId_(fallbackBlockId);
-}
-
-function notionReplaceBlockChildrenWithText_(blockId, text) {
-  var childIds = notionListBlockChildrenIds_(blockId);
-
-  childIds.forEach(function (childId) {
-    notionApiRequest_('/v1/blocks/' + normalizeNotionId_(childId), 'delete');
-  });
-
-  var lines = String(text)
-    .split(/\r?\n/)
-    .map(function (line) { return line.trim(); })
-    .filter(function (line) { return line.length > 0; });
-
-  var children = lines.map(function (line) {
-    return {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ type: 'text', text: { content: line } }]
-      }
-    };
-  });
-
-  if (children.length === 0) {
-    children.push({
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ type: 'text', text: { content: '' } }]
-      }
-    });
-  }
-
-  notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId) + '/children', 'patch', {
-    children: children
-  });
-}
-
-function notionListBlockChildrenIds_(blockId) {
-  var childIds = [];
-  var cursor = null;
-
-  while (true) {
-    var path = '/v1/blocks/' + normalizeNotionId_(blockId) + '/children?page_size=100';
-    if (cursor) {
-      path += '&start_cursor=' + encodeURIComponent(cursor);
-    }
-
-    var response = notionApiRequest_(path, 'get');
-    var results = response && Array.isArray(response.results) ? response.results : [];
-
-    results.forEach(function (child) {
-      if (child && child.id) {
-        childIds.push(child.id);
-      }
-    });
-
-    if (!response || !response.has_more || !response.next_cursor) {
-      break;
-    }
-
-    cursor = response.next_cursor;
-  }
-
-  return childIds;
+  notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'patch', payload);
 }
 
 function notionApiRequest_(path, method, payload) {
@@ -2885,17 +2803,6 @@ function buildNotionChildBlock_(type, content, checked) {
 }
 
 function normalizeNotionId_(id) {
-  var value = String(id || '').trim();
-  var dashedMatch = value.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
-  if (dashedMatch) {
-    return dashedMatch[0].replace(/-/g, '');
-  }
-
-  var compactMatch = value.match(/[0-9a-fA-F]{32}/);
-  if (compactMatch) {
-    return compactMatch[0];
-  }
-
-  // Fallback to legacy behavior to avoid breaking existing values.
-  return value.replace(/[^0-9a-fA-F]/g, '');
+  // Strip hyphens and any non-hex chars; Notion accepts either format
+  return String(id).replace(/[^0-9a-fA-F]/g, "");
 }
