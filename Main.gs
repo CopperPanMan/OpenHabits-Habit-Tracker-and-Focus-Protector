@@ -1409,7 +1409,14 @@ function roundToOneDecimal_(value) {
 }
 
 function notionOverwriteBlockText_(blockId, text) {
-  var block = notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'get');
+  var notionBlockId = notionEncodeBlockId_(blockId);
+  var block = notionApiRequest_('/v1/blocks/' + notionBlockId, 'get');
+  if (block && block.type === 'synced_block') {
+    var replacementChildren = notionBuildTextBlocks_(text);
+    notionOverwriteSyncedBlockChildren_(blockId, replacementChildren);
+    return;
+  }
+
   var blockType = block && block.type ? block.type : 'paragraph';
   var richText = [{ type: 'text', text: { content: String(text) } }];
   var payload = {};
@@ -1423,7 +1430,143 @@ function notionOverwriteBlockText_(blockId, text) {
     payload.paragraph = { rich_text: richText };
   }
 
-  notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'patch', payload);
+  notionApiRequest_('/v1/blocks/' + notionBlockId, 'patch', payload);
+}
+
+function notionBuildTextBlocks_(text) {
+  return [{
+    object: 'block',
+    type: 'paragraph',
+    paragraph: {
+      rich_text: [{
+        type: 'text',
+        text: {
+          content: String(text)
+        }
+      }]
+    }
+  }];
+}
+
+function notionEncodeBlockId_(blockId) {
+  var rawId = String(blockId || '').trim();
+  if (!rawId) {
+    throw new Error('Missing Notion block id');
+  }
+
+  var uuidMatch = rawId.match(/[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}/);
+  if (uuidMatch && uuidMatch[0]) {
+    rawId = uuidMatch[0];
+  }
+
+  if (/^[0-9a-fA-F]{32}$/.test(rawId)) {
+    rawId = rawId.slice(0, 8) + '-' + rawId.slice(8, 12) + '-' + rawId.slice(12, 16) + '-' + rawId.slice(16, 20) + '-' + rawId.slice(20);
+  }
+
+  return encodeURIComponent(rawId);
+}
+
+function notionOverwriteSyncedBlockChildren_(anySyncedBlockId, newChildren, opts) {
+  opts = opts || {};
+  var pageSize = opts.pageSize || 50;
+  var maxDelete = opts.maxDelete || 2000;
+  var appendChunkSize = opts.appendChunkSize || 80;
+
+  if (!anySyncedBlockId) {
+    throw new Error('Missing anySyncedBlockId');
+  }
+  if (!Array.isArray(newChildren)) {
+    throw new Error('newChildren must be an array of Notion block objects');
+  }
+
+  var originalBlockId = notionResolveOriginalSyncedBlockId_(anySyncedBlockId);
+  var childIds = notionListAllChildBlockIds_(originalBlockId, pageSize, maxDelete);
+  var deleted = 0;
+  var appended = 0;
+  var i;
+
+  for (i = 0; i < childIds.length; i++) {
+    notionDeleteBlock_(childIds[i]);
+    deleted++;
+  }
+
+  for (i = 0; i < newChildren.length; i += appendChunkSize) {
+    var chunk = newChildren.slice(i, i + appendChunkSize);
+    notionAppendChildren_(originalBlockId, chunk);
+    appended += chunk.length;
+  }
+
+  return {
+    inputBlockId: anySyncedBlockId,
+    originalBlockId: originalBlockId,
+    deletedChildren: deleted,
+    appendedChildren: appended
+  };
+}
+
+function notionResolveOriginalSyncedBlockId_(blockId) {
+  var notionBlockId = notionEncodeBlockId_(blockId);
+  var block = notionApiRequest_('/v1/blocks/' + notionBlockId, 'get');
+
+  if (!block || block.type !== 'synced_block') {
+    throw new Error('Block ' + blockId + ' is not a synced_block (type=' + (block && block.type) + ')');
+  }
+
+  var syncedBlock = block.synced_block || {};
+  if (!syncedBlock.synced_from) {
+    return block.id;
+  }
+
+  if (syncedBlock.synced_from && syncedBlock.synced_from.block_id) {
+    return syncedBlock.synced_from.block_id;
+  }
+
+  throw new Error('Unable to resolve original synced block id from block ' + blockId);
+}
+
+function notionListAllChildBlockIds_(parentBlockId, pageSize, maxDelete) {
+  var ids = [];
+  var cursor = null;
+
+  while (true) {
+    var notionParentBlockId = notionEncodeBlockId_(parentBlockId);
+    var path = '/v1/blocks/' + notionParentBlockId + '/children?page_size=' + pageSize;
+    if (cursor) {
+      path += '&start_cursor=' + encodeURIComponent(cursor);
+    }
+
+    var response = notionApiRequest_(path, 'get');
+    var results = response && response.results ? response.results : [];
+    var i;
+
+    for (i = 0; i < results.length; i++) {
+      if (results[i] && results[i].id) {
+        ids.push(results[i].id);
+      }
+      if (ids.length > maxDelete) {
+        throw new Error('Safety stop: exceeded maxDelete=' + maxDelete + ' children to delete.');
+      }
+    }
+
+    if (!response || !response.has_more || !response.next_cursor) {
+      break;
+    }
+    cursor = response.next_cursor;
+  }
+
+  return ids;
+}
+
+function notionDeleteBlock_(blockId) {
+  var notionBlockId = notionEncodeBlockId_(blockId);
+  notionApiRequest_('/v1/blocks/' + notionBlockId, 'delete');
+}
+
+function notionAppendChildren_(parentBlockId, children) {
+  var notionParentBlockId = notionEncodeBlockId_(parentBlockId);
+  return notionApiRequest_('/v1/blocks/' + notionParentBlockId + '/children', 'patch', {
+    children: children
+  });
 }
 
 function notionApiRequest_(path, method, payload) {
