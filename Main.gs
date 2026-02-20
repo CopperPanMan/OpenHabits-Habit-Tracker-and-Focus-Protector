@@ -1409,21 +1409,103 @@ function roundToOneDecimal_(value) {
 }
 
 function notionOverwriteBlockText_(blockId, text) {
-  var block = notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'get');
-  var blockType = block && block.type ? block.type : 'paragraph';
-  var richText = [{ type: 'text', text: { content: String(text) } }];
-  var payload = {};
+  var anyBlockId = toNotionUuid_(blockId);
 
-  if (blockType === 'heading_1' || blockType === 'heading_2' || blockType === 'heading_3' || blockType === 'paragraph' || blockType === 'bulleted_list_item' || blockType === 'numbered_list_item' || blockType === 'quote' || blockType === 'to_do') {
-    payload[blockType] = { rich_text: richText };
-    if (blockType === 'to_do') {
-      payload[blockType].checked = false;
-    }
-  } else {
-    payload.paragraph = { rich_text: richText };
+  // 1) Retrieve block and resolve original synced block
+  var block = notionApiRequest_('/v1/blocks/' + anyBlockId, 'get');
+  if (!block || block.type !== 'synced_block') {
+    throw new Error('The provided block ID is not a synced_block. type=' + (block && block.type));
   }
 
-  notionApiRequest_('/v1/blocks/' + normalizeNotionId_(blockId), 'patch', payload);
+  var syncedBlock = block.synced_block || {};
+  var originalId = syncedBlock.synced_from && syncedBlock.synced_from.block_id
+    ? toNotionUuid_(syncedBlock.synced_from.block_id)
+    : toNotionUuid_(block.id);
+
+  // 2) List existing children
+  var childIds = listAllChildIds_(originalId);
+
+  // 3) Delete existing children
+  for (var i = 0; i < childIds.length; i++) {
+    notionApiRequest_('/v1/blocks/' + toNotionUuid_(childIds[i]), 'delete');
+  }
+
+  // 4) Append replacement paragraph
+  var children = [{
+    object: 'block',
+    type: 'paragraph',
+    paragraph: {
+      rich_text: [{
+        type: 'text',
+        text: { content: String(text) }
+      }]
+    }
+  }];
+
+  notionApiRequest_('/v1/blocks/' + originalId + '/children', 'patch', {
+    children: children
+  });
+}
+
+/** Lists ALL child block IDs under a block (paginates). */
+function listAllChildIds_(parentIdUuid) {
+  var ids = [];
+  var cursor = null;
+
+  while (true) {
+    var path = '/v1/blocks/' + parentIdUuid + '/children?page_size=100';
+    if (cursor) {
+      path += '&start_cursor=' + encodeURIComponent(cursor);
+    }
+
+    var response = notionApiRequest_(path, 'get');
+    var results = response && response.results ? response.results : [];
+
+    for (var i = 0; i < results.length; i++) {
+      if (results[i] && results[i].id) {
+        ids.push(results[i].id);
+      }
+    }
+
+    if (!response || !response.has_more) {
+      break;
+    }
+    cursor = response.next_cursor;
+    if (!cursor) {
+      break;
+    }
+  }
+
+  return ids;
+}
+
+/**
+ * Converts:
+ * - 32-hex Notion IDs -> UUID with hyphens
+ * - already-hyphenated UUIDs -> normalized UUID
+ */
+function toNotionUuid_(idOrUuid) {
+  var input = String(idOrUuid || '').trim();
+
+  // If already UUID-like with hyphens, validate-ish and return lowercased
+  var uuidMatch = input.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  if (uuidMatch) {
+    return uuidMatch[0].toLowerCase();
+  }
+
+  // Otherwise extract raw 32 hex
+  var hex = input.replace(/[^0-9a-fA-F]/g, '').toLowerCase();
+  if (hex.length !== 32) {
+    throw new Error('Expected a 32-hex Notion ID or UUID. Got: ' + input);
+  }
+
+  return (
+    hex.slice(0, 8) + '-' +
+    hex.slice(8, 12) + '-' +
+    hex.slice(12, 16) + '-' +
+    hex.slice(16, 20) + '-' +
+    hex.slice(20)
+  );
 }
 
 function notionApiRequest_(path, method, payload) {
