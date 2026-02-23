@@ -1940,10 +1940,15 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
   var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
   var useScheduleFilter = scheduleDays.length > 0;
   var streakCount = 0;
+  var newerScheduledCol = resolvedActiveCol;
 
   for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
     if (!isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours)) {
       continue;
+    }
+
+    if (!areExpectedStreakNeighbors_(trackingSheet, newerScheduledCol, col, scheduleDays, useScheduleFilter, extensionHours)) {
+      break;
     }
 
     var historicalValue = trackingSheet.getRange(row, col).getValue();
@@ -1952,6 +1957,7 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
     }
 
     streakCount += 1;
+    newerScheduledCol = col;
   }
 
   return streakCount;
@@ -1977,10 +1983,15 @@ function calculateStreak_(metricID, activeColInput, lateExtensionInput, optional
   var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
   var useScheduleFilter = scheduleDays.length > 0;
   var streakCount = 0;
+  var newerScheduledCol = resolvedActiveCol;
 
   for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
     if (!isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours)) {
       continue;
+    }
+
+    if (!areExpectedStreakNeighbors_(trackingSheet, newerScheduledCol, col, scheduleDays, useScheduleFilter, extensionHours)) {
+      break;
     }
 
     var historicalValue = trackingSheet.getRange(row, col).getValue();
@@ -1989,6 +2000,7 @@ function calculateStreak_(metricID, activeColInput, lateExtensionInput, optional
     }
 
     streakCount += 1;
+    newerScheduledCol = col;
   }
 
   var todayScheduled = isScheduledColumn_(trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
@@ -2155,6 +2167,79 @@ function isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter,
   var shiftedDate = new Date(dateValue.getTime() - Number(extensionHours || 0) * 60 * 60 * 1000);
   var dayName = Utilities.formatDate(shiftedDate, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
   return scheduleDays.indexOf(dayName) !== -1;
+}
+
+function areExpectedStreakNeighbors_(trackingSheet, newerCol, olderCol, scheduleDays, useScheduleFilter, extensionHours) {
+  var newerKey = getHeaderEffectiveDayKey_(trackingSheet, newerCol, extensionHours);
+  var olderKey = getHeaderEffectiveDayKey_(trackingSheet, olderCol, extensionHours);
+
+  if (!newerKey || !olderKey) {
+    return false;
+  }
+
+  if (!useScheduleFilter) {
+    return getDayDifferenceFromKeys_(newerKey, olderKey) === 1;
+  }
+
+  var expectedOlderKey = getPreviousScheduledDayKey_(newerKey, scheduleDays);
+  return expectedOlderKey !== null && olderKey === expectedOlderKey;
+}
+
+function getDayDifferenceFromKeys_(newerKey, olderKey) {
+  var newerDate = new Date(newerKey + 'T00:00:00Z');
+  var olderDate = new Date(olderKey + 'T00:00:00Z');
+  return (newerDate.getTime() - olderDate.getTime()) / (24 * 60 * 60 * 1000);
+}
+
+function getPreviousScheduledDayKey_(dayKey, scheduleDays) {
+  if (!Array.isArray(scheduleDays) || scheduleDays.length === 0) {
+    return null;
+  }
+
+  var scheduledDayLookup = {};
+  for (var i = 0; i < scheduleDays.length; i++) {
+    scheduledDayLookup[scheduleDays[i]] = true;
+  }
+
+  var weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  var cursor = new Date(dayKey + 'T00:00:00Z');
+
+  for (var offset = 1; offset <= 7; offset++) {
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+    var weekdayName = weekdayNames[cursor.getUTCDay()];
+
+    if (scheduledDayLookup[weekdayName]) {
+      return toIsoDateKeyUtc_(cursor);
+    }
+  }
+
+  return null;
+}
+
+function toIsoDateKeyUtc_(dateObj) {
+  var year = dateObj.getUTCFullYear();
+  var month = String(dateObj.getUTCMonth() + 1);
+  var day = String(dateObj.getUTCDate());
+
+  if (month.length < 2) {
+    month = '0' + month;
+  }
+  if (day.length < 2) {
+    day = '0' + day;
+  }
+
+  return year + '-' + month + '-' + day;
+}
+
+function getHeaderEffectiveDayKey_(trackingSheet, col, extensionHours) {
+  var headerValue = trackingSheet.getRange(1, col).getValue();
+  var headerDate = headerValue instanceof Date ? headerValue : new Date(headerValue);
+
+  if (!(headerDate instanceof Date) || isNaN(headerDate.getTime())) {
+    return null;
+  }
+
+  return getEffectiveDayKey_(headerDate, extensionHours);
 }
 
 function isCompletedCellValue_(value) {
