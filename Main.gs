@@ -799,7 +799,12 @@ function recordMetricBySource_(rawData, options) {
     resultEntry.complete = validated.value !== "" && validated.value !== null;
     metricPointsToday = calculatePointsDelta_(metricID, metricType, validated.value, null, multiplier);
     var previousMetricPointsToday = getMetricPointsRowValue_(setting, activeCol, trackingSheet, warnings, activeColAccessor);
-    metricPointsDelta = metricPointsToday - previousMetricPointsToday;
+    if (shouldAddLatestRunPointsForOverwriteWrite_(recordType, metricType)) {
+      metricPointsDelta = metricPointsToday;
+      metricPointsToday = previousMetricPointsToday + metricPointsToday;
+    } else {
+      metricPointsDelta = metricPointsToday - previousMetricPointsToday;
+    }
     writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
     totalPointsDelta += metricPointsDelta;
 
@@ -2417,6 +2422,10 @@ function parseDueByTime_(dueByTime) {
   };
 }
 
+
+function shouldAddLatestRunPointsForOverwriteWrite_(recordType, metricType) {
+  return recordType === "add" && (metricType === "timestamp" || metricType === "due_by");
+}
 
 function normalizeRecordType_(recordType) {
   if (recordType === 2 || recordType === "2" || recordType === "keep_first") {
