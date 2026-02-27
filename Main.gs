@@ -145,6 +145,10 @@ function doGet(e) {
       return respondText_(recordMetricIOS_(request.dataRaw));
     }
 
+    if (key === "update_metric_notion") {
+      return respondText_(updateMetricNotion_(request.dataRaw));
+    }
+
     if (key === "record_metric_notion") {
       return respondText_(recordMetricNotion_(request.dataRaw));
     }
@@ -189,6 +193,7 @@ function doGet(e) {
 }
 function isHabitsV2Key_(requestKey) {
   return requestKey === "record_metric_iOS" ||
+    requestKey === "update_metric_notion" ||
     requestKey === "record_metric_notion" ||
     requestKey === "positive_push_notification" ||
     requestKey === "current_metric_status";
@@ -276,14 +281,25 @@ function parseHabitsV2Data_(rawData) {
 function recordMetricIOS_(rawData) {
   return recordMetricBySource_(rawData, {
     source: "iOS",
-    skipNotionStatusComplete: false
+    skipNotionStatusComplete: false,
+    syncNotion: false
+  });
+}
+
+function updateMetricNotion_(rawData) {
+  return recordMetricBySource_(rawData, {
+    source: "iOS",
+    skipNotionStatusComplete: false,
+    writeToSheet: false,
+    syncNotion: true
   });
 }
 
 function recordMetricNotion_(rawData) {
   return recordMetricBySource_(rawData, {
     source: "Notion",
-    skipNotionStatusComplete: true
+    skipNotionStatusComplete: true,
+    syncNotion: true
   });
 }
 
@@ -533,6 +549,8 @@ function recordMetricBySource_(rawData, options) {
   var sourceOptions = options || {};
   var source = sourceOptions.source || "iOS";
   var skipNotionStatusComplete = !!sourceOptions.skipNotionStatusComplete;
+  var writeToSheet = sourceOptions.writeToSheet !== false;
+  var syncNotion = sourceOptions.syncNotion !== false;
   var parsedData;
   var results = [];
   var messages = [];
@@ -687,7 +705,9 @@ function recordMetricBySource_(rawData, options) {
 
       if (setting.streaks && setting.streaks.streaksID) {
         var timerStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
-        writeStreakToSheet_(setting.streaks.streaksID, timerStreakValue, activeCol, trackingSheet, activeColAccessor);
+        if (writeToSheet) {
+          writeStreakToSheet_(setting.streaks.streaksID, timerStreakValue, activeCol, trackingSheet, activeColAccessor);
+        }
         resultEntry.streak = timerStreakValue;
       }
 
@@ -733,17 +753,23 @@ function recordMetricBySource_(rawData, options) {
         }
 
         var summedValue = existingNumber + validated.value;
-        activeColAccessor.set(row, summedValue);
+        if (writeToSheet) {
+          activeColAccessor.set(row, summedValue);
+        }
         resultEntry.status = "written";
         resultEntry.value = summedValue;
         resultEntry.complete = true;
         metricPointsDelta = calculatePointsDelta_(metricID, metricType, summedValue, validated.value, multiplier);
         metricPointsToday = calculatePointsDelta_(metricID, metricType, summedValue, null, multiplier);
-        writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
+        if (writeToSheet) {
+          writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
+        }
         totalPointsDelta += metricPointsDelta;
         if (setting.streaks && setting.streaks.streaksID) {
           var numberAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
-          writeStreakToSheet_(setting.streaks.streaksID, numberAddStreakValue, activeCol, trackingSheet, activeColAccessor);
+          if (writeToSheet) {
+            writeStreakToSheet_(setting.streaks.streaksID, numberAddStreakValue, activeCol, trackingSheet, activeColAccessor);
+          }
           resultEntry.streak = numberAddStreakValue;
         }
         resultEntry.multiplier = multiplier;
@@ -775,17 +801,23 @@ function recordMetricBySource_(rawData, options) {
       }
 
       var addedDuration = secondsToDurationString_(addedSeconds);
-      activeColAccessor.set(row, addedDuration);
+      if (writeToSheet) {
+        activeColAccessor.set(row, addedDuration);
+      }
       resultEntry.status = "written";
       resultEntry.value = addedDuration;
       resultEntry.complete = true;
       metricPointsDelta = calculatePointsDelta_(metricID, metricType, addedDuration, validated.value, multiplier);
       metricPointsToday = calculatePointsDelta_(metricID, metricType, addedDuration, null, multiplier);
-      writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
+      if (writeToSheet) {
+        writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
+      }
       totalPointsDelta += metricPointsDelta;
       if (setting.streaks && setting.streaks.streaksID) {
         var durationAddStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
-        writeStreakToSheet_(setting.streaks.streaksID, durationAddStreakValue, activeCol, trackingSheet, activeColAccessor);
+        if (writeToSheet) {
+          writeStreakToSheet_(setting.streaks.streaksID, durationAddStreakValue, activeCol, trackingSheet, activeColAccessor);
+        }
         resultEntry.streak = durationAddStreakValue;
       }
       resultEntry.multiplier = multiplier;
@@ -800,19 +832,25 @@ function recordMetricBySource_(rawData, options) {
       continue;
     }
 
-    activeColAccessor.set(row, validated.value);
+    if (writeToSheet) {
+      activeColAccessor.set(row, validated.value);
+    }
     resultEntry.status = "written";
     resultEntry.value = validated.value;
     resultEntry.complete = validated.value !== "" && validated.value !== null;
     metricPointsToday = calculatePointsDelta_(metricID, metricType, validated.value, null, multiplier);
     var previousMetricPointsToday = getMetricPointsRowValue_(setting, activeCol, trackingSheet, warnings, activeColAccessor);
     metricPointsDelta = metricPointsToday - previousMetricPointsToday;
-    writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
+    if (writeToSheet) {
+      writeMetricPointsRow_(setting, metricPointsToday, activeCol, trackingSheet, warnings, activeColAccessor);
+    }
     totalPointsDelta += metricPointsDelta;
 
     if (setting.streaks && setting.streaks.streaksID) {
       var streakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
-      writeStreakToSheet_(setting.streaks.streaksID, streakValue, activeCol, trackingSheet, activeColAccessor);
+      if (writeToSheet) {
+        writeStreakToSheet_(setting.streaks.streaksID, streakValue, activeCol, trackingSheet, activeColAccessor);
+      }
       resultEntry.streak = streakValue;
     }
 
@@ -829,14 +867,18 @@ function recordMetricBySource_(rawData, options) {
     results.push(resultEntry);
   }
 
-  if (totalPointsDelta !== 0) {
+  if (writeToSheet && totalPointsDelta !== 0) {
     incrementPointsRowById_(dailyPointsID, totalPointsDelta, activeCol, trackingSheet, warnings, activeColAccessor);
     incrementCumulativePointsRowById_(cumulativePointsID, totalPointsDelta, activeCol, trackingSheet, warnings, activeColAccessor);
   }
 
-  activeColAccessor.flush();
+  if (writeToSheet) {
+    activeColAccessor.flush();
+  }
 
-  syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors, warnings, trackingSheet);
+  if (syncNotion) {
+    syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors, warnings, trackingSheet);
+  }
 
   return buildHabitsV2Response({
     ok: true,
