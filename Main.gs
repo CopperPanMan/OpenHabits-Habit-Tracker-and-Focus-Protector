@@ -130,6 +130,16 @@ function parseOptionalKeyParameter_(rawKey) {
 }
 
 function extractMetricIdFromNotionPayload_(payload) {
+  var notionPropertyMetricId = extractMetricIdFromNotionMetricProperty_(payload && payload.properties && payload.properties.metricID);
+  if (notionPropertyMetricId) {
+    return notionPropertyMetricId;
+  }
+
+  var dataNotionPropertyMetricId = extractMetricIdFromNotionMetricProperty_(payload && payload.data && payload.data.properties && payload.data.properties.metricID);
+  if (dataNotionPropertyMetricId) {
+    return dataNotionPropertyMetricId;
+  }
+
   var directMetricId = extractMetricIdFromAnyValue_(payload && payload.metricID);
   if (directMetricId) {
     return directMetricId;
@@ -150,17 +160,28 @@ function extractMetricIdFromNotionPayload_(payload) {
     return dataAlternateMetricId;
   }
 
-  var propertiesMetricId = extractMetricIdFromAnyValue_(payload && payload.properties && payload.properties.metricID);
-  if (propertiesMetricId) {
-    return propertiesMetricId;
-  }
-
-  var dataPropertiesMetricId = extractMetricIdFromAnyValue_(payload && payload.data && payload.data.properties && payload.data.properties.metricID);
-  if (dataPropertiesMetricId) {
-    return dataPropertiesMetricId;
-  }
-
   return '';
+}
+
+function extractMetricIdFromNotionMetricProperty_(metricProperty) {
+  if (!metricProperty || typeof metricProperty !== 'object') {
+    return '';
+  }
+
+  var richText = metricProperty.rich_text;
+  if (!Array.isArray(richText) || richText.length === 0) {
+    return '';
+  }
+
+  var firstRichText = richText[0];
+  var firstText = firstRichText && firstRichText.text;
+  var content = firstText && firstText.content;
+
+  if (typeof content !== 'string') {
+    return '';
+  }
+
+  return content.trim();
 }
 
 function extractMetricIdFromAnyValue_(value) {
@@ -338,111 +359,20 @@ function doGet(e) {
 
 function doPost(e) {
   var parsedRequest = parseNotionPostRequest_(e);
-  var notionBodyDebugText = formatNotionWebhookBodyForInsightBlock_(e);
-  var debugMessage = buildNotionWebhookDebugMessage_(e);
-
-  var debugBlockError = writeNotionWebhookBodyToInsightBlock_(notionBodyDebugText, parsedRequest.key);
-  if (debugBlockError) {
-    debugMessage += ' | Failed to write webhook body to insight block: ' + debugBlockError;
-  }
 
   if (!parsedRequest.ok) {
     return respondText_(buildHabitsV2Response({
       ok: false,
-      errors: parsedRequest.errors,
-      warnings: debugMessage ? [debugMessage] : []
+      errors: parsedRequest.errors
     }));
   }
 
-  var doGetResponse = doGet({
+  return doGet({
     parameters: {
       key: JSON.stringify(parsedRequest.key),
       data: parsedRequest.dataRaw
     }
   });
-
-  return appendDebugMessageToTextOutput_(doGetResponse, debugMessage);
-}
-
-function formatNotionWebhookBodyForInsightBlock_(e) {
-  var postData = e && e.postData ? e.postData : null;
-  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
-
-  if (!body) {
-    return 'Notion webhook body: <empty>';
-  }
-
-  try {
-    return 'Notion webhook body:\n' + JSON.stringify(JSON.parse(body), null, 2);
-  } catch (error) {
-    return 'Notion webhook body:\n' + body;
-  }
-}
-
-function writeNotionWebhookBodyToInsightBlock_(bodyText, requestKey) {
-  if (!bodyText) {
-    return null;
-  }
-
-  try {
-    loadSettings(requestKey || 'record_metric_notion');
-  } catch (error) {
-    return error.message;
-  }
-
-  var config = getAppConfig();
-  var notionConfig = config && config.notion ? config.notion : {};
-  var scriptProperties = PropertiesService.getScriptProperties();
-  var insightBlockId = scriptProperties.getProperty(notionConfig.insightBlockIdScriptProperty || 'insightBlock');
-
-  if (!insightBlockId) {
-    return 'Missing Script Property for insight block.';
-  }
-
-  try {
-    notionOverwriteBlockText_(insightBlockId, bodyText);
-  } catch (error2) {
-    return error2.message;
-  }
-
-  return null;
-}
-
-
-function buildNotionWebhookDebugMessage_(e) {
-  var postData = e && e.postData ? e.postData : null;
-  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
-  var bodySummary = body ? body.replace(/\s+/g, ' ').trim() : '<empty>';
-
-  if (bodySummary.length > 1000) {
-    bodySummary = bodySummary.substring(0, 1000) + '...';
-  }
-
-  return 'Notion webhook body: ' + bodySummary;
-}
-
-function appendDebugMessageToTextOutput_(textOutput, debugMessage) {
-  if (!debugMessage || !textOutput || typeof textOutput.getContent !== 'function' || typeof textOutput.setContent !== 'function') {
-    return textOutput;
-  }
-
-  var responseText = textOutput.getContent();
-  var parsed;
-
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (error) {
-    textOutput.setContent(responseText + '\n' + debugMessage);
-    return textOutput;
-  }
-
-  if (!Array.isArray(parsed.warnings)) {
-    parsed.warnings = [];
-  }
-  parsed.warnings.push(debugMessage);
-
-  textOutput.setContent(JSON.stringify(parsed));
-  return textOutput;
 }
 
 function isHabitsV2Key_(requestKey) {
