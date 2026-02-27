@@ -68,6 +68,184 @@ function parseRequest_(e) {
   };
 }
 
+function parseRequestKey_(rawKey) {
+  if (typeof rawKey !== 'string') {
+    return '';
+  }
+
+  var trimmed = rawKey.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    var parsed = JSON.parse(trimmed);
+    return typeof parsed === 'string' ? parsed : '';
+  } catch (error) {
+    return trimmed;
+  }
+}
+
+
+function debugLogPostRequest_(label, payload) {
+  try {
+    Logger.log(label + ': ' + JSON.stringify(payload));
+  } catch (error) {
+    Logger.log(label + ': [unserializable payload]');
+  }
+}
+
+function truncateForLog_(value, maxLen) {
+  var str = String(value || '');
+  if (str.length <= maxLen) {
+    return str;
+  }
+  return str.substring(0, maxLen) + '... [truncated]';
+}
+
+function extractMetricIdFromCandidate_(candidate) {
+  if (typeof candidate === 'string') {
+    var trimmed = candidate.trim();
+    return trimmed ? trimmed : '';
+  }
+
+  if (!candidate || typeof candidate !== 'object') {
+    return '';
+  }
+
+  if (typeof candidate.plain_text === 'string' && candidate.plain_text.trim()) {
+    return candidate.plain_text.trim();
+  }
+
+  if (typeof candidate.name === 'string' && candidate.name.trim()) {
+    return candidate.name.trim();
+  }
+
+  if (typeof candidate.content === 'string' && candidate.content.trim()) {
+    return candidate.content.trim();
+  }
+
+  if (Array.isArray(candidate.rich_text) && candidate.rich_text.length > 0) {
+    for (var i = 0; i < candidate.rich_text.length; i++) {
+      var richTextValue = extractMetricIdFromCandidate_(candidate.rich_text[i]);
+      if (richTextValue) {
+        return richTextValue;
+      }
+    }
+  }
+
+  if (Array.isArray(candidate.title) && candidate.title.length > 0) {
+    for (var j = 0; j < candidate.title.length; j++) {
+      var titleValue = extractMetricIdFromCandidate_(candidate.title[j]);
+      if (titleValue) {
+        return titleValue;
+      }
+    }
+  }
+
+  if (candidate.select) {
+    var selectValue = extractMetricIdFromCandidate_(candidate.select);
+    if (selectValue) {
+      return selectValue;
+    }
+  }
+
+  if (Array.isArray(candidate.multi_select) && candidate.multi_select.length > 0) {
+    for (var k = 0; k < candidate.multi_select.length; k++) {
+      var multiSelectValue = extractMetricIdFromCandidate_(candidate.multi_select[k]);
+      if (multiSelectValue) {
+        return multiSelectValue;
+      }
+    }
+  }
+
+  return '';
+}
+
+function extractMetricIdFromNotionPayload_(parsedBody) {
+  if (!parsedBody || typeof parsedBody !== 'object') {
+    return '';
+  }
+
+  var candidates = [
+    parsedBody.metricID,
+    parsedBody.data && parsedBody.data.metricID,
+    parsedBody.properties && parsedBody.properties.metricID,
+    parsedBody.data && parsedBody.data.properties && parsedBody.data.properties.metricID,
+    parsedBody.page && parsedBody.page.properties && parsedBody.page.properties.metricID,
+    parsedBody.data && parsedBody.data.page && parsedBody.data.page.properties && parsedBody.data.page.properties.metricID
+  ];
+
+  for (var i = 0; i < candidates.length; i++) {
+    var metricID = extractMetricIdFromCandidate_(candidates[i]);
+    if (metricID) {
+      return metricID;
+    }
+  }
+
+  return '';
+}
+
+function parseNotionPostRequest_(e) {
+  var parameters = e && e.parameters ? e.parameters : {};
+  var requestedKey = parseRequestKey_(parameters.key);
+  var key = requestedKey || 'record_metric_notion';
+  var dataRaw = typeof parameters.data === 'string' && parameters.data ? parameters.data : null;
+  var postData = e && e.postData ? e.postData : null;
+  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+  var parsedBody = null;
+
+  debugLogPostRequest_('doPost incoming', {
+    queryKey: parameters.key || '',
+    resolvedKey: key,
+    hasDataQueryParam: !!dataRaw,
+    contentType: postData && postData.type ? postData.type : '',
+    bodyPreview: truncateForLog_(body, 1500)
+  });
+
+  if (body) {
+    try {
+      parsedBody = JSON.parse(body);
+    } catch (error) {
+      return {
+        ok: false,
+        errors: ['Malformed JSON in POST body.']
+      };
+    }
+
+    if (!dataRaw) {
+      var metricID = extractMetricIdFromNotionPayload_(parsedBody);
+
+      debugLogPostRequest_('doPost extracted metric', {
+        metricID: metricID || '',
+        topLevelKeys: Object.keys(parsedBody)
+      });
+
+      if (metricID) {
+        dataRaw = JSON.stringify([[metricID]]);
+      }
+    }
+  }
+
+  if (!dataRaw) {
+    return {
+      ok: false,
+      errors: ['Missing metric payload. Send POST body {"metricID":"your_metric_id"} or provide data query parameter.']
+    };
+  }
+
+  debugLogPostRequest_('doPost normalized request', {
+    key: key,
+    dataRaw: dataRaw
+  });
+
+  return {
+    ok: true,
+    key: key,
+    dataRaw: dataRaw
+  };
+}
+
 function respondText_(s) {
   return ContentService.createTextOutput(s);
 }
@@ -191,6 +369,25 @@ function doGet(e) {
 
   return respondText_('Unsupported key: ' + key);
 }
+
+function doPost(e) {
+  var parsedRequest = parseNotionPostRequest_(e);
+
+  if (!parsedRequest.ok) {
+    return respondText_(buildHabitsV2Response({
+      ok: false,
+      errors: parsedRequest.errors
+    }));
+  }
+
+  return doGet({
+    parameters: {
+      key: JSON.stringify(parsedRequest.key),
+      data: parsedRequest.dataRaw
+    }
+  });
+}
+
 function isHabitsV2Key_(requestKey) {
   return requestKey === "record_metric_iOS" ||
     requestKey === "update_metric_notion" ||
