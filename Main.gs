@@ -68,6 +68,69 @@ function parseRequest_(e) {
   };
 }
 
+function parseRequestKey_(rawKey) {
+  if (typeof rawKey !== 'string') {
+    return '';
+  }
+
+  var trimmed = rawKey.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    var parsed = JSON.parse(trimmed);
+    return typeof parsed === 'string' ? parsed : '';
+  } catch (error) {
+    return trimmed;
+  }
+}
+
+function parseNotionPostRequest_(e) {
+  var parameters = e && e.parameters ? e.parameters : {};
+  var requestedKey = parseRequestKey_(parameters.key);
+  var key = requestedKey || 'record_metric_notion';
+  var dataRaw = typeof parameters.data === 'string' && parameters.data ? parameters.data : null;
+  var postData = e && e.postData ? e.postData : null;
+  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+  var parsedBody = null;
+
+  if (body) {
+    try {
+      parsedBody = JSON.parse(body);
+    } catch (error) {
+      return {
+        ok: false,
+        errors: ['Malformed JSON in POST body.']
+      };
+    }
+
+    if (!dataRaw) {
+      var metricID = parsedBody && typeof parsedBody.metricID === 'string' ? parsedBody.metricID.trim() : '';
+      if (!metricID && parsedBody && parsedBody.data && typeof parsedBody.data.metricID === 'string') {
+        metricID = parsedBody.data.metricID.trim();
+      }
+
+      if (metricID) {
+        dataRaw = JSON.stringify([[metricID]]);
+      }
+    }
+  }
+
+  if (!dataRaw) {
+    return {
+      ok: false,
+      errors: ['Missing metric payload. Send POST body {"metricID":"your_metric_id"} or provide data query parameter.']
+    };
+  }
+
+  return {
+    ok: true,
+    key: key,
+    dataRaw: dataRaw
+  };
+}
+
 function respondText_(s) {
   return ContentService.createTextOutput(s);
 }
@@ -191,6 +254,25 @@ function doGet(e) {
 
   return respondText_('Unsupported key: ' + key);
 }
+
+function doPost(e) {
+  var parsedRequest = parseNotionPostRequest_(e);
+
+  if (!parsedRequest.ok) {
+    return respondText_(buildHabitsV2Response({
+      ok: false,
+      errors: parsedRequest.errors
+    }));
+  }
+
+  return doGet({
+    parameters: {
+      key: JSON.stringify(parsedRequest.key),
+      data: parsedRequest.dataRaw
+    }
+  });
+}
+
 function isHabitsV2Key_(requestKey) {
   return requestKey === "record_metric_iOS" ||
     requestKey === "update_metric_notion" ||
