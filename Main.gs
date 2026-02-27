@@ -68,6 +68,42 @@ function parseRequest_(e) {
   };
 }
 
+function parseNotionPostRequest_(e) {
+  var postData = e && e.postData ? e.postData : null;
+  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+  var parsedBody;
+
+  if (!body) {
+    return {
+      ok: false,
+      errors: ['Missing POST body. Expected JSON with a metricID field.']
+    };
+  }
+
+  try {
+    parsedBody = JSON.parse(body);
+  } catch (error) {
+    return {
+      ok: false,
+      errors: ['Malformed JSON in POST body.']
+    };
+  }
+
+  var metricID = parsedBody && typeof parsedBody.metricID === 'string' ? parsedBody.metricID.trim() : '';
+  if (!metricID) {
+    return {
+      ok: false,
+      errors: ['Invalid or missing metricID in POST body.']
+    };
+  }
+
+  return {
+    ok: true,
+    key: 'record_metric_notion',
+    dataRaw: JSON.stringify([[metricID]])
+  };
+}
+
 function respondText_(s) {
   return ContentService.createTextOutput(s);
 }
@@ -191,6 +227,25 @@ function doGet(e) {
 
   return respondText_('Unsupported key: ' + key);
 }
+
+function doPost(e) {
+  var parsedRequest = parseNotionPostRequest_(e);
+
+  if (!parsedRequest.ok) {
+    return respondText_(buildHabitsV2Response({
+      ok: false,
+      errors: parsedRequest.errors
+    }));
+  }
+
+  return doGet({
+    parameters: {
+      key: JSON.stringify(parsedRequest.key),
+      data: parsedRequest.dataRaw
+    }
+  });
+}
+
 function isHabitsV2Key_(requestKey) {
   return requestKey === "record_metric_iOS" ||
     requestKey === "update_metric_notion" ||
