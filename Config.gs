@@ -11,6 +11,19 @@ function getAppConfig() {
       databaseIdsScriptProperty: 'notionMetricDatabaseIDs',
       pointBlockIdScriptProperty: 'pointBlock',
       insightBlockIdScriptProperty: 'insightBlock',
+      outputStyles: {
+        pointBlock: {
+          blockType: 'heading_1',
+          segments: [
+            { token: 'point_total', color: 'blue' },
+            { text: ' Points', color: 'default' }
+          ]
+        },
+        insightBlock: {
+          blockType: 'paragraph',
+          italic: true
+        }
+      },
       propertyNames: {
         metricId: 'metricID',
         status: 'Status',
