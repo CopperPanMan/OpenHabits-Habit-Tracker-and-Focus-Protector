@@ -150,56 +150,14 @@ function extractMetricIdFromNotionPayload_(payload) {
     return dataAlternateMetricId;
   }
 
-  var propertiesMetricId = extractMetricIdFromNotionPropertyValue_(payload && payload.properties && payload.properties.metricID);
+  var propertiesMetricId = extractMetricIdFromAnyValue_(payload && payload.properties && payload.properties.metricID);
   if (propertiesMetricId) {
     return propertiesMetricId;
   }
 
-  var dataPropertiesMetricId = extractMetricIdFromNotionPropertyValue_(payload && payload.data && payload.data.properties && payload.data.properties.metricID);
+  var dataPropertiesMetricId = extractMetricIdFromAnyValue_(payload && payload.data && payload.data.properties && payload.data.properties.metricID);
   if (dataPropertiesMetricId) {
     return dataPropertiesMetricId;
-  }
-
-  return '';
-}
-
-function extractMetricIdFromNotionPropertyValue_(propertyValue) {
-  if (propertyValue === null || propertyValue === undefined) {
-    return '';
-  }
-
-  if (typeof propertyValue === 'string' || typeof propertyValue === 'number' || typeof propertyValue === 'boolean') {
-    return extractMetricIdFromAnyValue_(propertyValue);
-  }
-
-  if (typeof propertyValue !== 'object') {
-    return '';
-  }
-
-  if (propertyValue.type && Object.prototype.hasOwnProperty.call(propertyValue, propertyValue.type)) {
-    var typedValue = extractMetricIdFromAnyValue_(propertyValue[propertyValue.type]);
-    if (typedValue) {
-      return typedValue;
-    }
-  }
-
-  var preferredFields = ['rich_text', 'title', 'select', 'multi_select', 'number', 'url', 'email', 'phone_number', 'checkbox'];
-  for (var i = 0; i < preferredFields.length; i++) {
-    var fieldName = preferredFields[i];
-    if (!Object.prototype.hasOwnProperty.call(propertyValue, fieldName)) {
-      continue;
-    }
-    var fieldValue = extractMetricIdFromAnyValue_(propertyValue[fieldName]);
-    if (fieldValue) {
-      return fieldValue;
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(propertyValue, 'value')) {
-    var explicitValue = extractMetricIdFromAnyValue_(propertyValue.value);
-    if (explicitValue) {
-      return explicitValue;
-    }
   }
 
   return '';
@@ -211,11 +169,11 @@ function extractMetricIdFromAnyValue_(value) {
   }
 
   if (typeof value === 'string') {
-    return normalizeMetricIdCandidate_(value);
+    return value.trim();
   }
 
   if (typeof value === 'number' || typeof value === 'boolean') {
-    return normalizeMetricIdCandidate_(String(value));
+    return String(value).trim();
   }
 
   if (Array.isArray(value)) {
@@ -229,7 +187,7 @@ function extractMetricIdFromAnyValue_(value) {
   }
 
   if (typeof value === 'object') {
-    var prioritizedKeys = ['value', 'name', 'text', 'plain_text', 'content'];
+    var prioritizedKeys = ['value', 'name', 'text', 'plain_text', 'id'];
     for (var j = 0; j < prioritizedKeys.length; j++) {
       var prioritized = prioritizedKeys[j];
       if (Object.prototype.hasOwnProperty.call(value, prioritized)) {
@@ -241,7 +199,7 @@ function extractMetricIdFromAnyValue_(value) {
     }
 
     for (var keyName in value) {
-      if (!Object.prototype.hasOwnProperty.call(value, keyName) || keyName === 'id') {
+      if (!Object.prototype.hasOwnProperty.call(value, keyName)) {
         continue;
       }
       var nestedFromObject = extractMetricIdFromAnyValue_(value[keyName]);
@@ -252,33 +210,6 @@ function extractMetricIdFromAnyValue_(value) {
   }
 
   return '';
-}
-
-
-function normalizeMetricIdCandidate_(rawValue) {
-  if (rawValue === null || rawValue === undefined) {
-    return '';
-  }
-
-  var normalized = String(rawValue).trim();
-  if (!normalized) {
-    return '';
-  }
-
-  if ((normalized.charAt(0) === '"' && normalized.charAt(normalized.length - 1) === '"') ||
-      (normalized.charAt(0) === "'" && normalized.charAt(normalized.length - 1) === "'")) {
-    normalized = normalized.substring(1, normalized.length - 1).trim();
-  }
-
-  if (!normalized) {
-    return '';
-  }
-
-  try {
-    return decodeURIComponent(normalized);
-  } catch (error) {
-    return normalized;
-  }
 }
 
 function respondText_(s) {
