@@ -338,20 +338,61 @@ function doGet(e) {
 
 function doPost(e) {
   var parsedRequest = parseNotionPostRequest_(e);
+  var debugMessage = buildNotionWebhookDebugMessage_(e);
 
   if (!parsedRequest.ok) {
     return respondText_(buildHabitsV2Response({
       ok: false,
-      errors: parsedRequest.errors
+      errors: parsedRequest.errors,
+      warnings: debugMessage ? [debugMessage] : []
     }));
   }
 
-  return doGet({
+  var doGetResponse = doGet({
     parameters: {
       key: JSON.stringify(parsedRequest.key),
       data: parsedRequest.dataRaw
     }
   });
+
+  return appendDebugMessageToTextOutput_(doGetResponse, debugMessage);
+}
+
+
+function buildNotionWebhookDebugMessage_(e) {
+  var postData = e && e.postData ? e.postData : null;
+  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+  var bodySummary = body ? body.replace(/\s+/g, ' ').trim() : '<empty>';
+
+  if (bodySummary.length > 1000) {
+    bodySummary = bodySummary.substring(0, 1000) + '...';
+  }
+
+  return 'Notion webhook body: ' + bodySummary;
+}
+
+function appendDebugMessageToTextOutput_(textOutput, debugMessage) {
+  if (!debugMessage || !textOutput || typeof textOutput.getContent !== 'function' || typeof textOutput.setContent !== 'function') {
+    return textOutput;
+  }
+
+  var responseText = textOutput.getContent();
+  var parsed;
+
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (error) {
+    textOutput.setContent(responseText + '\n' + debugMessage);
+    return textOutput;
+  }
+
+  if (!Array.isArray(parsed.warnings)) {
+    parsed.warnings = [];
+  }
+  parsed.warnings.push(debugMessage);
+
+  textOutput.setContent(JSON.stringify(parsed));
+  return textOutput;
 }
 
 function isHabitsV2Key_(requestKey) {
