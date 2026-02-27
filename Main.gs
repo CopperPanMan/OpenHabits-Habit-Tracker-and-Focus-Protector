@@ -71,6 +71,7 @@ function parseRequest_(e) {
 function parseNotionPostRequest_(e) {
   var postData = e && e.postData ? e.postData : null;
   var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+  var parameters = e && e.parameters ? e.parameters : {};
   var parsedBody;
 
   if (!body) {
@@ -89,19 +90,126 @@ function parseNotionPostRequest_(e) {
     };
   }
 
-  var metricID = parsedBody && typeof parsedBody.metricID === 'string' ? parsedBody.metricID.trim() : '';
+  var metricID = extractMetricIdFromNotionPayload_(parsedBody);
   if (!metricID) {
     return {
       ok: false,
-      errors: ['Invalid or missing metricID in POST body.']
+      errors: ['Invalid or missing metricID in POST body. Expected a metricID string.']
     };
   }
 
+  var keyParam = parseOptionalKeyParameter_(parameters.key);
+
   return {
     ok: true,
-    key: 'record_metric_notion',
+    key: keyParam || 'record_metric_notion',
     dataRaw: JSON.stringify([[metricID]])
   };
+}
+
+function parseOptionalKeyParameter_(rawKey) {
+  if (rawKey === null || rawKey === undefined || rawKey === '') {
+    return null;
+  }
+
+  if (typeof rawKey !== 'string') {
+    return null;
+  }
+
+  var trimmed = rawKey.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    var parsed = JSON.parse(trimmed);
+    return typeof parsed === 'string' ? parsed : null;
+  } catch (error) {
+    return trimmed;
+  }
+}
+
+function extractMetricIdFromNotionPayload_(payload) {
+  var directMetricId = extractMetricIdFromAnyValue_(payload && payload.metricID);
+  if (directMetricId) {
+    return directMetricId;
+  }
+
+  var alternateCaseMetricId = extractMetricIdFromAnyValue_(payload && payload.metricId);
+  if (alternateCaseMetricId) {
+    return alternateCaseMetricId;
+  }
+
+  var dataMetricId = extractMetricIdFromAnyValue_(payload && payload.data && payload.data.metricID);
+  if (dataMetricId) {
+    return dataMetricId;
+  }
+
+  var dataAlternateMetricId = extractMetricIdFromAnyValue_(payload && payload.data && payload.data.metricId);
+  if (dataAlternateMetricId) {
+    return dataAlternateMetricId;
+  }
+
+  var propertiesMetricId = extractMetricIdFromAnyValue_(payload && payload.properties && payload.properties.metricID);
+  if (propertiesMetricId) {
+    return propertiesMetricId;
+  }
+
+  var dataPropertiesMetricId = extractMetricIdFromAnyValue_(payload && payload.data && payload.data.properties && payload.data.properties.metricID);
+  if (dataPropertiesMetricId) {
+    return dataPropertiesMetricId;
+  }
+
+  return '';
+}
+
+function extractMetricIdFromAnyValue_(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim();
+  }
+
+  if (Array.isArray(value)) {
+    for (var i = 0; i < value.length; i++) {
+      var nestedFromArray = extractMetricIdFromAnyValue_(value[i]);
+      if (nestedFromArray) {
+        return nestedFromArray;
+      }
+    }
+    return '';
+  }
+
+  if (typeof value === 'object') {
+    var prioritizedKeys = ['value', 'name', 'text', 'plain_text', 'id'];
+    for (var j = 0; j < prioritizedKeys.length; j++) {
+      var prioritized = prioritizedKeys[j];
+      if (Object.prototype.hasOwnProperty.call(value, prioritized)) {
+        var nestedPrioritized = extractMetricIdFromAnyValue_(value[prioritized]);
+        if (nestedPrioritized) {
+          return nestedPrioritized;
+        }
+      }
+    }
+
+    for (var keyName in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, keyName)) {
+        continue;
+      }
+      var nestedFromObject = extractMetricIdFromAnyValue_(value[keyName]);
+      if (nestedFromObject) {
+        return nestedFromObject;
+      }
+    }
+  }
+
+  return '';
 }
 
 function respondText_(s) {
