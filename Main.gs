@@ -71,6 +71,7 @@ function parseRequest_(e) {
 function parseNotionPostRequest_(e) {
   var postData = e && e.postData ? e.postData : null;
   var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+  var parameters = e && e.parameters ? e.parameters : {};
   var parsedBody;
 
   if (!body) {
@@ -89,19 +90,195 @@ function parseNotionPostRequest_(e) {
     };
   }
 
-  var metricID = parsedBody && typeof parsedBody.metricID === 'string' ? parsedBody.metricID.trim() : '';
+  var metricID = extractMetricIdFromNotionPayload_(parsedBody);
   if (!metricID) {
     return {
       ok: false,
-      errors: ['Invalid or missing metricID in POST body.']
+      errors: ['Invalid or missing metricID in POST body. Expected a metricID string.']
     };
   }
 
+  var keyParam = parseOptionalKeyParameter_(parameters.key);
+
   return {
     ok: true,
-    key: 'record_metric_notion',
+    key: keyParam || 'record_metric_notion',
     dataRaw: JSON.stringify([[metricID]])
   };
+}
+
+function parseOptionalKeyParameter_(rawKey) {
+  if (rawKey === null || rawKey === undefined || rawKey === '') {
+    return null;
+  }
+
+  if (typeof rawKey !== 'string') {
+    return null;
+  }
+
+  var trimmed = rawKey.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    var parsed = JSON.parse(trimmed);
+    return typeof parsed === 'string' ? parsed : null;
+  } catch (error) {
+    return trimmed;
+  }
+}
+
+function extractMetricIdFromNotionPayload_(payload) {
+  var directMetricId = extractMetricIdFromAnyValue_(payload && payload.metricID);
+  if (directMetricId) {
+    return directMetricId;
+  }
+
+  var alternateCaseMetricId = extractMetricIdFromAnyValue_(payload && payload.metricId);
+  if (alternateCaseMetricId) {
+    return alternateCaseMetricId;
+  }
+
+  var dataMetricId = extractMetricIdFromAnyValue_(payload && payload.data && payload.data.metricID);
+  if (dataMetricId) {
+    return dataMetricId;
+  }
+
+  var dataAlternateMetricId = extractMetricIdFromAnyValue_(payload && payload.data && payload.data.metricId);
+  if (dataAlternateMetricId) {
+    return dataAlternateMetricId;
+  }
+
+  var propertiesMetricId = extractMetricIdFromNotionPropertyValue_(payload && payload.properties && payload.properties.metricID);
+  if (propertiesMetricId) {
+    return propertiesMetricId;
+  }
+
+  var dataPropertiesMetricId = extractMetricIdFromNotionPropertyValue_(payload && payload.data && payload.data.properties && payload.data.properties.metricID);
+  if (dataPropertiesMetricId) {
+    return dataPropertiesMetricId;
+  }
+
+  return '';
+}
+
+function extractMetricIdFromNotionPropertyValue_(propertyValue) {
+  if (propertyValue === null || propertyValue === undefined) {
+    return '';
+  }
+
+  if (typeof propertyValue === 'string' || typeof propertyValue === 'number' || typeof propertyValue === 'boolean') {
+    return extractMetricIdFromAnyValue_(propertyValue);
+  }
+
+  if (typeof propertyValue !== 'object') {
+    return '';
+  }
+
+  if (propertyValue.type && Object.prototype.hasOwnProperty.call(propertyValue, propertyValue.type)) {
+    var typedValue = extractMetricIdFromAnyValue_(propertyValue[propertyValue.type]);
+    if (typedValue) {
+      return typedValue;
+    }
+  }
+
+  var preferredFields = ['rich_text', 'title', 'select', 'multi_select', 'number', 'url', 'email', 'phone_number', 'checkbox'];
+  for (var i = 0; i < preferredFields.length; i++) {
+    var fieldName = preferredFields[i];
+    if (!Object.prototype.hasOwnProperty.call(propertyValue, fieldName)) {
+      continue;
+    }
+    var fieldValue = extractMetricIdFromAnyValue_(propertyValue[fieldName]);
+    if (fieldValue) {
+      return fieldValue;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(propertyValue, 'value')) {
+    var explicitValue = extractMetricIdFromAnyValue_(propertyValue.value);
+    if (explicitValue) {
+      return explicitValue;
+    }
+  }
+
+  return '';
+}
+
+function extractMetricIdFromAnyValue_(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return normalizeMetricIdCandidate_(value);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return normalizeMetricIdCandidate_(String(value));
+  }
+
+  if (Array.isArray(value)) {
+    for (var i = 0; i < value.length; i++) {
+      var nestedFromArray = extractMetricIdFromAnyValue_(value[i]);
+      if (nestedFromArray) {
+        return nestedFromArray;
+      }
+    }
+    return '';
+  }
+
+  if (typeof value === 'object') {
+    var prioritizedKeys = ['value', 'name', 'text', 'plain_text', 'content'];
+    for (var j = 0; j < prioritizedKeys.length; j++) {
+      var prioritized = prioritizedKeys[j];
+      if (Object.prototype.hasOwnProperty.call(value, prioritized)) {
+        var nestedPrioritized = extractMetricIdFromAnyValue_(value[prioritized]);
+        if (nestedPrioritized) {
+          return nestedPrioritized;
+        }
+      }
+    }
+
+    for (var keyName in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, keyName) || keyName === 'id') {
+        continue;
+      }
+      var nestedFromObject = extractMetricIdFromAnyValue_(value[keyName]);
+      if (nestedFromObject) {
+        return nestedFromObject;
+      }
+    }
+  }
+
+  return '';
+}
+
+
+function normalizeMetricIdCandidate_(rawValue) {
+  if (rawValue === null || rawValue === undefined) {
+    return '';
+  }
+
+  var normalized = String(rawValue).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if ((normalized.charAt(0) === '"' && normalized.charAt(normalized.length - 1) === '"') ||
+      (normalized.charAt(0) === "'" && normalized.charAt(normalized.length - 1) === "'")) {
+    normalized = normalized.substring(1, normalized.length - 1).trim();
+  }
+
+  if (!normalized) {
+    return '';
+  }
+
+  try {
+    return decodeURIComponent(normalized);
+  } catch (error) {
+    return normalized;
+  }
 }
 
 function respondText_(s) {
@@ -230,20 +407,67 @@ function doGet(e) {
 
 function doPost(e) {
   var parsedRequest = parseNotionPostRequest_(e);
+  var debugMessage = buildNotionWebhookDebugMessage_(e);
 
   if (!parsedRequest.ok) {
     return respondText_(buildHabitsV2Response({
       ok: false,
-      errors: parsedRequest.errors
+      errors: parsedRequest.errors,
+      messages: debugMessage ? [debugMessage] : [],
+      warnings: debugMessage ? [debugMessage] : []
     }));
   }
 
-  return doGet({
+  var doGetResponse = doGet({
     parameters: {
       key: JSON.stringify(parsedRequest.key),
       data: parsedRequest.dataRaw
     }
   });
+
+  return appendDebugMessageToTextOutput_(doGetResponse, debugMessage);
+}
+
+
+function buildNotionWebhookDebugMessage_(e) {
+  var postData = e && e.postData ? e.postData : null;
+  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+  var bodySummary = body ? body.replace(/\s+/g, ' ').trim() : '<empty>';
+
+  if (bodySummary.length > 1000) {
+    bodySummary = bodySummary.substring(0, 1000) + '...';
+  }
+
+  return 'Notion webhook body: ' + bodySummary;
+}
+
+function appendDebugMessageToTextOutput_(textOutput, debugMessage) {
+  if (!debugMessage || !textOutput || typeof textOutput.getContent !== 'function' || typeof textOutput.setContent !== 'function') {
+    return textOutput;
+  }
+
+  var responseText = textOutput.getContent();
+  var parsed;
+
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (error) {
+    textOutput.setContent(responseText + '\n' + debugMessage);
+    return textOutput;
+  }
+
+  if (!Array.isArray(parsed.messages)) {
+    parsed.messages = [];
+  }
+  parsed.messages.push(debugMessage);
+
+  if (!Array.isArray(parsed.warnings)) {
+    parsed.warnings = [];
+  }
+  parsed.warnings.push(debugMessage);
+
+  textOutput.setContent(JSON.stringify(parsed));
+  return textOutput;
 }
 
 function isHabitsV2Key_(requestKey) {
