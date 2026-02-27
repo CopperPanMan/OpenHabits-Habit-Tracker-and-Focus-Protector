@@ -1231,7 +1231,6 @@ function syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors,
 
   var sourceIsNotion = !!(sourceOptions && sourceOptions.skipNotionStatusComplete);
   var metricsUpdated = 0;
-  var eligibleMetricCount = 0;
 
   for (var i = 0; i < results.length; i++) {
     var result = results[i] || {};
@@ -1245,7 +1244,6 @@ function syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors,
       continue;
     }
 
-    eligibleMetricCount++;
     var syncOutcome = syncSingleMetricToNotion_(result, setting, notionConfig, databaseIds, sourceIsNotion);
     if (syncOutcome.warnings && syncOutcome.warnings.length) {
       Array.prototype.push.apply(warnings, syncOutcome.warnings);
@@ -1256,23 +1254,11 @@ function syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors,
     metricsUpdated += syncOutcome.updatedCount || 0;
   }
 
-  if (shouldUpdateNotionDashboardBlocks_(eligibleMetricCount, messages, errors)) {
-    updateNotionDashboardBlocks_(notionConfig, messages, errors, warnings, trackingSheet);
-  }
+  updateNotionDashboardBlocks_(notionConfig, messages, errors, warnings, trackingSheet);
 
   if (metricsUpdated > 0) {
     messages.push('Notion task updates: ' + metricsUpdated + '.');
   }
-}
-
-function shouldUpdateNotionDashboardBlocks_(eligibleMetricCount, messages, errors) {
-  if (Number(eligibleMetricCount) > 0) {
-    return true;
-  }
-
-  var hasMessages = Array.isArray(messages) && messages.length > 0;
-  var hasErrors = Array.isArray(errors) && errors.length > 0;
-  return hasMessages || hasErrors;
 }
 
 function syncSingleMetricToNotion_(result, setting, notionConfig, databaseIds, sourceIsNotion) {
@@ -1367,11 +1353,13 @@ function updateNotionDashboardBlocks_(notionConfig, messages, errors, warnings, 
   var scriptProperties = PropertiesService.getScriptProperties();
   var pointBlockId = scriptProperties.getProperty(notionConfig.pointBlockIdScriptProperty || 'pointBlock');
   var insightBlockId = scriptProperties.getProperty(notionConfig.insightBlockIdScriptProperty || 'insightBlock');
+  var outputStyles = notionConfig && notionConfig.outputStyles ? notionConfig.outputStyles : {};
 
   if (pointBlockId) {
     try {
       var pointTotalToday = getCurrentPointsValueById_(dailyPointsID, activeCol, trackingSheet);
-      notionOverwriteBlockText_(pointBlockId, String(roundToOneDecimal_(pointTotalToday)));
+      var pointBlockStyle = outputStyles.pointBlock || {};
+      notionOverwriteBlockContent_(pointBlockId, buildPointBlockChildren_(roundToOneDecimal_(pointTotalToday), pointBlockStyle));
     } catch (error) {
       warnings.push('Failed to update pointBlock: ' + error.message);
     }
@@ -1389,7 +1377,8 @@ function updateNotionDashboardBlocks_(notionConfig, messages, errors, warnings, 
       if (!insightLines.length) {
         insightLines.push('No new insights.');
       }
-      notionOverwriteBlockText_(insightBlockId, insightLines.join('\n'));
+      var insightBlockStyle = outputStyles.insightBlock || {};
+      notionOverwriteBlockContent_(insightBlockId, buildInsightBlockChildren_(insightLines.join('\n'), insightBlockStyle));
     } catch (error2) {
       warnings.push('Failed to update insightBlock: ' + error2.message);
     }
@@ -1416,6 +1405,10 @@ function roundToOneDecimal_(value) {
 }
 
 function notionOverwriteBlockText_(blockId, text) {
+  notionOverwriteBlockContent_(blockId, buildInsightBlockChildren_(text, {}));
+}
+
+function notionOverwriteBlockContent_(blockId, children) {
   var anyBlockId = toNotionUuid_(blockId);
 
   // 1) Retrieve block and resolve original synced block
@@ -1437,21 +1430,83 @@ function notionOverwriteBlockText_(blockId, text) {
     notionApiRequest_('/v1/blocks/' + toNotionUuid_(childIds[i]), 'delete');
   }
 
-  // 4) Append replacement paragraph
-  var children = [{
-    object: 'block',
-    type: 'paragraph',
-    paragraph: {
-      rich_text: [{
-        type: 'text',
-        text: { content: String(text) }
-      }]
+  var replacementChildren = Array.isArray(children) && children.length ? children : buildInsightBlockChildren_('', {});
+  notionApiRequest_('/v1/blocks/' + originalId + '/children', 'patch', {
+    children: replacementChildren
+  });
+}
+
+function buildPointBlockChildren_(pointTotalToday, styleConfig) {
+  var styles = styleConfig || {};
+  var segments = Array.isArray(styles.segments) && styles.segments.length ? styles.segments : [
+    { token: 'point_total', color: 'blue' },
+    { text: ' Points', color: 'default' }
+  ];
+  var richText = [];
+
+  for (var i = 0; i < segments.length; i++) {
+    var segment = segments[i] || {};
+    var content = '';
+
+    if (segment.token === 'point_total') {
+      content = String(pointTotalToday);
+    } else if (segment.text !== undefined && segment.text !== null) {
+      content = String(segment.text);
     }
+
+    if (!content) {
+      continue;
+    }
+
+    var annotations = {};
+    if (segment.color) {
+      annotations.color = segment.color;
+    }
+
+    richText.push({
+      type: 'text',
+      text: { content: content },
+      annotations: annotations
+    });
+  }
+
+  if (!richText.length) {
+    richText.push({
+      type: 'text',
+      text: { content: String(pointTotalToday) + ' Points' },
+      annotations: { color: 'default' }
+    });
+  }
+
+  return [buildNotionTextBlock_(styles.blockType || 'heading_1', richText)];
+}
+
+function buildInsightBlockChildren_(text, styleConfig) {
+  var styles = styleConfig || {};
+  var richText = [{
+    type: 'text',
+    text: { content: String(text || '') },
+    annotations: { italic: !!styles.italic }
   }];
 
-  notionApiRequest_('/v1/blocks/' + originalId + '/children', 'patch', {
-    children: children
-  });
+  return [buildNotionTextBlock_(styles.blockType || 'paragraph', richText)];
+}
+
+function buildNotionTextBlock_(blockType, richText) {
+  var type = String(blockType || 'paragraph');
+  if (['paragraph', 'heading_1', 'heading_2', 'heading_3'].indexOf(type) === -1) {
+    type = 'paragraph';
+  }
+
+  var block = {
+    object: 'block',
+    type: type
+  };
+  block[type] = {
+    rich_text: Array.isArray(richText) ? richText : []
+  };
+
+  return block;
 }
 
 /** Lists ALL child block IDs under a block (paginates). */
