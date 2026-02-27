@@ -1948,10 +1948,16 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
   var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
   var useScheduleFilter = scheduleDays.length > 0;
   var streakCount = 0;
+  var expectedPreviousDate = null;
 
   for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
-    if (!isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours)) {
+    var columnDate = getColumnDateForStreak_(trackingSheet, col);
+    if (!columnDate || !isScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours)) {
       continue;
+    }
+
+    if (expectedPreviousDate && !isSameCalendarDay_(columnDate, expectedPreviousDate)) {
+      break;
     }
 
     var historicalValue = trackingSheet.getRange(row, col).getValue();
@@ -1960,6 +1966,12 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
     }
 
     streakCount += 1;
+    expectedPreviousDate = getPreviousScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours);
+  }
+
+  var seededStreak = getSeededStreakValue_(settingLookup.setting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
+  if (seededStreak !== null && seededStreak > streakCount) {
+    streakCount = seededStreak;
   }
 
   return streakCount;
@@ -1985,10 +1997,16 @@ function calculateStreak_(metricID, activeColInput, lateExtensionInput, optional
   var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
   var useScheduleFilter = scheduleDays.length > 0;
   var streakCount = 0;
+  var expectedPreviousDate = null;
 
   for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
-    if (!isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours)) {
+    var columnDate = getColumnDateForStreak_(trackingSheet, col);
+    if (!columnDate || !isScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours)) {
       continue;
+    }
+
+    if (expectedPreviousDate && !isSameCalendarDay_(columnDate, expectedPreviousDate)) {
+      break;
     }
 
     var historicalValue = trackingSheet.getRange(row, col).getValue();
@@ -1997,15 +2015,28 @@ function calculateStreak_(metricID, activeColInput, lateExtensionInput, optional
     }
 
     streakCount += 1;
+    expectedPreviousDate = getPreviousScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours);
   }
 
-  var todayScheduled = isScheduledColumn_(trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
+  var todayDate = getColumnDateForStreak_(trackingSheet, resolvedActiveCol);
+  var todayScheduled = todayDate && isScheduledDateForStreak_(todayDate, scheduleDays, useScheduleFilter, extensionHours);
   var todayValue = optionalAccessor ? optionalAccessor.get(row) : trackingSheet.getRange(row, resolvedActiveCol).getValue();
+  var seededStreak = getSeededStreakValue_(settingLookup.setting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
 
   if (todayScheduled) {
-    return isCompletedCellValue_(todayValue) ? streakCount + 1 : 0;
+    if (!isCompletedCellValue_(todayValue)) {
+      return 0;
+    }
+
+    if (seededStreak !== null && seededStreak > streakCount) {
+      streakCount = seededStreak;
+    }
+    return streakCount + 1;
   }
 
+  if (seededStreak !== null && seededStreak > streakCount) {
+    streakCount = seededStreak;
+  }
   return streakCount;
 }
 
@@ -2149,20 +2180,115 @@ function normalizeScheduledDays_(datesConfig) {
 }
 
 function isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter, extensionHours) {
-  if (!useScheduleFilter) {
-    return true;
+  var dateValue = getColumnDateForStreak_(trackingSheet, col);
+  if (!dateValue) {
+    return false;
   }
 
+  return isScheduledDateForStreak_(dateValue, scheduleDays, useScheduleFilter, extensionHours);
+}
+
+function getColumnDateForStreak_(trackingSheet, col) {
   var headerValue = trackingSheet.getRange(1, col).getValue();
   var dateValue = headerValue instanceof Date ? headerValue : new Date(headerValue);
+  return (dateValue instanceof Date && !isNaN(dateValue.getTime())) ? dateValue : null;
+}
 
-  if (!(dateValue instanceof Date) || isNaN(dateValue.getTime())) {
-    return false;
+function isScheduledDateForStreak_(dateValue, scheduleDays, useScheduleFilter, extensionHours) {
+  if (!useScheduleFilter) {
+    return true;
   }
 
   var shiftedDate = new Date(dateValue.getTime() - Number(extensionHours || 0) * 60 * 60 * 1000);
   var dayName = Utilities.formatDate(shiftedDate, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
   return scheduleDays.indexOf(dayName) !== -1;
+}
+
+function getPreviousScheduledDateForStreak_(dateValue, scheduleDays, useScheduleFilter, extensionHours) {
+  var candidate = new Date(dateValue.getTime());
+
+  for (var i = 0; i < 14; i++) {
+    candidate.setDate(candidate.getDate() - 1);
+    if (isScheduledDateForStreak_(candidate, scheduleDays, useScheduleFilter, extensionHours)) {
+      return new Date(candidate.getTime());
+    }
+  }
+
+  return null;
+}
+
+function isSameCalendarDay_(dateA, dateB) {
+  if (!dateA || !dateB) {
+    return false;
+  }
+
+  return dateA.getFullYear() === dateB.getFullYear() &&
+    dateA.getMonth() === dateB.getMonth() &&
+    dateA.getDate() === dateB.getDate();
+}
+
+function countScheduledDatesBetween_(startDateExclusive, endDateExclusive, scheduleDays, useScheduleFilter, extensionHours) {
+  if (!startDateExclusive || !endDateExclusive) {
+    return 0;
+  }
+
+  var cursor = new Date(startDateExclusive.getTime());
+  var count = 0;
+
+  while (true) {
+    cursor.setDate(cursor.getDate() + 1);
+    if (!(cursor < endDateExclusive)) {
+      break;
+    }
+
+    if (isScheduledDateForStreak_(cursor, scheduleDays, useScheduleFilter, extensionHours)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function getSeededStreakValue_(metricSetting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours) {
+  if (!metricSetting || !metricSetting.streaks || !metricSetting.streaks.streaksID) {
+    return null;
+  }
+
+  var todayDate = getColumnDateForStreak_(trackingSheet, resolvedActiveCol);
+  if (!todayDate) {
+    return null;
+  }
+
+  var streakRowLookup = findRowByMetricId_(metricSetting.streaks.streaksID, trackingSheet);
+  if (!streakRowLookup.row) {
+    return null;
+  }
+
+  for (var col = resolvedActiveCol - 1; col >= (dataStartColumn || 3); col--) {
+    var storedValue = trackingSheet.getRange(streakRowLookup.row, col).getValue();
+    if (storedValue === '' || storedValue === null || storedValue === undefined) {
+      continue;
+    }
+
+    var numericStoredValue = parseStrictNumber_(storedValue);
+    if (numericStoredValue === null) {
+      continue;
+    }
+
+    var seedDate = getColumnDateForStreak_(trackingSheet, col);
+    if (!seedDate) {
+      return null;
+    }
+
+    var scheduledDaysBetween = countScheduledDatesBetween_(seedDate, todayDate, scheduleDays, useScheduleFilter, extensionHours);
+    if (scheduledDaysBetween > 0) {
+      return null;
+    }
+
+    return numericStoredValue;
+  }
+
+  return null;
 }
 
 function isCompletedCellValue_(value) {
