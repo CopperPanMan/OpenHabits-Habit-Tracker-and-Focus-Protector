@@ -13,6 +13,7 @@ This document rewrites and reorganizes the provided Habits V2 requirements to re
 - “Habit” / “Task” are conceptual only; the system stores and operates on **metrics** only.
 - Habits V2 adds/defines these **new web app keys/features**:
     - `record_metric_iOS`
+    - `update_metric_notion`
     - `record_metric_notion`
     - `positive_push_notification`
     - `current_metric_status`
@@ -165,7 +166,7 @@ Each request is JSON. Common fields:
 
 ### 5.1.1 `data` format for record keys
 
-For `record_metric_iOS` and `record_metric_notion`:
+For `record_metric_iOS`, `update_metric_notion`, and `record_metric_notion`:
 
 - `data` is an array of metric entries:
     - Each entry is `[metricID]` or `[metricID, value]`
@@ -193,7 +194,7 @@ All Habits V2 endpoints return a JSON response:
 
 # 6) Endpoint: `record_metric_iOS`
 
-Records one or more metrics and (optionally) syncs results to Notion.
+Records one or more metrics and returns quickly without running Notion sync.
 
 ## 6.1 Processing steps (per request)
 
@@ -204,7 +205,7 @@ Records one or more metrics and (optionally) syncs results to Notion.
     - Apply recordType write rules to Tracking Data.
     - If the write changes “completion state” or adds value (depending on recordType/type), compute points and update totals.
     - Compute streak (from sheet) for multiplier logic (streak value is computed, but the *streak row* may be updated by scheduled job).
-    - If Notion is enabled (global + per-metric), update Notion properties for that metric.
+    - No Notion sync happens on this endpoint.
 3. If multiple metrics were processed:
     - Update daily points row once (incremental additions per successful scoring event).
     - Update cumulative points row once (sum deltas across metrics, then add once).
@@ -462,7 +463,15 @@ Rules:
 
 ---
 
-# 13) Endpoint: `record_metric_notion`
+# 13) Endpoint: `update_metric_notion`
+
+Takes the exact same `data` payload format as `record_metric_iOS`, but performs **Notion sync only** (no sheet writes).
+
+Use this endpoint after a successful `record_metric_iOS` call so iOS gets a fast response first, then Notion sync runs in a separate request.
+
+---
+
+# 14) Endpoint: `record_metric_notion`
 
 Same as `record_metric_iOS` for writing to Sheets and computing points/streak/multiplier behavior, with one key difference:
 
@@ -474,7 +483,7 @@ Specifically:
 
 ---
 
-# 14) Endpoint: `current_metric_status`
+# 15) Endpoint: `current_metric_status`
 
 ## 14.1 Input
 
@@ -496,7 +505,7 @@ Example:
 
 ---
 
-# 15) Endpoint: `positive_push_notification`
+# 16) Endpoint: `positive_push_notification`
 
 Goal: return a message describing “the next thing to do” and its current streak.
 
@@ -527,7 +536,7 @@ For each metric, determine if it should be included “right now”:
 
 ---
 
-# 16) Optional Notion integration
+# 17) Optional Notion integration
 
 Notion integration is enabled when:
 

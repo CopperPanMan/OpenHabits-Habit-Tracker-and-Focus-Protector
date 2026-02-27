@@ -132,6 +132,7 @@ Use query parameters expected by `doGet(e)`:
 Primary V2 keys:
 
 - `record_metric_iOS`
+- `update_metric_notion`
 - `record_metric_notion`
 - `positive_push_notification`
 - `current_metric_status`
@@ -142,9 +143,10 @@ Primary V2 keys:
 Run these from a browser or Shortcut URL action:
 
 1. **Record a metric (Habits V2):** call `record_metric_iOS` for a known metric ID and verify today's cell updates.
-2. **Read status:** call `current_metric_status` and verify returned text for your metric.
-3. **Push prompt:** call `positive_push_notification` and verify a sensible response.
-4. **Lockout evaluation:** call `app_closer_v2` and confirm JSON with `status` in `allowed|blocked|error`.
+2. **Sync that metric to Notion (Habits V2):** call `update_metric_notion` with the same payload format used for `record_metric_iOS`.
+3. **Read status:** call `current_metric_status` and verify returned text for your metric.
+4. **Push prompt:** call `positive_push_notification` and verify a sensible response.
+5. **Lockout evaluation:** call `app_closer_v2` and confirm JSON with `status` in `allowed|blocked|error`.
 
 If lockouts are not behaving as expected:
 
