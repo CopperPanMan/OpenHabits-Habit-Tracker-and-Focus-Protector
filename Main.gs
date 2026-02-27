@@ -338,7 +338,13 @@ function doGet(e) {
 
 function doPost(e) {
   var parsedRequest = parseNotionPostRequest_(e);
+  var notionBodyDebugText = formatNotionWebhookBodyForInsightBlock_(e);
   var debugMessage = buildNotionWebhookDebugMessage_(e);
+
+  var debugBlockError = writeNotionWebhookBodyToInsightBlock_(notionBodyDebugText, parsedRequest.key);
+  if (debugBlockError) {
+    debugMessage += ' | Failed to write webhook body to insight block: ' + debugBlockError;
+  }
 
   if (!parsedRequest.ok) {
     return respondText_(buildHabitsV2Response({
@@ -356,6 +362,50 @@ function doPost(e) {
   });
 
   return appendDebugMessageToTextOutput_(doGetResponse, debugMessage);
+}
+
+function formatNotionWebhookBodyForInsightBlock_(e) {
+  var postData = e && e.postData ? e.postData : null;
+  var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
+
+  if (!body) {
+    return 'Notion webhook body: <empty>';
+  }
+
+  try {
+    return 'Notion webhook body:\n' + JSON.stringify(JSON.parse(body), null, 2);
+  } catch (error) {
+    return 'Notion webhook body:\n' + body;
+  }
+}
+
+function writeNotionWebhookBodyToInsightBlock_(bodyText, requestKey) {
+  if (!bodyText) {
+    return null;
+  }
+
+  try {
+    loadSettings(requestKey || 'record_metric_notion');
+  } catch (error) {
+    return error.message;
+  }
+
+  var config = getAppConfig();
+  var notionConfig = config && config.notion ? config.notion : {};
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var insightBlockId = scriptProperties.getProperty(notionConfig.insightBlockIdScriptProperty || 'insightBlock');
+
+  if (!insightBlockId) {
+    return 'Missing Script Property for insight block.';
+  }
+
+  try {
+    notionOverwriteBlockText_(insightBlockId, bodyText);
+  } catch (error2) {
+    return error2.message;
+  }
+
+  return null;
 }
 
 
