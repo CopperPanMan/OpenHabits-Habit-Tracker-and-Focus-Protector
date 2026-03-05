@@ -2645,6 +2645,14 @@ function validateMetricValueForRecord_(metricType, rawValue) {
   };
 }
 
+function logDueByGateDebug_(context) {
+  try {
+    Logger.log('[due_by debug] %s', JSON.stringify(context));
+  } catch (error) {
+    Logger.log('[due_by debug] unable to stringify context: %s', error);
+  }
+}
+
 function evaluateDueByWriteGate_(setting, now, extensionHours) {
   var metricType = setting && (setting.type || setting.unitType);
   if (metricType !== 'due_by') {
@@ -2653,7 +2661,16 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
     };
   }
 
-  var dueByLookup = getDueByTimeForCurrentEffectiveDay_(setting && setting.dates, now || new Date(), extensionHours);
+  var resolvedNow = now || new Date();
+  var dueByLookup = getDueByTimeForCurrentEffectiveDay_(setting && setting.dates, resolvedNow, extensionHours);
+
+  logDueByGateDebug_({
+    metricID: setting && setting.metricID ? setting.metricID : null,
+    nowIso: resolvedNow && resolvedNow.toISOString ? resolvedNow.toISOString() : String(resolvedNow),
+    extensionHours: extensionHours,
+    dueByLookup: dueByLookup
+  });
+
   if (dueByLookup.warning) {
     return {
       isLate: false,
@@ -2674,7 +2691,7 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
   }
 
   return {
-    isLate: now.getTime() > dueByLookup.dueDateTime.getTime()
+    isLate: fallbackLate
   };
 }
 
