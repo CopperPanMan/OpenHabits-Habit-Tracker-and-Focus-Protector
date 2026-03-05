@@ -2667,15 +2667,9 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
     };
   }
 
-  if (typeof dueByLookup.nowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
-    if (dueByLookup.effectiveDayIsCurrentDay === false) {
-      return {
-        isLate: true
-      };
-    }
-
+  if (typeof dueByLookup.effectiveNowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
     return {
-      isLate: dueByLookup.nowMinutes > dueByLookup.dueByMinutes
+      isLate: dueByLookup.effectiveNowMinutes > dueByLookup.dueByMinutes
     };
   }
 
@@ -2695,12 +2689,9 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
   var effectiveNow = new Date(now.getTime() - extensionMs);
   var timezone = Session.getScriptTimeZone();
   var effectiveDayName = Utilities.formatDate(effectiveNow, timezone, 'EEEE').toLowerCase();
-  var nowHour = Number(Utilities.formatDate(now, timezone, 'H'));
-  var nowMinute = Number(Utilities.formatDate(now, timezone, 'm'));
-  var nowMinutes = nowHour * 60 + nowMinute;
-  var nowDateKey = Utilities.formatDate(now, timezone, 'yyyy-MM-dd');
-  var effectiveDateKey = Utilities.formatDate(effectiveNow, timezone, 'yyyy-MM-dd');
-  var effectiveDayIsCurrentDay = nowDateKey === effectiveDateKey;
+  var effectiveNowHour = Number(Utilities.formatDate(effectiveNow, timezone, 'H'));
+  var effectiveNowMinute = Number(Utilities.formatDate(effectiveNow, timezone, 'm'));
+  var effectiveNowMinutes = effectiveNowHour * 60 + effectiveNowMinute;
   var seenDays = {};
 
   for (var i = 0; i < datesConfig.length; i++) {
@@ -2752,8 +2743,7 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
     return {
       dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs),
       dueByMinutes: parsedDueByTime.hours * 60 + parsedDueByTime.minutes,
-      nowMinutes: nowMinutes,
-      effectiveDayIsCurrentDay: effectiveDayIsCurrentDay
+      effectiveNowMinutes: effectiveNowMinutes
     };
   }
 
