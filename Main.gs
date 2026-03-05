@@ -2667,6 +2667,12 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
     };
   }
 
+  if (typeof dueByLookup.effectiveNowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
+    return {
+      isLate: dueByLookup.effectiveNowMinutes > dueByLookup.dueByMinutes
+    };
+  }
+
   return {
     isLate: now.getTime() > dueByLookup.dueDateTime.getTime()
   };
@@ -2681,7 +2687,11 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
 
   var extensionMs = normalizeExtensionMs_(extensionHours);
   var effectiveNow = new Date(now.getTime() - extensionMs);
-  var effectiveDayName = Utilities.formatDate(effectiveNow, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
+  var timezone = Session.getScriptTimeZone();
+  var effectiveDayName = Utilities.formatDate(effectiveNow, timezone, 'EEEE').toLowerCase();
+  var effectiveNowHour = Number(Utilities.formatDate(effectiveNow, timezone, 'H'));
+  var effectiveNowMinute = Number(Utilities.formatDate(effectiveNow, timezone, 'm'));
+  var effectiveNowMinutes = effectiveNowHour * 60 + effectiveNowMinute;
   var seenDays = {};
 
   for (var i = 0; i < datesConfig.length; i++) {
@@ -2731,7 +2741,9 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
     );
 
     return {
-      dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs)
+      dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs),
+      dueByMinutes: parsedDueByTime.hours * 60 + parsedDueByTime.minutes,
+      effectiveNowMinutes: effectiveNowMinutes
     };
   }
 
