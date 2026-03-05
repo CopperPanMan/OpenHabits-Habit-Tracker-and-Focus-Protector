@@ -2684,40 +2684,11 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
     };
   }
 
-  if (typeof dueByLookup.nowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
-    if (dueByLookup.effectiveDayIsCurrentDay === false) {
-      logDueByGateDebug_({
-        metricID: setting && setting.metricID ? setting.metricID : null,
-        comparison: 'effective_day_mismatch',
-        effectiveDayIsCurrentDay: dueByLookup.effectiveDayIsCurrentDay,
-        isLate: true
-      });
-      return {
-        isLate: true
-      };
-    }
-
-    var minuteComparisonLate = dueByLookup.nowMinutes > dueByLookup.dueByMinutes;
-    logDueByGateDebug_({
-      metricID: setting && setting.metricID ? setting.metricID : null,
-      comparison: 'minutes',
-      nowMinutes: dueByLookup.nowMinutes,
-      dueByMinutes: dueByLookup.dueByMinutes,
-      isLate: minuteComparisonLate
-    });
+  if (typeof dueByLookup.effectiveNowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
     return {
-      isLate: minuteComparisonLate
+      isLate: dueByLookup.effectiveNowMinutes > dueByLookup.dueByMinutes
     };
   }
-
-  var fallbackLate = resolvedNow.getTime() > dueByLookup.dueDateTime.getTime();
-  logDueByGateDebug_({
-    metricID: setting && setting.metricID ? setting.metricID : null,
-    comparison: 'datetime_fallback',
-    nowEpochMs: resolvedNow.getTime(),
-    dueEpochMs: dueByLookup.dueDateTime.getTime(),
-    isLate: fallbackLate
-  });
 
   return {
     isLate: fallbackLate
@@ -2735,12 +2706,9 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
   var effectiveNow = new Date(now.getTime() - extensionMs);
   var timezone = Session.getScriptTimeZone();
   var effectiveDayName = Utilities.formatDate(effectiveNow, timezone, 'EEEE').toLowerCase();
-  var nowHour = Number(Utilities.formatDate(now, timezone, 'H'));
-  var nowMinute = Number(Utilities.formatDate(now, timezone, 'm'));
-  var nowMinutes = nowHour * 60 + nowMinute;
-  var nowDateKey = Utilities.formatDate(now, timezone, 'yyyy-MM-dd');
-  var effectiveDateKey = Utilities.formatDate(effectiveNow, timezone, 'yyyy-MM-dd');
-  var effectiveDayIsCurrentDay = nowDateKey === effectiveDateKey;
+  var effectiveNowHour = Number(Utilities.formatDate(effectiveNow, timezone, 'H'));
+  var effectiveNowMinute = Number(Utilities.formatDate(effectiveNow, timezone, 'm'));
+  var effectiveNowMinutes = effectiveNowHour * 60 + effectiveNowMinute;
   var seenDays = {};
 
   for (var i = 0; i < datesConfig.length; i++) {
@@ -2792,8 +2760,7 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
     return {
       dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs),
       dueByMinutes: parsedDueByTime.hours * 60 + parsedDueByTime.minutes,
-      nowMinutes: nowMinutes,
-      effectiveDayIsCurrentDay: effectiveDayIsCurrentDay
+      effectiveNowMinutes: effectiveNowMinutes
     };
   }
 
