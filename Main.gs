@@ -2667,6 +2667,18 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
     };
   }
 
+  if (typeof dueByLookup.nowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
+    if (dueByLookup.effectiveDayIsCurrentDay === false) {
+      return {
+        isLate: true
+      };
+    }
+
+    return {
+      isLate: dueByLookup.nowMinutes > dueByLookup.dueByMinutes
+    };
+  }
+
   return {
     isLate: now.getTime() > dueByLookup.dueDateTime.getTime()
   };
@@ -2681,7 +2693,14 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
 
   var extensionMs = normalizeExtensionMs_(extensionHours);
   var effectiveNow = new Date(now.getTime() - extensionMs);
-  var effectiveDayName = Utilities.formatDate(effectiveNow, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
+  var timezone = Session.getScriptTimeZone();
+  var effectiveDayName = Utilities.formatDate(effectiveNow, timezone, 'EEEE').toLowerCase();
+  var nowHour = Number(Utilities.formatDate(now, timezone, 'H'));
+  var nowMinute = Number(Utilities.formatDate(now, timezone, 'm'));
+  var nowMinutes = nowHour * 60 + nowMinute;
+  var nowDateKey = Utilities.formatDate(now, timezone, 'yyyy-MM-dd');
+  var effectiveDateKey = Utilities.formatDate(effectiveNow, timezone, 'yyyy-MM-dd');
+  var effectiveDayIsCurrentDay = nowDateKey === effectiveDateKey;
   var seenDays = {};
 
   for (var i = 0; i < datesConfig.length; i++) {
@@ -2731,7 +2750,10 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
     );
 
     return {
-      dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs)
+      dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs),
+      dueByMinutes: parsedDueByTime.hours * 60 + parsedDueByTime.minutes,
+      nowMinutes: nowMinutes,
+      effectiveDayIsCurrentDay: effectiveDayIsCurrentDay
     };
   }
 
