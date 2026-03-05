@@ -296,7 +296,7 @@ function doGet(e) {
 
   /*var request = {
     key: "record_metric_iOS",
-    dataRaw: JSON.stringify([["check_work_tasks"]]),
+    dataRaw: JSON.stringify([["brush_teeth_by"]]),
     metricsRaw: null
   };*/
 
@@ -2654,89 +2654,55 @@ function logDueByGateDebug_(context) {
 }
 
 function evaluateDueByWriteGate_(setting, now, extensionHours) {
-  var metricType = setting && (setting.type || setting.unitType);
-  if (metricType !== 'due_by') {
-    return {
-      isLate: false
-    };
-  }
-
-  var resolvedNow = now || new Date();
-  var dueByLookup = getDueByTimeForCurrentEffectiveDay_(setting && setting.dates, resolvedNow, extensionHours);
-
-  logDueByGateDebug_({
-    metricID: setting && setting.metricID ? setting.metricID : null,
-    nowIso: resolvedNow && resolvedNow.toISOString ? resolvedNow.toISOString() : String(resolvedNow),
-    extensionHours: extensionHours,
-    dueByLookup: dueByLookup
-  });
+  var dueByLookup = getDueByTimeForCurrentEffectiveDay_(setting.dates, now, extensionHours);
 
   if (dueByLookup.warning) {
-    return {
-      isLate: false,
-      warning: dueByLookup.warning
-    };
+    return { isLate: false, warning: dueByLookup.warning };
   }
 
   if (!dueByLookup.dueDateTime) {
-    return {
-      isLate: false
-    };
+    return { isLate: false };
   }
 
-  if (typeof dueByLookup.effectiveNowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
-    return {
-      isLate: dueByLookup.effectiveNowMinutes > dueByLookup.dueByMinutes
-    };
-  }
-
-  return {
-    isLate: fallbackLate
-  };
+  // Correct: compare absolute timestamps (handles midnight + extension properly)
+  return { isLate: now.getTime() > dueByLookup.dueDateTime.getTime() };
 }
 
 function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
   if (!Array.isArray(datesConfig) || datesConfig.length === 0) {
-    return {
-      dueDateTime: null
-    };
+    return { dueDateTime: null };
   }
 
   var extensionMs = normalizeExtensionMs_(extensionHours);
+
+  // Effective day is used ONLY to choose which day config applies
   var effectiveNow = new Date(now.getTime() - extensionMs);
   var timezone = Session.getScriptTimeZone();
   var effectiveDayName = Utilities.formatDate(effectiveNow, timezone, 'EEEE').toLowerCase();
-  var effectiveNowHour = Number(Utilities.formatDate(effectiveNow, timezone, 'H'));
-  var effectiveNowMinute = Number(Utilities.formatDate(effectiveNow, timezone, 'm'));
-  var effectiveNowMinutes = effectiveNowHour * 60 + effectiveNowMinute;
+
+  // For debugging (optional): actual now minutes in script TZ
+  var nowHour = Number(Utilities.formatDate(now, timezone, 'H'));
+  var nowMinute = Number(Utilities.formatDate(now, timezone, 'm'));
+  var nowMinutes = nowHour * 60 + nowMinute;
+
   var seenDays = {};
 
   for (var i = 0; i < datesConfig.length; i++) {
     var entry = datesConfig[i];
-    if (!Array.isArray(entry) || entry.length === 0) {
-      continue;
-    }
+    if (!Array.isArray(entry) || entry.length === 0) continue;
 
     var dayValue = entry[0];
-    if (typeof dayValue !== 'string') {
-      continue;
-    }
+    if (typeof dayValue !== 'string') continue;
 
     var normalizedDay = dayValue.trim().toLowerCase();
-    if (!normalizedDay || seenDays[normalizedDay]) {
-      continue;
-    }
+    if (!normalizedDay || seenDays[normalizedDay]) continue;
     seenDays[normalizedDay] = true;
 
-    if (normalizedDay !== effectiveDayName) {
-      continue;
-    }
+    if (normalizedDay !== effectiveDayName) continue;
 
     var dueByTime = entry.length > 1 ? entry[1] : null;
     if (dueByTime === null || dueByTime === undefined || String(dueByTime).trim() === '') {
-      return {
-        dueDateTime: null
-      };
+      return { dueDateTime: null };
     }
 
     var parsedDueByTime = parseDueByTime_(dueByTime);
@@ -2747,7 +2713,9 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
       };
     }
 
-    var dueDateTimeInEffectiveDay = new Date(
+    // IMPORTANT: dueDateTime is on the EFFECTIVE DAY's date, at the configured time.
+    // DO NOT add extensionMs here.
+    var dueDateTime = new Date(
       effectiveNow.getFullYear(),
       effectiveNow.getMonth(),
       effectiveNow.getDate(),
@@ -2758,15 +2726,14 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
     );
 
     return {
-      dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs),
+      dueDateTime: dueDateTime,
       dueByMinutes: parsedDueByTime.hours * 60 + parsedDueByTime.minutes,
-      effectiveNowMinutes: effectiveNowMinutes
+      nowMinutes: nowMinutes,
+      effectiveDayName: effectiveDayName
     };
   }
 
-  return {
-    dueDateTime: null
-  };
+  return { dueDateTime: null };
 }
 
 function normalizeExtensionMs_(extensionHours) {
