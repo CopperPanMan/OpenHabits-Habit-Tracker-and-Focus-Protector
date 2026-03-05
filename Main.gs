@@ -1247,7 +1247,7 @@ function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, d
       todaysValue = turnToNumberV2_(setting, dataRange[resolvedActiveCol - 2]);
       messageModifier = 'today';
     } else {
-      todaysValue = getAverageV2_(turnArrayToNumbersV2_(setting, dataRange.slice(resolvedActiveCol - 2 - averageSpan + 1, resolvedActiveCol - 2 + 1)));
+      todaysValue = getAverageV2_(turnArrayToNumbersV2WithOptions_(setting, dataRange.slice(resolvedActiveCol - 2 - averageSpan + 1, resolvedActiveCol - 2 + 1), true));
       messageModifier = 'this ' + averageSpan + ' day span';
     }
 
@@ -1258,7 +1258,7 @@ function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, d
           chooseChance = chooseChance / (1 - chooseChance);
         }
 
-        compValue = getAverageV2_(turnArrayToNumbersV2_(setting, dataRange.slice(resolvedActiveCol - 2 - comparisonArray[j][0] - averageSpan + 1, resolvedActiveCol + 1 - 2 - comparisonArray[j][0])));
+        compValue = getAverageV2_(turnArrayToNumbersV2WithOptions_(setting, dataRange.slice(resolvedActiveCol - 2 - comparisonArray[j][0] - averageSpan + 1, resolvedActiveCol + 1 - 2 - comparisonArray[j][0]), true));
         if (compValue !== 0) {
           if ((todaysValue - compValue) * Number(insights.increaseGood) > 0) {
             foundPositiveComp = 1;
@@ -1392,16 +1392,35 @@ function convertTimestampToMinutesV2_(value) {
 }
 
 function turnArrayToNumbersV2_(setting, arr) {
+  return turnArrayToNumbersV2WithOptions_(setting, arr, false);
+}
+
+function turnArrayToNumbersV2WithOptions_(setting, arr, excludeEmptyValues) {
   var result = [];
   if (!Array.isArray(arr)) {
     return result;
   }
 
   for (var i = 0; i < arr.length; i++) {
+    if (excludeEmptyValues && isEmptyInsightValueV2_(arr[i])) {
+      continue;
+    }
     result.push(turnToNumberV2_(setting, arr[i]));
   }
 
   return result;
+}
+
+function isEmptyInsightValueV2_(value) {
+  if (value === null || value === undefined) {
+    return true;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim() === '';
+  }
+
+  return false;
 }
 
 function getAverageV2_(arr) {
