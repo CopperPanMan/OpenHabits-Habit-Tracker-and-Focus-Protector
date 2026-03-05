@@ -2684,50 +2684,11 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
     };
   }
 
-  var timezone = Session.getScriptTimeZone();
-  var nowMinutesFromNow = Number(Utilities.formatDate(resolvedNow, timezone, 'H')) * 60 + Number(Utilities.formatDate(resolvedNow, timezone, 'm'));
-
-  if (typeof dueByLookup.dueByMinutes === 'number') {
-    if (dueByLookup.effectiveDayIsCurrentDay === false) {
-      logDueByGateDebug_({
-        metricID: setting && setting.metricID ? setting.metricID : null,
-        comparison: 'effective_day_mismatch',
-        effectiveDayIsCurrentDay: dueByLookup.effectiveDayIsCurrentDay,
-        nowMinutesFromNow: nowMinutesFromNow,
-        dueByMinutes: dueByLookup.dueByMinutes,
-        isLate: true
-      });
-      return {
-        isLate: true
-      };
-    }
-
-    var minuteComparisonLate = nowMinutesFromNow > dueByLookup.dueByMinutes;
-    logDueByGateDebug_({
-      metricID: setting && setting.metricID ? setting.metricID : null,
-      comparison: 'minutes',
-      scriptTimeZone: timezone,
-      nowLocalHHmm: Utilities.formatDate(resolvedNow, timezone, 'HH:mm'),
-      nowMinutesFromNow: nowMinutesFromNow,
-      lookupNowMinutes: dueByLookup.nowMinutes,
-      lookupEffectiveNowMinutes: dueByLookup.effectiveNowMinutes,
-      dueByMinutes: dueByLookup.dueByMinutes,
-      dueByLocalHHmm: String(Math.floor(dueByLookup.dueByMinutes / 60)).padStart(2, '0') + ':' + String(dueByLookup.dueByMinutes % 60).padStart(2, '0'),
-      isLate: minuteComparisonLate
-    });
+  if (typeof dueByLookup.effectiveNowMinutes === 'number' && typeof dueByLookup.dueByMinutes === 'number') {
     return {
-      isLate: minuteComparisonLate
+      isLate: dueByLookup.effectiveNowMinutes > dueByLookup.dueByMinutes
     };
   }
-
-  var fallbackLate = resolvedNow.getTime() > dueByLookup.dueDateTime.getTime();
-  logDueByGateDebug_({
-    metricID: setting && setting.metricID ? setting.metricID : null,
-    comparison: 'datetime_fallback',
-    nowEpochMs: resolvedNow.getTime(),
-    dueEpochMs: dueByLookup.dueDateTime.getTime(),
-    isLate: fallbackLate
-  });
 
   return {
     isLate: fallbackLate
@@ -2745,15 +2706,9 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
   var effectiveNow = new Date(now.getTime() - extensionMs);
   var timezone = Session.getScriptTimeZone();
   var effectiveDayName = Utilities.formatDate(effectiveNow, timezone, 'EEEE').toLowerCase();
-  var nowHour = Number(Utilities.formatDate(now, timezone, 'H'));
-  var nowMinute = Number(Utilities.formatDate(now, timezone, 'm'));
-  var nowMinutes = nowHour * 60 + nowMinute;
   var effectiveNowHour = Number(Utilities.formatDate(effectiveNow, timezone, 'H'));
   var effectiveNowMinute = Number(Utilities.formatDate(effectiveNow, timezone, 'm'));
   var effectiveNowMinutes = effectiveNowHour * 60 + effectiveNowMinute;
-  var nowDateKey = Utilities.formatDate(now, timezone, 'yyyy-MM-dd');
-  var effectiveDateKey = Utilities.formatDate(effectiveNow, timezone, 'yyyy-MM-dd');
-  var effectiveDayIsCurrentDay = nowDateKey === effectiveDateKey;
   var seenDays = {};
 
   for (var i = 0; i < datesConfig.length; i++) {
@@ -2805,13 +2760,7 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
     return {
       dueDateTime: new Date(dueDateTimeInEffectiveDay.getTime() + extensionMs),
       dueByMinutes: parsedDueByTime.hours * 60 + parsedDueByTime.minutes,
-      nowMinutes: nowMinutes,
-      effectiveNowMinutes: effectiveNowMinutes,
-      effectiveDayIsCurrentDay: effectiveDayIsCurrentDay,
-      scriptTimeZone: timezone,
-      nowLocalHHmm: Utilities.formatDate(now, timezone, 'HH:mm'),
-      effectiveNowLocalHHmm: Utilities.formatDate(effectiveNow, timezone, 'HH:mm'),
-      dueByConfig: dueByTime
+      effectiveNowMinutes: effectiveNowMinutes
     };
   }
 
