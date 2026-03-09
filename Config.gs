@@ -120,6 +120,7 @@ function getAppConfig() {
     lockoutsV2: {
       globals: {
         cumulativeScreentimeID: null,
+        timeOpenedID: 'timeOpenedID',
         barLength: 20,
         presetCalendarName: ''
       },
@@ -137,6 +138,7 @@ function getLockoutsV2Config_() {
   return {
     globals: {
       cumulativeScreentimeID: null,
+      timeOpenedID: 'timeOpenedID',
       barLength: 20,
       presetCalendarName: ''
     },
