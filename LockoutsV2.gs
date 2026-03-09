@@ -185,24 +185,76 @@ function lockoutsV2_parsePresetOverride_(rawData) {
     return null;
   }
 
-  var trimmed = String(rawData).trim();
-  if (!trimmed) {
+  var presetFromData = lockoutsV2_extractPresetFromData_(rawData);
+  if (typeof presetFromData !== 'string') {
     return null;
   }
 
-  if ((trimmed.charAt(0) === '"' && trimmed.charAt(trimmed.length - 1) === '"') ||
-      (trimmed.charAt(0) === '\'' && trimmed.charAt(trimmed.length - 1) === '\'')) {
-    try {
-      var parsed = JSON.parse(trimmed);
-      if (typeof parsed === 'string' && parsed.trim()) {
-        return parsed.trim();
+  var trimmed = presetFromData.trim();
+  return trimmed || null;
+}
+
+function lockoutsV2_extractPresetFromData_(rawData) {
+  if (rawData == null) {
+    return null;
+  }
+
+  if (typeof rawData === 'string') {
+    var trimmedRaw = rawData.trim();
+    if (!trimmedRaw) {
+      return null;
+    }
+
+    if (lockoutsV2_isLikelyJsonPayload_(trimmedRaw)) {
+      try {
+        var parsedRaw = JSON.parse(trimmedRaw);
+        return lockoutsV2_extractPresetFromParsedPayload_(parsedRaw);
+      } catch (error) {
+        // Fall back to treating the value as a literal preset string.
       }
-    } catch (err) {
-      // Best-effort only; fall through to plain string handling.
+    }
+
+    return trimmedRaw;
+  }
+
+  return lockoutsV2_extractPresetFromParsedPayload_(rawData);
+}
+
+function lockoutsV2_extractPresetFromParsedPayload_(payload) {
+  if (typeof payload === 'string') {
+    return payload;
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  var candidateKeys = ['preset', 'presetName', 'lockoutPreset'];
+  for (var i = 0; i < candidateKeys.length; i++) {
+    var value = payload[candidateKeys[i]];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
     }
   }
 
-  return trimmed;
+  return null;
+}
+
+function lockoutsV2_isLikelyJsonPayload_(rawString) {
+  if (typeof rawString !== 'string' || !rawString) {
+    return false;
+  }
+
+  var firstChar = rawString.charAt(0);
+  var lastChar = rawString.charAt(rawString.length - 1);
+
+  if ((firstChar === '"' && lastChar === '"') ||
+      (firstChar === '\'' && lastChar === '\'')) {
+    return true;
+  }
+
+  return (firstChar === '{' && lastChar === '}') ||
+    (firstChar === '[' && lastChar === ']');
 }
 
 function lockoutsV2_lookupCalendarPreset_(calendarName, now, config, overrideLookupFn) {
