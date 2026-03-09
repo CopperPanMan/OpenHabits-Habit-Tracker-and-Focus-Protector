@@ -35,6 +35,11 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
   };
 
   var config = context.config || getLockoutsV2Config_();
+  var writeTimeOpenedResult = lockoutsV2_writeTimeOpenedTimestamp_(now, config, context);
+  if (!writeTimeOpenedResult.ok && writeTimeOpenedResult.error) {
+    debugErrors.push(writeTimeOpenedResult.error);
+  }
+
   var configValidation = lockoutsV2_validateConfig_(config);
   if (!configValidation.isValid) {
     response.status = 'error';
@@ -86,6 +91,54 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
     shortcut: response.shortcut,
     debug: response.debug
   };
+}
+
+function lockoutsV2_writeTimeOpenedTimestamp_(now, config, ctx) {
+  var context = ctx || {};
+  var metricID = lockoutsV2_getTimeOpenedMetricID_(config);
+  if (!metricID) {
+    return {
+      ok: true,
+      metricID: null
+    };
+  }
+
+  if (context.todayValuesByMetricID && typeof context.todayValuesByMetricID === 'object') {
+    context.todayValuesByMetricID[metricID] = now;
+    return {
+      ok: true,
+      metricID: metricID
+    };
+  }
+
+  var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
+  var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup || !rowLookup.row) {
+    return {
+      ok: false,
+      metricID: metricID,
+      error: rowLookup && rowLookup.error ? rowLookup.error : ('metricID not found in sheet: ' + metricID)
+    };
+  }
+
+  trackingSheet.getRange(rowLookup.row, todayCol).setValue(now);
+  return {
+    ok: true,
+    metricID: metricID
+  };
+}
+
+function lockoutsV2_getTimeOpenedMetricID_(config) {
+  var globals = config && config.globals ? config.globals : {};
+  if (typeof globals.timeOpenedID === 'string') {
+    var configured = globals.timeOpenedID.trim();
+    if (configured) {
+      return configured;
+    }
+  }
+
+  return 'timeOpenedID';
 }
 
 /**
