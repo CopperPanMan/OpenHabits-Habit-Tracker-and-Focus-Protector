@@ -354,6 +354,28 @@ function doGet(e) {
     }));
   }
 
+  if (key === 'config_snapshot') {
+    return respondJson_(lockoutsV2_handleConfigSnapshot_({
+      data: request.dataRaw
+    }, {
+      now: currentTimeStamp,
+      trackingSheet: getTrackingSheet_(),
+      config: getLockoutsV2Config_(),
+      tz: Session.getScriptTimeZone()
+    }));
+  }
+
+  if (key === 'metric_state') {
+    return respondJson_(lockoutsV2_handleMetricState_({
+      data: request.dataRaw
+    }, {
+      now: currentTimeStamp,
+      trackingSheet: getTrackingSheet_(),
+      config: getLockoutsV2Config_(),
+      tz: Session.getScriptTimeZone()
+    }));
+  }
+
   return respondText_('Unsupported key: ' + key);
 }
 
