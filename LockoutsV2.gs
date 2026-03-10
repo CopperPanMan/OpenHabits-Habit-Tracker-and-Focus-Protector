@@ -1380,3 +1380,222 @@ function lockoutsV2_tokenSubstitute_(template, tokenMap) {
     return replacement == null ? '' : String(replacement);
   });
 }
+
+/**
+ * Returns a Lockouts V2 config + metric-state snapshot for local caches.
+ *
+ * This is a read-only endpoint and does not write to Sheets.
+ */
+function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
+  var context = ctx || {};
+  var now = context.now instanceof Date ? context.now : new Date();
+  var config = context.config || getLockoutsV2Config_();
+  var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
+  var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var discoveredMetricIDs = lockoutsV2_collectConfigMetricIDs_(config);
+  var metricStateByID = lockoutsV2_readMetricStateMapByID_(discoveredMetricIDs.allMetricIDs, {
+    trackingSheet: trackingSheet,
+    todayCol: todayCol
+  });
+
+  return {
+    ok: true,
+    schemaVersion: 'lockouts_cache_v1',
+    generatedAtISO: now.toISOString(),
+    timezone: context.tz || Session.getScriptTimeZone(),
+    todayCol: todayCol,
+    config: config,
+    metricState: {
+      allByID: metricStateByID,
+      taskBlockByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.taskBlockIDs),
+      timestampByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.timestampIDs),
+      durationByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.durationIDs),
+      globalsByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.globalMetricIDs)
+    },
+    metricIDGroups: discoveredMetricIDs,
+    warnings: []
+  };
+}
+
+/**
+ * Returns the current state value for one metricID.
+ *
+ * Supports payload forms:
+ *   - data: "metricID"
+ *   - data: { metricID: "metricID" }
+ */
+function lockoutsV2_handleMetricState_(payload, ctx) {
+  var context = ctx || {};
+  var now = context.now instanceof Date ? context.now : new Date();
+  var metricID = lockoutsV2_extractMetricStateMetricID_(payload && payload.data);
+
+  if (!metricID) {
+    return {
+      ok: false,
+      error: 'Missing metricID. Provide data="metricID" or data={"metricID":"..."}.'
+    };
+  }
+
+  var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
+  var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var lookup = findRowByMetricId_(metricID, trackingSheet);
+
+  if (!lookup || !lookup.row) {
+    return {
+      ok: false,
+      metricID: metricID,
+      found: false,
+      error: lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID)
+    };
+  }
+
+  var cell = trackingSheet.getRange(lookup.row, todayCol);
+  return {
+    ok: true,
+    metricID: metricID,
+    found: true,
+    generatedAtISO: now.toISOString(),
+    todayCol: todayCol,
+    value: cell.getValue(),
+    displayValue: cell.getDisplayValue(),
+    warnings: lookup.warnings || []
+  };
+}
+
+function lockoutsV2_collectConfigMetricIDs_(config) {
+  var blocks = config && Array.isArray(config.blocks) ? config.blocks : [];
+  var globals = config && config.globals ? config.globals : {};
+  var seen = {};
+  var allMetricIDs = [];
+  var taskBlockIDs = [];
+  var timestampIDs = [];
+  var durationIDs = [];
+  var globalMetricIDs = [];
+
+  function pushUnique(id, target) {
+    if (typeof id !== 'string') {
+      return;
+    }
+    var normalized = id.trim();
+    if (!normalized) {
+      return;
+    }
+    if (seen[normalized]) {
+      return;
+    }
+    seen[normalized] = true;
+    allMetricIDs.push(normalized);
+    target.push(normalized);
+  }
+
+  pushUnique(globals.timeOpenedID || 'timeOpenedID', globalMetricIDs);
+  pushUnique(globals.cumulativeScreentimeID, globalMetricIDs);
+
+  for (var i = 0; i < blocks.length; i++) {
+    var block = blocks[i] || {};
+    var typeSpecific = block.typeSpecific || {};
+
+    var taskIDs = typeSpecific.task_block_IDs;
+    if (Array.isArray(taskIDs)) {
+      for (var t = 0; t < taskIDs.length; t++) {
+        pushUnique(taskIDs[t], taskBlockIDs);
+      }
+    }
+
+    if (typeSpecific.firstXMinutes && typeSpecific.firstXMinutes.timestampID) {
+      pushUnique(typeSpecific.firstXMinutes.timestampID, timestampIDs);
+    }
+
+    if (typeSpecific.duration && typeSpecific.duration.screenTimeID) {
+      pushUnique(typeSpecific.duration.screenTimeID, durationIDs);
+    }
+  }
+
+  return {
+    allMetricIDs: allMetricIDs,
+    taskBlockIDs: taskBlockIDs,
+    timestampIDs: timestampIDs,
+    durationIDs: durationIDs,
+    globalMetricIDs: globalMetricIDs
+  };
+}
+
+function lockoutsV2_readMetricStateMapByID_(metricIDs, ctx) {
+  var context = ctx || {};
+  var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
+  var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var output = {};
+
+  for (var i = 0; i < metricIDs.length; i++) {
+    var metricID = metricIDs[i];
+    var lookup = findRowByMetricId_(metricID, trackingSheet);
+
+    if (!lookup || !lookup.row) {
+      output[metricID] = {
+        found: false,
+        value: null,
+        displayValue: '',
+        error: lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID)
+      };
+      continue;
+    }
+
+    var cell = trackingSheet.getRange(lookup.row, todayCol);
+    output[metricID] = {
+      found: true,
+      value: cell.getValue(),
+      displayValue: cell.getDisplayValue(),
+      warnings: lookup.warnings || []
+    };
+  }
+
+  return output;
+}
+
+function lockoutsV2_pickMapByIDs_(source, ids) {
+  var out = {};
+  var sourceMap = source || {};
+  var arr = Array.isArray(ids) ? ids : [];
+
+  for (var i = 0; i < arr.length; i++) {
+    var id = arr[i];
+    if (Object.prototype.hasOwnProperty.call(sourceMap, id)) {
+      out[id] = sourceMap[id];
+    }
+  }
+
+  return out;
+}
+
+function lockoutsV2_extractMetricStateMetricID_(rawData) {
+  if (rawData == null) {
+    return null;
+  }
+
+  if (typeof rawData === 'string') {
+    var trimmed = rawData.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (lockoutsV2_isLikelyJsonPayload_(trimmed)) {
+      try {
+        var parsed = JSON.parse(trimmed);
+        return lockoutsV2_extractMetricStateMetricID_(parsed);
+      } catch (error) {
+        // Fall back to literal string metric ID.
+      }
+    }
+
+    return trimmed;
+  }
+
+  if (typeof rawData === 'object') {
+    var direct = rawData.metricID || rawData.metricId || (rawData.data && (rawData.data.metricID || rawData.data.metricId));
+    if (typeof direct === 'string' && direct.trim()) {
+      return direct.trim();
+    }
+  }
+
+  return null;
+}

@@ -458,3 +458,85 @@ Your provided pseudocode stands as the reference for iOS behavior. The only serv
 - Client calls `app_closer` unless it is inside an “unlockedUntil” session.
 - Client uses server `status` and `ui.message` to decide closing + notification.
 - Client enforces illegal/legitimate unlock timers and writes to Habits V2 separately.
+
+---
+
+## 14) Local cache + portable evaluator (Lockouts Cache V1)
+
+To support faster on-device lockout decisions, Lockouts V2 also exposes read-only snapshot keys and a portable JS evaluator.
+
+### 14.1 New keys
+
+#### `config_snapshot`
+
+- Purpose: return all information needed for a local cache refresh (typically once per day).
+- Input:
+  - `key = "config_snapshot"`
+  - Optional `data` (ignored for now; reserved for future options).
+- Output:
+  - `schemaVersion` (currently `lockouts_cache_v1`)
+  - `generatedAtISO`
+  - `timezone`
+  - `todayCol`
+  - `config` (full lockoutsV2 config)
+  - `metricState` split into:
+    - `allByID`
+    - `taskBlockByID`
+    - `timestampByID`
+    - `durationByID`
+    - `globalsByID`
+  - `metricIDGroups` with the corresponding ID arrays used to build each split map.
+
+#### `metric_state`
+
+- Purpose: return the current value for one metric ID.
+- Input:
+  - `key = "metric_state"`
+  - `data = "metricID"` (string), or
+  - `data = {"metricID":"..."}`
+- Output:
+  - `ok`
+  - `metricID`
+  - `found`
+  - `value`
+  - `displayValue`
+  - `generatedAtISO`
+  - `todayCol`
+  - `warnings` / `error` as applicable.
+
+### 14.2 Lockout cache file shape
+
+Recommended cache file path (Scriptable/iCloud):
+- `shortcuts/App Locker/lockoutCache.json`
+
+Recommended shape:
+
+```json
+{
+  "schemaVersion": "lockouts_cache_v1",
+  "generatedAtISO": "2026-03-01T08:00:00.000Z",
+  "timezone": "America/New_York",
+  "config": { "globals": {}, "blocks": [] },
+  "metricState": {
+    "allByID": {},
+    "taskBlockByID": {},
+    "timestampByID": {},
+    "durationByID": {},
+    "globalsByID": {}
+  },
+  "metricIDGroups": {
+    "allMetricIDs": [],
+    "taskBlockIDs": [],
+    "timestampIDs": [],
+    "durationIDs": [],
+    "globalMetricIDs": []
+  }
+}
+```
+
+### 14.3 Client sync strategy
+
+- Daily shortcut (`Update Lockout Cache`) calls `config_snapshot` and rewrites the whole cache.
+- Fast incremental shortcut (`Update Cached Metric`) calls `metric_state` for one metric and updates that metric’s cache entry.
+- Portable evaluator reads `lockoutCache.json` and performs lockout decisions locally using the same block order, token substitution, and JSON output shape as `app_closer_v2`.
+- For preset selection on-device, the portable evaluator resolves presets from calendar events on calendar name `App Lockout Settings` for events that occur today (instead of relying on `data` preset input).
