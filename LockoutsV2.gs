@@ -1389,7 +1389,7 @@ function lockoutsV2_tokenSubstitute_(template, tokenMap) {
 function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
-  var requestedMetricIDs = lockoutsV2_extractMetricStateMetricIDs_(payload && payload.data);
+  var requestedMetricID = lockoutsV2_extractMetricStateMetricID_(payload && payload.data);
   var config = context.config || getLockoutsV2Config_();
   var habitsMetricTypesByID = lockoutsV2_buildHabitsMetricTypesByID_();
   var habitsMetricIDs = lockoutsV2_collectHabitMetricIDs_(habitsMetricTypesByID);
@@ -1404,20 +1404,9 @@ function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
     metricTypesByID: habitsMetricTypesByID
   });
 
-  if (requestedMetricIDs.length > 0) {
-    var valuesByMetricID = {};
-
-    for (var r = 0; r < requestedMetricIDs.length; r++) {
-      var requestedMetricID = requestedMetricIDs[r];
-      var metricEntry = metricStateByID[requestedMetricID];
-      valuesByMetricID[requestedMetricID] = metricEntry ? metricEntry.value : null;
-    }
-
-    return {
-      ok: true,
-      valuesByMetricID: valuesByMetricID,
-      lastUpdated: now.toISOString()
-    };
+  if (requestedMetricID) {
+    var metricEntry = metricStateByID[requestedMetricID];
+    return metricEntry ? metricEntry.value : null;
   }
 
   return {
