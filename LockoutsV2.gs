@@ -1389,22 +1389,35 @@ function lockoutsV2_tokenSubstitute_(template, tokenMap) {
 function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
+  var requestedMetricID = lockoutsV2_extractMetricStateMetricID_(payload && payload.data);
   var config = context.config || getLockoutsV2Config_();
+  var habitsMetricTypesByID = lockoutsV2_buildHabitsMetricTypesByID_();
+  var habitsMetricIDs = lockoutsV2_collectHabitMetricIDs_(habitsMetricTypesByID);
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
   var discoveredMetricIDs = lockoutsV2_collectConfigMetricIDs_(config);
-  var metricStateByID = lockoutsV2_readMetricStateMapByID_(discoveredMetricIDs.allMetricIDs, {
+  var allMetricIDs = lockoutsV2_mergeMetricIDArrays_(discoveredMetricIDs.allMetricIDs, habitsMetricIDs);
+  var metricStateByID = lockoutsV2_readMetricStateMapByID_(allMetricIDs, {
     trackingSheet: trackingSheet,
-    todayCol: todayCol
+    todayCol: todayCol,
+    now: now,
+    metricTypesByID: habitsMetricTypesByID
   });
+
+  if (requestedMetricID) {
+    var metricEntry = metricStateByID[requestedMetricID];
+    return metricEntry ? metricEntry.value : null;
+  }
 
   return {
     ok: true,
     schemaVersion: 'lockouts_cache_v1',
     generatedAtISO: now.toISOString(),
+    lastUpdated: now.toISOString(),
     timezone: context.tz || Session.getScriptTimeZone(),
     todayCol: todayCol,
     config: config,
+    configLastUpdated: now.toISOString(),
     metricState: {
       allByID: metricStateByID,
       taskBlockByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.taskBlockIDs),
@@ -1524,6 +1537,8 @@ function lockoutsV2_readMetricStateMapByID_(metricIDs, ctx) {
   var context = ctx || {};
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var metricTypesByID = context.metricTypesByID || {};
+  var updatedAtISO = context.now instanceof Date ? context.now.toISOString() : new Date().toISOString();
   var output = {};
 
   for (var i = 0; i < metricIDs.length; i++) {
@@ -1541,15 +1556,99 @@ function lockoutsV2_readMetricStateMapByID_(metricIDs, ctx) {
     }
 
     var cell = trackingSheet.getRange(lookup.row, todayCol);
+    var rawValue = cell.getValue();
+    var metricType = metricTypesByID[metricID] || null;
     output[metricID] = {
       found: true,
-      value: cell.getValue(),
+      value: lockoutsV2_normalizeMetricValueForCache_(metricType, rawValue),
+      rawValue: rawValue,
       displayValue: cell.getDisplayValue(),
+      lastUpdated: updatedAtISO,
       warnings: lookup.warnings || []
     };
   }
 
   return output;
+}
+
+function lockoutsV2_collectHabitMetricIDs_(metricTypesByID) {
+  var out = [];
+  var map = metricTypesByID || {};
+  for (var metricID in map) {
+    if (!Object.prototype.hasOwnProperty.call(map, metricID)) {
+      continue;
+    }
+    out.push(metricID);
+  }
+  return out;
+}
+
+function lockoutsV2_buildHabitsMetricTypesByID_() {
+  var config = getAppConfig();
+  var settings = config && Array.isArray(config.metricSettings) ? config.metricSettings : [];
+  var out = {};
+
+  for (var i = 0; i < settings.length; i++) {
+    var metric = settings[i] || {};
+    if (typeof metric.metricID !== 'string') {
+      continue;
+    }
+    var metricID = metric.metricID.trim();
+    if (!metricID || Object.prototype.hasOwnProperty.call(out, metricID)) {
+      continue;
+    }
+    out[metricID] = metric.type || metric.unitType || null;
+  }
+
+  return out;
+}
+
+function lockoutsV2_mergeMetricIDArrays_(primary, secondary) {
+  var out = [];
+  var seen = {};
+
+  function appendAll(ids) {
+    var arr = Array.isArray(ids) ? ids : [];
+    for (var i = 0; i < arr.length; i++) {
+      var id = typeof arr[i] === 'string' ? arr[i].trim() : '';
+      if (!id || seen[id]) {
+        continue;
+      }
+      seen[id] = true;
+      out.push(id);
+    }
+  }
+
+  appendAll(primary);
+  appendAll(secondary);
+  return out;
+}
+
+function lockoutsV2_normalizeMetricValueForCache_(metricType, value) {
+  var type = typeof metricType === 'string' ? metricType : '';
+  if (value === '' || value === null || value === undefined) {
+    return value;
+  }
+
+  if (type === 'timestamp' || type === 'due_by' || type === 'start_timer' || type === 'stop_timer') {
+    var asDate = value instanceof Date ? value : new Date(value);
+    if (asDate instanceof Date && !isNaN(asDate.getTime())) {
+      return asDate.toISOString();
+    }
+  }
+
+  if (type === 'duration' && typeof value === 'number' && isFinite(value)) {
+    return secondsToDurationString_(Math.round(value * 24 * 60 * 60));
+  }
+
+  if (type === 'number') {
+    var num = parseStrictNumber_(value);
+    if (num !== null) {
+      return num;
+    }
+  }
+
+  return value;
 }
 
 function lockoutsV2_pickMapByIDs_(source, ids) {
