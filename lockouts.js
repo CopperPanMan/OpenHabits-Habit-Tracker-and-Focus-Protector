@@ -67,10 +67,12 @@ function lockoutsUpdateCachedMetric(metricID, value, opts) {
     value,
     displayValue: String(value == null ? '' : value),
     updatedAtISO: now.toISOString(),
+    lastUpdated: now.toISOString(),
   };
 
   lockoutsSyncMetricGroups_(cache, metricID);
   cache.updatedAtISO = now.toISOString();
+  cache.lastUpdated = now.toISOString();
   cache.schemaVersion = cache.schemaVersion || LOCKOUTS_CACHE_SCHEMA_VERSION;
   const write = lockoutsWriteCache(cache);
   return { ok: true, path: write.path, cache };

@@ -894,6 +894,9 @@ function recordMetricBySource_(rawData, options) {
 
       resultEntry.status = timerHandledResult.status;
       resultEntry.value = timerHandledResult.value;
+      if (timerHandledResult.timerDetails) {
+        resultEntry.timerDetails = timerHandledResult.timerDetails;
+      }
       resultEntry.complete = timerHandledResult.complete;
       resultEntry.multiplier = multiplier;
       resultEntry.pointsDelta = timerHandledResult.pointsDelta;
@@ -2010,7 +2013,8 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
     handled: true,
     ok: true,
     status: 'written',
-    value: {
+    value: storedDurationValue,
+    timerDetails: {
       addedDuration: addedDuration,
       totalDuration: totalDuration,
       durationMetricID: durationMetricID,
