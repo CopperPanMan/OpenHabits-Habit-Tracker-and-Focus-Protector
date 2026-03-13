@@ -1666,6 +1666,77 @@ function lockoutsV2_pickMapByIDs_(source, ids) {
   return out;
 }
 
+function lockoutsV2_extractMetricStateMetricIDs_(rawData) {
+  var output = [];
+  var seen = {};
+
+  function pushMetricID(value) {
+    if (typeof value !== 'string') {
+      return;
+    }
+    var trimmed = value.trim();
+    if (!trimmed || seen[trimmed]) {
+      return;
+    }
+    seen[trimmed] = true;
+    output.push(trimmed);
+  }
+
+  function walk(value) {
+    if (value == null) {
+      return;
+    }
+
+    if (typeof value === 'string') {
+      var trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+
+      if (lockoutsV2_isLikelyJsonPayload_(trimmed)) {
+        try {
+          walk(JSON.parse(trimmed));
+          return;
+        } catch (error) {
+          // fall through and treat as metricID string
+        }
+      }
+
+      pushMetricID(trimmed);
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      for (var i = 0; i < value.length; i++) {
+        walk(value[i]);
+      }
+      return;
+    }
+
+    if (typeof value === 'object') {
+      if (typeof value.metricID === 'string') {
+        pushMetricID(value.metricID);
+      }
+      if (typeof value.metricId === 'string') {
+        pushMetricID(value.metricId);
+      }
+      if (Array.isArray(value.metricIDs)) {
+        walk(value.metricIDs);
+      }
+      if (Array.isArray(value.metricIds)) {
+        walk(value.metricIds);
+      }
+      if (value.data !== undefined) {
+        walk(value.data);
+      }
+      return;
+    }
+  }
+
+  walk(rawData);
+  return output;
+}
+
 function lockoutsV2_extractMetricStateMetricID_(rawData) {
   if (rawData == null) {
     return null;
