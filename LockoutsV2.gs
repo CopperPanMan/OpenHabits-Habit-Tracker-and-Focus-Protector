@@ -1446,7 +1446,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
 
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
-  var metricsByID = {};
+  var metricsByID = [];
   var warnings = [];
   var allFound = true;
 
@@ -1456,7 +1456,14 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     var cell = lookup && lookup.row ? trackingSheet.getRange(lookup.row, todayCol) : null;
     var entry = lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, nowISO);
 
-    metricsByID[metricID] = entry;
+    metricsByID.push({
+      metricID: metricID,
+      found: !!entry.found,
+      value: entry.found ? entry.value : null,
+      displayValue: entry.found ? entry.displayValue : '',
+      error: entry.error || null,
+      warnings: entry.warnings || []
+    });
 
     if (!entry.found) {
       allFound = false;
@@ -1468,13 +1475,12 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   }
 
   if (metricIDs.length === 1) {
-    var onlyMetricID = metricIDs[0];
-    var onlyEntry = metricsByID[onlyMetricID];
+    var onlyEntry = metricsByID[0];
 
     if (!onlyEntry.found) {
       return {
         ok: false,
-        metricID: onlyMetricID,
+        metricID: onlyEntry.metricID,
         found: false,
         error: onlyEntry.error,
         warnings: onlyEntry.warnings || []
@@ -1483,7 +1489,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
 
     return {
       ok: true,
-      metricID: onlyMetricID,
+      metricID: onlyEntry.metricID,
       found: true,
       generatedAtISO: nowISO,
       todayCol: todayCol,
@@ -1500,7 +1506,6 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     found: allFound,
     generatedAtISO: nowISO,
     todayCol: todayCol,
-    valuesByMetricID: lockoutsV2_pickMetricValuesByIDs_(metricsByID, metricIDs),
     metricsByID: metricsByID,
     warnings: warnings
   };
