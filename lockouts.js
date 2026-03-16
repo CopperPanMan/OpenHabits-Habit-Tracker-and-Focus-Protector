@@ -2,11 +2,13 @@
  * Portable Lockouts V2 evaluator + local cache utilities for Scriptable.
  *
  * Goal: mirror app_closer_v2 response shape/semantics locally using cached config + metric state.
- * Cache path: iCloud/shortcuts/App Locker/lockoutCache.json
+ * Cache path: bookmark "App Locker" => App Locker/lockoutCache.json
  */
 
 const LOCKOUTS_CACHE_SCHEMA_VERSION = 'lockouts_cache_v1';
-const LOCKOUTS_CACHE_RELATIVE_PATH = 'shortcuts/App Locker/lockoutCache.json';
+const LOCKOUTS_CACHE_BOOKMARK_NAME = 'App Locker';
+const LOCKOUTS_CACHE_FILENAME = 'lockoutCache.json';
+const LOCKOUTS_CACHE_RELATIVE_PATH = `shortcuts/${LOCKOUTS_CACHE_BOOKMARK_NAME}/${LOCKOUTS_CACHE_FILENAME}`;
 const LOCKOUTS_PRESET_CALENDAR_NAME = 'App Lockout Settings';
 
 function lockoutsDefaultNow() {
@@ -20,21 +22,43 @@ function lockoutsResolveFileManager() {
   return null;
 }
 
+function lockoutsResolveCachePath(fm) {
+  if (!fm) {
+    return { ok: false, error: 'FileManager unavailable.' };
+  }
+
+  if (typeof fm.bookmarkedPath === 'function') {
+    const bookmarkedDir = fm.bookmarkedPath(LOCKOUTS_CACHE_BOOKMARK_NAME);
+    if (bookmarkedDir) {
+      return {
+        ok: true,
+        path: fm.joinPath(bookmarkedDir, LOCKOUTS_CACHE_FILENAME),
+        source: 'bookmark',
+      };
+    }
+  }
+
+  const fallbackPath = fm.joinPath(fm.documentsDirectory(), LOCKOUTS_CACHE_RELATIVE_PATH);
+  return { ok: true, path: fallbackPath, source: 'documentsDirectory' };
+}
+
 function lockoutsReadCache() {
   const fm = lockoutsResolveFileManager();
   if (!fm) {
     throw new Error('FileManager.iCloud unavailable. Run in Scriptable.');
   }
 
-  const path = fm.joinPath(fm.documentsDirectory(), LOCKOUTS_CACHE_RELATIVE_PATH);
+  const resolved = lockoutsResolveCachePath(fm);
+  if (!resolved.ok) return resolved;
+  const path = resolved.path;
   if (!fm.fileExists(path)) {
-    return { ok: false, error: `Cache file not found: ${path}`, path };
+    return { ok: false, error: `Cache file not found: ${path}`, path, source: resolved.source };
   }
 
   fm.downloadFileFromiCloud(path);
   const raw = fm.readString(path);
   const parsed = JSON.parse(raw || '{}');
-  return { ok: true, path, cache: parsed };
+  return { ok: true, path, source: resolved.source, cache: parsed };
 }
 
 function lockoutsWriteCache(cacheObject) {
@@ -43,14 +67,16 @@ function lockoutsWriteCache(cacheObject) {
     throw new Error('FileManager.iCloud unavailable. Run in Scriptable.');
   }
 
-  const path = fm.joinPath(fm.documentsDirectory(), LOCKOUTS_CACHE_RELATIVE_PATH);
+  const resolved = lockoutsResolveCachePath(fm);
+  if (!resolved.ok) return resolved;
+  const path = resolved.path;
   const dir = path.split('/').slice(0, -1).join('/');
   if (!fm.fileExists(dir)) {
     fm.createDirectory(dir, true);
   }
 
   fm.writeString(path, JSON.stringify(cacheObject, null, 2));
-  return { ok: true, path };
+  return { ok: true, path, source: resolved.source };
 }
 
 function lockoutsUpdateCachedMetric(metricID, value, opts) {
