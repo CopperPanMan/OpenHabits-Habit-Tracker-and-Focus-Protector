@@ -55,7 +55,9 @@ function lockoutsReadCache() {
     return { ok: false, error: `Cache file not found: ${path}`, path, source: resolved.source };
   }
 
+  if (typeof fm.isFileDownloaded === 'function' && !fm.isFileDownloaded(path)) {
   fm.downloadFileFromiCloud(path);
+  }
   const raw = fm.readString(path);
   const parsed = JSON.parse(raw || '{}');
   return { ok: true, path, source: resolved.source, cache: parsed };
@@ -729,4 +731,69 @@ if (typeof module !== 'undefined') {
     lockoutsEvaluateNow,
     evaluateBlocks,
   };
+}
+
+// --- Scriptable runtime entrypoint ---
+// Runs only inside Scriptable, not when imported under Node/CommonJS.
+if (typeof module === 'undefined') {
+  await (async () => {
+    try {
+      const input = (typeof args !== 'undefined' && args && args.shortcutParameter != null)
+        ? args.shortcutParameter
+        : null;
+
+      let parsedInput = input;
+
+      if (typeof input === 'string') {
+        const trimmed = input.trim();
+        if (trimmed) {
+          try {
+            parsedInput = JSON.parse(trimmed);
+          } catch (error) {
+            // Keep literal string input as-is. This allows presetOverride strings.
+            parsedInput = input;
+          }
+        }
+      }
+
+      const result = await lockoutsEvaluateNow(parsedInput);
+
+      if (typeof Script !== 'undefined' && typeof Script.setShortcutOutput === 'function') {
+        Script.setShortcutOutput(result);
+      }
+
+      console.log(JSON.stringify(result, null, 2));
+    } catch (error) {
+      const failure = {
+        status: 'error',
+        block: null,
+        ui: {
+          showMessage: true,
+          message: `ERR: ${error && error.message ? error.message : String(error)}`
+        },
+        shortcut: {
+          name: '',
+          input: ''
+        },
+        debug: {
+          preset: null,
+          serverTimeISO: new Date().toISOString(),
+          errors: [
+            error && error.stack ? String(error.stack) : String(error)
+          ]
+        }
+      };
+
+      if (typeof Script !== 'undefined' && typeof Script.setShortcutOutput === 'function') {
+        Script.setShortcutOutput(failure);
+      }
+
+      console.error(failure.ui.message);
+      if (failure.debug.errors[0]) console.error(failure.debug.errors[0]);
+    } finally {
+      if (typeof Script !== 'undefined' && typeof Script.complete === 'function') {
+        Script.complete();
+      }
+    }
+  })();
 }
