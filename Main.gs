@@ -336,7 +336,7 @@ function doGet(e) {
 
     return respondText_(buildHabitsV2Response({
       ok: true,
-      results: parsedHabitsV2Data.results
+      metricsByID: parsedHabitsV2Data.results
     }));
   }
   if (key === "app_closer_v2") {
@@ -3025,7 +3025,9 @@ function buildHabitsV2Response(response) {
   return JSON.stringify({
     ok: !!payload.ok,
     messages: Array.isArray(payload.messages) ? payload.messages : [],
-    results: Array.isArray(payload.results) ? payload.results : [],
+    metricsByID: Array.isArray(payload.metricsByID)
+      ? payload.metricsByID
+      : (Array.isArray(payload.results) ? payload.results : []),
     errors: Array.isArray(payload.errors) ? payload.errors : [],
     warnings: Array.isArray(payload.warnings) ? payload.warnings : []
   });
