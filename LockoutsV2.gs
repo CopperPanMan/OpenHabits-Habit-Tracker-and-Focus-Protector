@@ -1446,7 +1446,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
 
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
-  var metricsByID = {};
+  var metricsByIDMap = {};
   var warnings = [];
   var allFound = true;
 
@@ -1456,7 +1456,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     var cell = lookup && lookup.row ? trackingSheet.getRange(lookup.row, todayCol) : null;
     var entry = lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, nowISO);
 
-    metricsByID[metricID] = entry;
+    metricsByIDMap[metricID] = entry;
 
     if (!entry.found) {
       allFound = false;
@@ -1469,7 +1469,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
 
   if (metricIDs.length === 1) {
     var onlyMetricID = metricIDs[0];
-    var onlyEntry = metricsByID[onlyMetricID];
+    var onlyEntry = metricsByIDMap[onlyMetricID];
 
     if (!onlyEntry.found) {
       return {
@@ -1493,6 +1493,8 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     };
   }
 
+  var metricsByID = lockoutsV2_buildMetricStateArray_(metricsByIDMap, metricIDs);
+
   return {
     ok: true,
     multiple: true,
@@ -1500,10 +1502,34 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     found: allFound,
     generatedAtISO: nowISO,
     todayCol: todayCol,
-    valuesByMetricID: lockoutsV2_pickMetricValuesByIDs_(metricsByID, metricIDs),
     metricsByID: metricsByID,
     warnings: warnings
   };
+}
+
+function lockoutsV2_buildMetricStateArray_(metricsByIDMap, metricIDs) {
+  var output = [];
+  var source = metricsByIDMap || {};
+  var ids = Array.isArray(metricIDs) ? metricIDs : [];
+
+  for (var i = 0; i < ids.length; i++) {
+    var metricID = ids[i];
+    if (!metricID || !Object.prototype.hasOwnProperty.call(source, metricID)) {
+      continue;
+    }
+
+    var entry = source[metricID] || {};
+    output.push({
+      metricID: metricID,
+      value: entry.value === undefined ? null : entry.value,
+      found: !!entry.found,
+      displayValue: entry.displayValue === undefined ? '' : entry.displayValue,
+      error: entry.error || null,
+      warnings: Array.isArray(entry.warnings) ? entry.warnings : []
+    });
+  }
+
+  return output;
 }
 
 function lockoutsV2_collectConfigMetricIDs_(config) {
@@ -1792,23 +1818,3 @@ function lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, now
   };
 }
 
-function lockoutsV2_pickMetricValuesByIDs_(metricsByID, metricIDs) {
-  var out = {};
-  var ids = Array.isArray(metricIDs) ? metricIDs : [];
-  var source = metricsByID || {};
-
-  for (var i = 0; i < ids.length; i++) {
-    var metricID = ids[i];
-    if (!metricID) {
-      continue;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(source, metricID)) {
-      out[metricID] = source[metricID] ? source[metricID].value : null;
-    } else {
-      out[metricID] = null;
-    }
-  }
-
-  return out;
-}
