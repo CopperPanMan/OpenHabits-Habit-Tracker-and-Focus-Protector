@@ -1389,7 +1389,6 @@ function lockoutsV2_tokenSubstitute_(template, tokenMap) {
 function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
-  var requestedMetricID = lockoutsV2_extractMetricStateMetricID_(payload && payload.data);
   var config = context.config || getLockoutsV2Config_();
   var habitsMetricTypesByID = lockoutsV2_buildHabitsMetricTypesByID_();
   var habitsMetricIDs = lockoutsV2_collectHabitMetricIDs_(habitsMetricTypesByID);
@@ -1403,11 +1402,6 @@ function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
     now: now,
     metricTypesByID: habitsMetricTypesByID
   });
-
-  if (requestedMetricID) {
-    var metricEntry = metricStateByID[requestedMetricID];
-    return metricEntry ? metricEntry.value : null;
-  }
 
   return {
     ok: true,
@@ -1440,38 +1434,75 @@ function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
 function lockoutsV2_handleMetricState_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
-  var metricID = lockoutsV2_extractMetricStateMetricID_(payload && payload.data);
+  var nowISO = now.toISOString();
+  var metricIDs = lockoutsV2_extractMetricStateMetricIDs_(payload && payload.data);
 
-  if (!metricID) {
+  if (metricIDs.length === 0) {
     return {
       ok: false,
-      error: 'Missing metricID. Provide data="metricID" or data={"metricID":"..."}.'
+      error: 'Missing metricID. Provide data="metricID", data=["metricA","metricB"], data={"metricID":"..."}, or data={"metricIDs":["metricA","metricB"]}.'
     };
   }
 
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
-  var lookup = findRowByMetricId_(metricID, trackingSheet);
+  var metricsByID = {};
+  var warnings = [];
+  var allFound = true;
 
-  if (!lookup || !lookup.row) {
+  for (var i = 0; i < metricIDs.length; i++) {
+    var metricID = metricIDs[i];
+    var lookup = findRowByMetricId_(metricID, trackingSheet);
+    var cell = lookup && lookup.row ? trackingSheet.getRange(lookup.row, todayCol) : null;
+    var entry = lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, nowISO);
+
+    metricsByID[metricID] = entry;
+
+    if (!entry.found) {
+      allFound = false;
+    }
+
+    if (entry.warnings && entry.warnings.length > 0) {
+      Array.prototype.push.apply(warnings, entry.warnings);
+    }
+  }
+
+  if (metricIDs.length === 1) {
+    var onlyMetricID = metricIDs[0];
+    var onlyEntry = metricsByID[onlyMetricID];
+
+    if (!onlyEntry.found) {
+      return {
+        ok: false,
+        metricID: onlyMetricID,
+        found: false,
+        error: onlyEntry.error,
+        warnings: onlyEntry.warnings || []
+      };
+    }
+
     return {
-      ok: false,
-      metricID: metricID,
-      found: false,
-      error: lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID)
+      ok: true,
+      metricID: onlyMetricID,
+      found: true,
+      generatedAtISO: nowISO,
+      todayCol: todayCol,
+      value: onlyEntry.value,
+      displayValue: onlyEntry.displayValue,
+      warnings: onlyEntry.warnings || []
     };
   }
 
-  var cell = trackingSheet.getRange(lookup.row, todayCol);
   return {
     ok: true,
-    metricID: metricID,
-    found: true,
-    generatedAtISO: now.toISOString(),
+    multiple: true,
+    requestedMetricIDs: metricIDs,
+    found: allFound,
+    generatedAtISO: nowISO,
     todayCol: todayCol,
-    value: cell.getValue(),
-    displayValue: cell.getDisplayValue(),
-    warnings: lookup.warnings || []
+    valuesByMetricID: lockoutsV2_pickMetricValuesByIDs_(metricsByID, metricIDs),
+    metricsByID: metricsByID,
+    warnings: warnings
   };
 }
 
@@ -1738,34 +1769,46 @@ function lockoutsV2_extractMetricStateMetricIDs_(rawData) {
 }
 
 function lockoutsV2_extractMetricStateMetricID_(rawData) {
-  if (rawData == null) {
-    return null;
+  var metricIDs = lockoutsV2_extractMetricStateMetricIDs_(rawData);
+  return metricIDs.length > 0 ? metricIDs[0] : null;
+}
+
+function lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, nowISO) {
+  if (!lookup || !lookup.row) {
+    return {
+      found: false,
+      value: null,
+      displayValue: '',
+      error: lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID),
+      warnings: lookup && lookup.warnings ? lookup.warnings : []
+    };
   }
 
-  if (typeof rawData === 'string') {
-    var trimmed = rawData.trim();
-    if (!trimmed) {
-      return null;
+  return {
+    found: true,
+    value: cell.getValue(),
+    displayValue: cell.getDisplayValue(),
+    warnings: lookup.warnings || []
+  };
+}
+
+function lockoutsV2_pickMetricValuesByIDs_(metricsByID, metricIDs) {
+  var out = {};
+  var ids = Array.isArray(metricIDs) ? metricIDs : [];
+  var source = metricsByID || {};
+
+  for (var i = 0; i < ids.length; i++) {
+    var metricID = ids[i];
+    if (!metricID) {
+      continue;
     }
 
-    if (lockoutsV2_isLikelyJsonPayload_(trimmed)) {
-      try {
-        var parsed = JSON.parse(trimmed);
-        return lockoutsV2_extractMetricStateMetricID_(parsed);
-      } catch (error) {
-        // Fall back to literal string metric ID.
-      }
+    if (Object.prototype.hasOwnProperty.call(source, metricID)) {
+      out[metricID] = source[metricID] ? source[metricID].value : null;
+    } else {
+      out[metricID] = null;
     }
-
-    return trimmed;
   }
 
-  if (typeof rawData === 'object') {
-    var direct = rawData.metricID || rawData.metricId || (rawData.data && (rawData.data.metricID || rawData.data.metricId));
-    if (typeof direct === 'string' && direct.trim()) {
-      return direct.trim();
-    }
-  }
-
-  return null;
+  return out;
 }
