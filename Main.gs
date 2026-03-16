@@ -336,7 +336,7 @@ function doGet(e) {
 
     return respondText_(buildHabitsV2Response({
       ok: true,
-      metricsByID: parsedHabitsV2Data.metricsByID
+      results: parsedHabitsV2Data.results
     }));
   }
   if (key === "app_closer_v2") {
@@ -478,7 +478,7 @@ function parseHabitsV2Data_(rawData) {
 
   return {
     ok: true,
-    metricsByID: results,
+    results: results,
     errors: allErrors,
     warnings: allWarnings
   };
@@ -551,7 +551,7 @@ function positivePushNotificationV2_() {
     return buildHabitsV2Response({
       ok: true,
       messages: [message],
-      metricsByID: [{
+      results: [{
         metricID: metric.metricID,
         streak: streakCount,
         row: rowLookup.row
@@ -1092,7 +1092,7 @@ function recordMetricBySource_(rawData, options) {
   return buildHabitsV2Response({
     ok: true,
     messages: messages,
-    metricsByID: results,
+    results: results,
     errors: errors,
     warnings: warnings
   });
@@ -3025,7 +3025,7 @@ function buildHabitsV2Response(response) {
   return JSON.stringify({
     ok: !!payload.ok,
     messages: Array.isArray(payload.messages) ? payload.messages : [],
-    metricsByID: Array.isArray(payload.metricsByID) ? payload.metricsByID : [],
+    results: Array.isArray(payload.results) ? payload.results : [],
     errors: Array.isArray(payload.errors) ? payload.errors : [],
     warnings: Array.isArray(payload.warnings) ? payload.warnings : []
   });
