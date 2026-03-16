@@ -16,48 +16,64 @@ function lockoutsDefaultNow() {
 }
 
 function lockoutsResolveFileManager() {
-  if (typeof FileManager !== 'undefined' && FileManager.iCloud) {
-    return FileManager.iCloud();
+  if (typeof FileManager !== 'undefined' && typeof FileManager.local === 'function') {
+    return FileManager.local();
   }
   return null;
 }
 
 function lockoutsResolveCachePath(fm) {
   if (!fm) {
-    return { ok: false, error: 'FileManager unavailable.' };
+    return { ok: false, error: 'FileManager.local unavailable.' };
   }
 
-  if (typeof fm.bookmarkedPath === 'function') {
-    const bookmarkedDir = fm.bookmarkedPath(LOCKOUTS_CACHE_BOOKMARK_NAME);
-    if (bookmarkedDir) {
-      return {
-        ok: true,
-        path: fm.joinPath(bookmarkedDir, LOCKOUTS_CACHE_FILENAME),
-        source: 'bookmark',
-      };
-    }
+  if (typeof fm.bookmarkedPath !== 'function') {
+    return { ok: false, error: 'bookmarkedPath() unavailable in this Scriptable runtime.' };
   }
 
-  const fallbackPath = fm.joinPath(fm.documentsDirectory(), LOCKOUTS_CACHE_RELATIVE_PATH);
-  return { ok: true, path: fallbackPath, source: 'documentsDirectory' };
+  let bookmarkedDir;
+  try {
+    bookmarkedDir = fm.bookmarkedPath(LOCKOUTS_CACHE_BOOKMARK_NAME);
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Bookmark lookup failed for "${LOCKOUTS_CACHE_BOOKMARK_NAME}": ${error && error.message ? error.message : String(error)}`
+    };
+  }
+
+  if (!bookmarkedDir || typeof bookmarkedDir !== 'string') {
+    return {
+      ok: false,
+      error: `Bookmark not found or invalid: ${LOCKOUTS_CACHE_BOOKMARK_NAME}`
+    };
+  }
+
+  return {
+    ok: true,
+    path: fm.joinPath(bookmarkedDir, LOCKOUTS_CACHE_FILENAME),
+    source: 'bookmark',
+  };
 }
 
 function lockoutsReadCache() {
   const fm = lockoutsResolveFileManager();
   if (!fm) {
-    throw new Error('FileManager.iCloud unavailable. Run in Scriptable.');
+    throw new Error('FileManager.local unavailable. Run in Scriptable.');
   }
 
   const resolved = lockoutsResolveCachePath(fm);
   if (!resolved.ok) return resolved;
+
   const path = resolved.path;
   if (!fm.fileExists(path)) {
-    return { ok: false, error: `Cache file not found: ${path}`, path, source: resolved.source };
+    return {
+      ok: false,
+      error: `Cache file not found: ${path}`,
+      path,
+      source: resolved.source
+    };
   }
 
-  if (typeof fm.isFileDownloaded === 'function' && !fm.isFileDownloaded(path)) {
-  fm.downloadFileFromiCloud(path);
-  }
   const raw = fm.readString(path);
   const parsed = JSON.parse(raw || '{}');
   return { ok: true, path, source: resolved.source, cache: parsed };
@@ -66,13 +82,15 @@ function lockoutsReadCache() {
 function lockoutsWriteCache(cacheObject) {
   const fm = lockoutsResolveFileManager();
   if (!fm) {
-    throw new Error('FileManager.iCloud unavailable. Run in Scriptable.');
+    throw new Error('FileManager.local unavailable. Run in Scriptable.');
   }
 
   const resolved = lockoutsResolveCachePath(fm);
   if (!resolved.ok) return resolved;
+
   const path = resolved.path;
   const dir = path.split('/').slice(0, -1).join('/');
+
   if (!fm.fileExists(dir)) {
     fm.createDirectory(dir, true);
   }
