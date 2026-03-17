@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Lockouts Client Options</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Lockouts Client</h1>
+      <p>Edit blocked websites and server integration settings.</p>
+
+      <label for="blockedDomains">Blocked websites (comma or newline separated)</label>
+      <textarea id="blockedDomains" rows="6"></textarea>
+
+      <label for="lockoutsServerUrl">Lockouts server URL (optional)</label>
+      <input id="lockoutsServerUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+
+      <label for="metricLogKey">Metric logging key</label>
+      <input id="metricLogKey" type="text" />
+
+      <label class="inline">
+        <input id="notificationsEnabled" type="checkbox" />
+        Enable notifications
+      </label>
+
+      <button id="saveButton">Save settings</button>
+      <div id="status"></div>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
