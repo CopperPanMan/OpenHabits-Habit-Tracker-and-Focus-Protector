@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Lockouts Client",
+  "version": "0.1.0",
+  "description": "Chrome extension client for Lockouts with timed legitimate/illegal unlocks.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Lockouts Client"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html", "styles.css", "blocked.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
