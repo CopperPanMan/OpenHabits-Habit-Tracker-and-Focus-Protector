@@ -960,8 +960,7 @@ function lockoutsV2_parseDurationCellToMinutes_(value) {
 
     var hhmmssMatch = /^\d{1,3}:[0-5]\d:[0-5]\d$/.exec(trimmed);
     if (hhmmssMatch) {
-      // Reuse existing V1 helper where format is known-safe.
-      return convertTimeToMs(trimmed) / 60000;
+      return lockoutsV2_parseHHMMSSMinutesSafe_(trimmed);
     }
 
     return lockoutsV2_parseHHMMSSMinutesSafe_(trimmed);
