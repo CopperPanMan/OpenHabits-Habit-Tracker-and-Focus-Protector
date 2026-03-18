@@ -802,6 +802,7 @@ function recordMetricBySource_(rawData, options) {
       status: "error",
       value: null,
       complete: false,
+      writeToNotion: false,
       notionStatusCompleteSkipped: skipNotionStatusComplete,
       errors: entryErrors
     };
@@ -837,6 +838,8 @@ function recordMetricBySource_(rawData, options) {
     var setting = settingLookup.setting;
     var metricType = setting.type || setting.unitType;
     var recordType = normalizeRecordType_(setting.recordType);
+    var effectiveWriteToNotion = shouldWriteMetricToNotion_(setting);
+    resultEntry.writeToNotion = effectiveWriteToNotion;
     var row = (typeof setting.rowNumber === "number" && setting.rowNumber > 0) ? setting.rowNumber : null;
 
     if (!row) {
@@ -901,15 +904,20 @@ function recordMetricBySource_(rawData, options) {
       resultEntry.multiplier = multiplier;
       resultEntry.pointsDelta = timerHandledResult.pointsDelta;
       resultEntry.metricPointsToday = timerHandledResult.metricPointsToday;
+      var timerOutputMuted = timerHandledResult.muteOutput === true;
       if (timerHandledResult.message) {
         resultEntry.message = timerHandledResult.message;
-        messages.push(timerHandledResult.message);
+        if (!timerOutputMuted) {
+          messages.push(timerHandledResult.message);
+        }
       }
 
       var timerInsightMessage = findPerformanceInsightsV2_(setting, trackingSheet, activeCol, undefined, undefined, undefined, activeColAccessor);
       if (timerInsightMessage) {
         resultEntry.insight = timerInsightMessage;
-        messages.push(timerInsightMessage);
+        if (!timerOutputMuted) {
+          messages.push(timerInsightMessage);
+        }
       }
 
       if (setting.streaks && setting.streaks.streaksID) {
@@ -1096,6 +1104,14 @@ function recordMetricBySource_(rawData, options) {
     errors: errors,
     warnings: warnings
   });
+}
+
+function shouldWriteMetricToNotion_(setting) {
+  if (!writeToNotion) {
+    return false;
+  }
+
+  return !!(setting && setting.writeToNotion);
 }
 
 function resolveInsightsConfig_(setting) {
@@ -1510,7 +1526,7 @@ function syncNotionForRecordedMetrics_(results, sourceOptions, messages, errors,
 
     var settingLookup = getMetricSettingById(result.metricID);
     var setting = settingLookup && settingLookup.setting ? settingLookup.setting : null;
-    if (!setting || !setting.writeToNotion) {
+    if (!shouldWriteMetricToNotion_(setting)) {
       continue;
     }
 
@@ -1924,7 +1940,8 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
         value: currentStartValue,
         complete: true,
         pointsDelta: 0,
-        metricPointsToday: 0
+        metricPointsToday: 0,
+        muteOutput: timerSettings.muteOutput === true
       };
     }
 
@@ -1941,7 +1958,8 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
       value: startTimestamp,
       complete: true,
       pointsDelta: 0,
-      metricPointsToday: 0
+      metricPointsToday: 0,
+      muteOutput: timerSettings.muteOutput === true
     };
   }
 
@@ -2006,6 +2024,9 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
   var pointsDelta = calculateTimerPointsDelta_(setting, elapsedSeconds, multiplier);
   var messageTemplate = timerSettings.stopTimerMessage || 'Added +{addedTimeLong}! ({addedTimeDec})\nNew Score: {totalTimeLong}';
   var timerMessage = replaceTimerMessageTokens_(messageTemplate, elapsedSeconds, totalDurationSeconds);
+  if (timerSettings.muteOutput === true) {
+    timerMessage = '';
+  }
 
   writeMetricPointsRow_(setting, pointsDelta, activeColInput, trackingSheet, warnings, optionalAccessor);
 
@@ -2023,7 +2044,8 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
     complete: true,
     pointsDelta: pointsDelta,
     metricPointsToday: pointsDelta,
-    message: timerMessage
+    message: timerMessage,
+    muteOutput: timerSettings.muteOutput === true
   };
 }
 

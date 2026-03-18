@@ -130,7 +130,7 @@ Each metric object:
     ["Tuesday","15:43",[[9,12],[14,17]]],
     ["Friday","15:45",[[1,24]]]
   ],// streak row target + display unitstreaks: {unit:"days",streaksID:"weightNumberStreak" },// points configurationpoints: {value:1,multiplierDays:4,maxMultiplier:1.2,pointsID:"weightPoints"
-  },// performance insight configuration (used by existing function)insights: {/* passed to findPerformanceInsightsV2_ (ex: {insightChance:1, streakProb:0.8, dayToDayChance:1, dayToAvgChance:0.5, rawValueChance:1, increaseGood:-1, firstWords:"Time Completed:", insightUnits:"minutes"}) */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timer-specific settings (used when type is start_timer or stop_timer)ifTimer_Settings: {stopTimerMessage:"Added {addedTimeLong}! (addedTimeDec)\nNew Score: {totalTimeLong}",timerStartMetricID:null,timerDurationMetricID:null
+  },// performance insight configuration (used by existing function)insights: {/* passed to findPerformanceInsightsV2_ (ex: {insightChance:1, streakProb:0.8, dayToDayChance:1, dayToAvgChance:0.5, rawValueChance:1, increaseGood:-1, firstWords:"Time Completed:", insightUnits:"minutes"}) */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timer-specific settings (used when type is start_timer or stop_timer)ifTimer_Settings: {stopTimerMessage:"Added {addedTimeLong}! (addedTimeDec)\nNew Score: {totalTimeLong}",timerStartMetricID:null,timerDurationMetricID:null,muteOutput:false
   }
 }
 ```
@@ -184,9 +184,9 @@ All Habits V2 endpoints return a JSON response:
 
 - `ok` (boolean): true if request processed (even if partial errors), false only if catastrophic (e.g., cannot open sheet)
 - `messages` (string[]): user-facing messages to display
+- `metricsByID` (object[]): key-specific structured output (`record_metric_*` returns one object per requested metric in the same array position)
 - `errors` (string[]): error messages (validation/config/unknown IDs)
 - `warnings` (string[]): non-fatal issues (duplicates, ignored values, unsupported operations)
-- `results` (object): key-specific structured output
 
 **Rule:** if some metric entries fail, still process the rest (“best effort”), and report errors/warnings.
 
@@ -209,7 +209,7 @@ Records one or more metrics and returns quickly without running Notion sync.
 3. If multiple metrics were processed:
     - Update daily points row once (incremental additions per successful scoring event).
     - Update cumulative points row once (sum deltas across metrics, then add once).
-4. Return response messages + errors.
+4. Return response messages + errors. Each metric result also includes `writeToNotion`, which reflects the metric setting unless the global config forces it to `false`.
 
 ## 6.2 Completion status rule (global invariant)
 
@@ -237,6 +237,7 @@ Records one or more metrics and returns quickly without running Notion sync.
 - `start_timer` / `stop_timer`:
     - Input value ignored.
     - They do not write to their own `metricID` row; see Timer section.
+    - If `ifTimer_Settings.muteOutput` is `true`, timer-specific strings are omitted from `messages`.
 
 ## 6.4 RecordType rules
 
@@ -433,13 +434,14 @@ Timers do not write to their own `metricID` row. They write to two other rows sp
 
 - `start_timer`:
     - Writes current timestamp to `timerStartMetricID` (today cell), subject to its recordType (typically `keep_first`).
+    - If `ifTimer_Settings.muteOutput` is `true`, it contributes no timer-specific text to `messages`.
 - `stop_timer`:
     - Reads timestamp from `timerStartMetricID`.
     - If missing/empty: error (cannot stop timer).
     - Compute delta = now - startTime.
     - Add delta duration to `timerDurationMetricID` (as HH:MM:SS).
     - Clear `timerStartMetricID` cell (set to empty).
-    - Return a message generated from `stopTimerMessage` token replacement.
+    - Return a message generated from `stopTimerMessage` token replacement unless `ifTimer_Settings.muteOutput` is `true`.
 
 ## 12.3 Token replacement for stopTimerMessage
 
@@ -542,6 +544,8 @@ Notion integration is enabled when:
 
 - global `writeToNotion == true`, AND
 - per-metric `metric.writeToNotion == true`
+
+The per-metric logging result must also expose this resolved value as `writeToNotion`; if the global flag is `false`, the response value is forced to `false` even when the metric config is `true`.
 
 ## 16.1 Notion database task lookup
 

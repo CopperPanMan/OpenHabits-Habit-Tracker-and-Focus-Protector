@@ -73,12 +73,14 @@ At a minimum for each metric define:
 - `type` (`number`, `duration`, `timestamp`, `due_by`, `start_timer`, `stop_timer`)
 - `displayName`
 - `recordType` (`overwrite`, `keep_first`, `add`)
+- `writeToNotion` (optional per-metric Notion sync flag; response output is forced to `false` if the global config disables Notion)
 
 Optional but recommended:
 
 - `dates` (scheduling metadata)
 - `streaks` (`streaksID` row, unit)
 - `points` (`value`, multiplier behavior, `pointsID` row)
+- `ifTimer_Settings.muteOutput` (optional for `start_timer` / `stop_timer`; defaults to `false`, and when `true` timer writes return an empty `messages` array entry-wise)
 
 If you use `pointsID` or `streaksID`, create those IDs as rows in `Tracking Data` too.
 
