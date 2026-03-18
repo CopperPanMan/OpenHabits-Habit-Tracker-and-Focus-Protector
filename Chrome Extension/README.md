@@ -7,7 +7,7 @@
   - Illegal unlock: first click starts 30s timer, second click (between 30s and 5m) grants 10m unlock and logs `illegal_unlock`.
   - Legitimate unlock: first click starts 60s timer, second click (between 60s and 5m) grants 20m unlock and logs `legitimate_unlock`.
 - Creates `unlockedUntil` state on first run (using extension storage).
-- Optionally queries a Lockouts server (`key="app_closer"`) before blocking.
+- Optionally queries a Lockouts server before blocking, respecting any `key=...` already present in the configured URL and otherwise preferring `key="app_closer_v2"` with fallback to legacy `key="app_closer"`.
 - Optionally sends metrics to server using configurable key.
 
 ## Install locally (Windows 10 + Chrome)

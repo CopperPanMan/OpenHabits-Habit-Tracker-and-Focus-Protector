@@ -23,6 +23,8 @@ const UNLOCK_WINDOWS = {
   }
 };
 
+const SERVER_DECISION_KEYS = ['app_closer_v2', 'app_closer'];
+
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.local.get(Object.keys(DEFAULTS));
   const patch = {};
@@ -69,7 +71,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     return;
   }
 
-  const message = serverDecision.message || `Blocked ${blockedMatch}.`; 
+  const message = serverDecision.message || `Blocked ${blockedMatch}.`;
   const redirect = chrome.runtime.getURL(`blocked.html?target=${encodeURIComponent(tab.url)}&message=${encodeURIComponent(message)}`);
   await chrome.tabs.update(tabId, { url: redirect });
 });
@@ -220,24 +222,92 @@ async function queryServerBlockDecision(cfg) {
     return { allowed: false, message: 'Blocked by local rules.' };
   }
 
+  const decisionKeys = getServerDecisionKeys(cfg.lockoutsServerUrl);
+  for (const decisionKey of decisionKeys) {
+    const result = await fetchServerDecisionForKey(cfg, decisionKey);
+    if (!result.shouldFallback) {
+      return {
+        allowed: result.allowed,
+        message: result.message
+      };
+    }
+  }
+
+  return { allowed: false, message: '' };
+}
+
+function getServerDecisionKeys(serverUrl) {
   try {
-    const url = new URL(cfg.lockoutsServerUrl);
-    url.searchParams.set('key', JSON.stringify('app_closer'));
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      return { allowed: false, message: '' };
+    const parsedUrl = new URL(serverUrl);
+    const configuredKey = parseServerKeyParam(parsedUrl.searchParams.get('key'));
+    if (!configuredKey) {
+      return SERVER_DECISION_KEYS;
     }
 
-    const data = await response.json();
+    return [configuredKey].concat(
+      SERVER_DECISION_KEYS.filter((decisionKey) => decisionKey !== configuredKey)
+    );
+  } catch (error) {
+    return SERVER_DECISION_KEYS;
+  }
+}
+
+function parseServerKeyParam(rawKey) {
+  if (typeof rawKey !== 'string') {
+    return '';
+  }
+
+  const trimmed = rawKey.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return typeof parsed === 'string' ? parsed.trim() : '';
+  } catch (error) {
+    return trimmed;
+  }
+}
+
+async function fetchServerDecisionForKey(cfg, decisionKey) {
+  try {
+    const url = new URL(cfg.lockoutsServerUrl);
+    url.searchParams.set('key', JSON.stringify(decisionKey));
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      return { allowed: false, message: '', shouldFallback: true };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const bodyText = await response.text();
+    if (!contentType.includes('application/json')) {
+      if (looksLikeUnsupportedKeyResponse(bodyText, decisionKey)) {
+        return { allowed: false, message: '', shouldFallback: true };
+      }
+
+      return { allowed: false, message: '', shouldFallback: false };
+    }
+
+    const data = JSON.parse(bodyText);
     if (data && data.status === 'allowed') {
-      return { allowed: true, message: '' };
+      return { allowed: true, message: '', shouldFallback: false };
     }
 
     const message = data && data.ui && typeof data.ui.message === 'string' ? data.ui.message : '';
-    return { allowed: false, message };
+    return { allowed: false, message, shouldFallback: false };
   } catch (error) {
-    return { allowed: false, message: '' };
+    return { allowed: false, message: '', shouldFallback: decisionKey !== 'app_closer' };
   }
+}
+
+function looksLikeUnsupportedKeyResponse(bodyText, decisionKey) {
+  if (typeof bodyText !== 'string') {
+    return false;
+  }
+
+  const normalized = bodyText.trim();
+  return normalized === `Unsupported key: ${decisionKey}`;
 }
 
 async function sendMetricIfConfigured(metricID, cfg) {
