@@ -13,7 +13,7 @@
 - “I tried to open YouTube but I hadn't planned my work tasks. It blocked me and redirected to my work app.
 - “Show me what habit is due next by polling `positive_push_notification` and surfacing the response in a widget/shortcut.”
 
-### OpenHabits was created to let users take back control over their lives and attention, and own it themselves. You can set it up [here]().
+### OpenHabits was created to let users take back control over their lives and attention, and own it themselves. You can set it up [here](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/blob/main/docs/setup.md).
 
 
 
