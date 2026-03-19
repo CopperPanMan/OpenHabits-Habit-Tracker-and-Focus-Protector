@@ -7,6 +7,12 @@
   - during time windows
   - or usage limits are respected, with optional screentime rationing/cooldowns to prevent binges.
 
+## Example uses
+
+- “When I finish meditating, I scan a QR code that prompts to input the duration in mm:ss and a review 1-10. It then logs that, and generates and returns a message comparing how today's duration was to this day last week.
+- “I tried to open YouTube but I hadn't planned my work tasks. It blocked me and redirected to my work app.
+- “Show me what habit is due next by polling `positive_push_notification` and surfacing the response in a widget/shortcut.”
+
 ### OpenHabits was created to let users take back control over their lives and attention, and own it themselves. You can set it up [here]().
 
 
