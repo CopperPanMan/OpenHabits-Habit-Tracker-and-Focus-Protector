@@ -1,24 +1,48 @@
-# Habits V2 + Lockouts V2 Setup Guide
+# OpenHabits Setup (30-60 min)
 
-## What this system is
+While OpenHabits has the ability to be both a habit tracker and a screen time limiter, you don't have to use both features. The setup shows you how to use either/or.
+There is shared setup among the two features. But you don't have to use all of the features. You can selectively use what you would like.
 
-This project is a Google Apps Script web app that uses a Google Sheet as the source of truth for your personal metrics. You can:
+Shared Setup
+- Download the Google Sheet Metric Logger Template and upload it to your Google Drive. Find and input the spreadSheetID as an apps script "Script Property" as shown below.
+- While in Script Properties
+   - if you intend on syncing habits with Notion, add those properties, and explain what they do.
 
-- **Log habits/metrics** from iOS Shortcuts (or Notion) with Habits V2 keys.
-- **Read current metric state** (for automations and status checks).
-- **Evaluate app lockout rules** with Lockouts V2 (`app_closer_v2`) based on metric completion, screen-time style limits, and time windows.
 
-The key design idea is simple: **everything is metric-driven**. Your sheet rows define what gets tracked, and the web app keys read/write against those rows.
+Habit Tracking
+- what habits can do (and what it can do that other habit trackers cannot)
+- how streaks, points, and insight messages work (unless this fits better under habit JSON template)
+- shortcuts you need for habits (Habits qrCodeMaker, Metric(s) Logger Template, Toggle Timer Template, Insights). No automations are needed, but you can optionally log from NFC by using automations to launch a shortcut on NFC scan.
+  - follow the instructions in the comment at the top of each shortcut to set them up.
+- a habit JSON template, and below it, an explanation of each key/setting. 
 
-## Example uses
+Lockouts
+- what lockouts can do (and what it can do that other app lockers cannot)
+- how legitimate unlock and illegal unlock work
+- dependencies
+  - what shortcuts you need (Locked, Allowed, Update Lockout Cache)
+    - follow the instructions in the comment at the top of each shortcut to set them up.
+  - what automations you need
+    - when apps are opened (run Locked)
+    - when apps are closed (If you want to keep track of your screentime (required for blocking based on screentime), you'll need a metric shortcut configured to log a stop timestamp to a screentime row.)
+    - note - you can block different apps differently, by calling a copy of the lockouts shortcut that passes a specific preset in.
+  - what files you need (hopefully we can eliminate this step if it can build the files itself)
+  - what scriptable scripts you need, and scriptable bookmarks
+- a lockout block JSON template, and below it, an explanation of each key/setting.
+  
 
-- “When I finish journaling, run a Shortcut that calls `record_metric_iOS` for `journal_done` and gives me a success message.”
-- “Before opening distracting apps, call `app_closer_v2`; if blocked, show a custom message and launch a recovery Shortcut (like planning your day).”
-- “Show me what habit is due next by polling `positive_push_notification` and surfacing the response in a widget/shortcut.”
+My Personal Config -> Here is a link a folder containing my personal config.gs setup, Google Sheet Setup, and Logger Shortcuts. It what my personal config setup is. You can use this to duplicate my productivity system immediately.
 
----
+Developer Stuff -> here are the "keys" you can call and what they do, if you would like to build loggers from different clients.
 
-## Setup (end-to-end)
+
+
+
+
+
+
+
+
 
 ## 1) Make a copy of the sheet and script project
 
