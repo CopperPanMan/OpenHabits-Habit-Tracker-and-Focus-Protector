@@ -62,17 +62,11 @@ function getAppConfig() {
       averageSpan: 7
     },
 
+
     // Habits V2 settings
     // dates format supports either legacy [day, dueByTime, startHour, endHour]
     // or V2 multi-window [day, dueByTime, [[startHour, endHour], ...]].
     metricSettings: [],
-    keySettings: {},
-    noMetricKeys: [
-      'app_closer_v2',
-      'positive_push_notification'
-    ],
-    habitChain: [],
-
 
 
     // Lockouts V2 settings
@@ -84,21 +78,5 @@ function getAppConfig() {
       },
       blocks: []
     }
-  };
-}
-
-function getLockoutsV2Config_() {
-  var config = getAppConfig();
-  if (config && config.lockoutsV2) {
-    return config.lockoutsV2;
-  }
-
-  return {
-    globals: {
-      cumulativeScreentimeID: null,
-      barLength: 20,
-      presetCalendarName: ''
-    },
-    blocks: []
   };
 }
