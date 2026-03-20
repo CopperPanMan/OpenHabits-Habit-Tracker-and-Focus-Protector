@@ -6,7 +6,9 @@
   "permissions": [
     "storage",
     "tabs",
-    "notifications"
+    "notifications",
+    "idle",
+    "windows"
   ],
   "host_permissions": [
     "http://*/*",
@@ -21,8 +23,14 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html", "styles.css", "blocked.js"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "blocked.html",
+        "styles.css",
+        "blocked.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
