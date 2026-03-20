@@ -34,12 +34,7 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
     }
   };
 
-  var config = context.config || getLockoutsV2Config_();
-  var writeTimeOpenedResult = lockoutsV2_writeTimeOpenedTimestamp_(now, config, context);
-  if (!writeTimeOpenedResult.ok && writeTimeOpenedResult.error) {
-    debugErrors.push(writeTimeOpenedResult.error);
-  }
-
+  var config = context.config || getAppConfig().lockoutsV2;
   var configValidation = lockoutsV2_validateConfig_(config);
   if (!configValidation.isValid) {
     response.status = 'error';
@@ -91,54 +86,6 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
     shortcut: response.shortcut,
     debug: response.debug
   };
-}
-
-function lockoutsV2_writeTimeOpenedTimestamp_(now, config, ctx) {
-  var context = ctx || {};
-  var metricID = lockoutsV2_getTimeOpenedMetricID_(config);
-  if (!metricID) {
-    return {
-      ok: true,
-      metricID: null
-    };
-  }
-
-  if (context.todayValuesByMetricID && typeof context.todayValuesByMetricID === 'object') {
-    context.todayValuesByMetricID[metricID] = now;
-    return {
-      ok: true,
-      metricID: metricID
-    };
-  }
-
-  var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
-  var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
-  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
-  if (!rowLookup || !rowLookup.row) {
-    return {
-      ok: false,
-      metricID: metricID,
-      error: rowLookup && rowLookup.error ? rowLookup.error : ('metricID not found in sheet: ' + metricID)
-    };
-  }
-
-  trackingSheet.getRange(rowLookup.row, todayCol).setValue(now);
-  return {
-    ok: true,
-    metricID: metricID
-  };
-}
-
-function lockoutsV2_getTimeOpenedMetricID_(config) {
-  var globals = config && config.globals ? config.globals : {};
-  if (typeof globals.timeOpenedID === 'string') {
-    var configured = globals.timeOpenedID.trim();
-    if (configured) {
-      return configured;
-    }
-  }
-
-  return 'timeOpenedID';
 }
 
 /**
@@ -1388,7 +1335,7 @@ function lockoutsV2_tokenSubstitute_(template, tokenMap) {
 function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
-  var config = context.config || getLockoutsV2Config_();
+  var config = context.config || getAppConfig().lockoutsV2;
   var habitsMetricTypesByID = lockoutsV2_buildHabitsMetricTypesByID_();
   var habitsMetricIDs = lockoutsV2_collectHabitMetricIDs_(habitsMetricTypesByID);
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
@@ -1536,7 +1483,6 @@ function lockoutsV2_collectConfigMetricIDs_(config) {
     target.push(normalized);
   }
 
-  pushUnique(globals.timeOpenedID || 'timeOpenedID', globalMetricIDs);
   pushUnique(globals.cumulativeScreentimeID, globalMetricIDs);
 
   for (var i = 0; i < blocks.length; i++) {

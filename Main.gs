@@ -416,7 +416,7 @@ function handleApiRequest_(request) {
       todayCol: lockoutsTodayCol,
       activeCol: lockoutsTodayCol,
       tz: Session.getScriptTimeZone(),
-      config: getLockoutsV2Config_()
+      config: getAppConfig().lockoutsV2
     }));
   }
 
@@ -426,7 +426,7 @@ function handleApiRequest_(request) {
     }, {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
-      config: getLockoutsV2Config_(),
+      config: getAppConfig().lockoutsV2,
       tz: Session.getScriptTimeZone()
     }));
   }
@@ -437,7 +437,7 @@ function handleApiRequest_(request) {
     }, {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
-      config: getLockoutsV2Config_(),
+      config: getAppConfig().lockoutsV2,
       tz: Session.getScriptTimeZone()
     }));
   }

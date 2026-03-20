@@ -1,7 +1,10 @@
 const blockedDomainsEl = document.getElementById('blockedDomains');
 const lockoutsServerUrlEl = document.getElementById('lockoutsServerUrl');
 const lockoutsSecretEl = document.getElementById('lockoutsSecret');
+const startTimerMetricIDEl = document.getElementById('startTimerMetricID');
+const stopTimerMetricIDEl = document.getElementById('stopTimerMetricID');
 const metricLogKeyEl = document.getElementById('metricLogKey');
+const screenTimeLoggingEnabledEl = document.getElementById('screenTimeLoggingEnabled');
 const notificationsEnabledEl = document.getElementById('notificationsEnabled');
 const saveButtonEl = document.getElementById('saveButton');
 const statusEl = document.getElementById('status');
@@ -17,7 +20,10 @@ async function loadOptions() {
   blockedDomainsEl.value = (cfg.blockedDomains || []).join('\n');
   lockoutsServerUrlEl.value = cfg.lockoutsServerUrl || '';
   lockoutsSecretEl.value = cfg.lockoutsSecret || '';
+  startTimerMetricIDEl.value = cfg.startTimerMetricID || '';
+  stopTimerMetricIDEl.value = cfg.stopTimerMetricID || '';
   metricLogKeyEl.value = cfg.metricLogKey || 'record_metric_iOS';
+  screenTimeLoggingEnabledEl.checked = cfg.screenTimeLoggingEnabled === true;
   notificationsEnabledEl.checked = cfg.notificationsEnabled !== false;
 }
 
@@ -26,7 +32,10 @@ async function saveOptions() {
     blockedDomains: blockedDomainsEl.value,
     lockoutsServerUrl: lockoutsServerUrlEl.value,
     lockoutsSecret: lockoutsSecretEl.value,
+    startTimerMetricID: startTimerMetricIDEl.value,
+    stopTimerMetricID: stopTimerMetricIDEl.value,
     metricLogKey: metricLogKeyEl.value,
+    screenTimeLoggingEnabled: screenTimeLoggingEnabledEl.checked,
     notificationsEnabled: notificationsEnabledEl.checked
   };
 
