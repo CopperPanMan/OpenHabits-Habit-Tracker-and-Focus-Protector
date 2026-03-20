@@ -113,6 +113,8 @@ Required globals:
 - `writeToNotion` (boolean) = global default for Notion writes
 - `lateExtensionHours` (integer)
 
+`trackingSheetName` and `lateExtensionHours` are top-level config values; they should not be duplicated under nested fallback keys.
+
 Optional global config (used only if Notion enabled):
 
 - Notion database IDs to search (stored in Script Properties for security; referenced by code)

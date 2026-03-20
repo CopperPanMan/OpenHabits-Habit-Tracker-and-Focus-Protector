@@ -86,6 +86,7 @@ Also set:
 
 - `scriptProperties.spreadsheetId` to your Sheet ID.
 - `writeToNotion` to `true` only if you're actually wiring Notion.
+- keep `trackingSheetName` and `lateExtensionHours` at the top level of `getAppConfig()`; `sheetConfig` is only for sheet column positions.
 
 ## 4) Add your Habits V2 metrics (`metricSettings`)
 
