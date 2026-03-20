@@ -1335,7 +1335,7 @@ function lockoutsV2_tokenSubstitute_(template, tokenMap) {
 function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
-  var config = context.config || getLockoutsV2Config_();
+  var config = context.config || getAppConfig().lockoutsV2;
   var habitsMetricTypesByID = lockoutsV2_buildHabitsMetricTypesByID_();
   var habitsMetricIDs = lockoutsV2_collectHabitMetricIDs_(habitsMetricTypesByID);
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
