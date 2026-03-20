@@ -455,7 +455,7 @@ Server returns JSON shaped like:
 
 Your provided pseudocode stands as the reference for iOS behavior. The only server-relevant expectations are:
 
-- Client calls `app_closer` unless it is inside an “unlockedUntil” session.
+- Client calls `app_closer_v2` via JSON POST unless it is inside an “unlockedUntil” session.
 - Client uses server `status` and `ui.message` to decide closing + notification.
 - Client enforces illegal/legitimate unlock timers and writes to Habits V2 separately.
 
@@ -471,7 +471,8 @@ To support faster on-device lockout decisions, Lockouts V2 also exposes read-onl
 
 - Purpose: return all information needed for a local cache refresh (typically once per day).
 - Input:
-  - `key = "config_snapshot"`
+  - JSON POST body with `key = "config_snapshot"`
+  - `secret` or `openHabitsSecret` matching `OPENHABITS_SECRET`
   - Optional `data` (ignored for now; reserved for future options).
 - Output:
   - `schemaVersion` (currently `lockouts_cache_v1`)
@@ -491,7 +492,8 @@ To support faster on-device lockout decisions, Lockouts V2 also exposes read-onl
 
 - Purpose: return the current value for one metric ID.
 - Input:
-  - `key = "metric_state"`
+  - JSON POST body with `key = "metric_state"`
+  - `secret` or `openHabitsSecret` matching `OPENHABITS_SECRET`
   - `data = "metricID"` (string), or
   - `data = {"metricID":"..."}`
 - Output:

@@ -4,7 +4,25 @@ This document captures the finalized server contract for Lockouts V2.
 
 ## Endpoint
 
-### `key="app_closer"`
+All server calls now use `POST` with a JSON body and shared-secret validation.
+
+Example request:
+
+```http
+POST /exec
+Content-Type: application/json
+OpenHabits-Secret: your_random_secret_string
+
+{
+  "key": "app_closer_v2",
+  "secret": "your_random_secret_string",
+  "data": null
+}
+```
+
+> Apps Script does not expose custom request headers to `doPost(e)`, so the body must include `secret` (or `openHabitsSecret`) even if the client also sends the `OpenHabits-Secret` header.
+
+### `key="app_closer_v2"`
 
 - Optional request `data`:
   - If `data` is a string, treat as preset override.
@@ -92,5 +110,5 @@ This document captures the finalized server contract for Lockouts V2.
 
 ## Compatibility
 
-- Keep `doGet(e)` and existing key behavior unchanged.
-- V2 logic remains isolated behind new helper/module paths until explicitly wired.
+- `GET` requests are no longer supported for this server contract.
+- Clients should send JSON `POST` requests for all keys.

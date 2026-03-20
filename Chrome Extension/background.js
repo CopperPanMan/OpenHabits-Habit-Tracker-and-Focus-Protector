@@ -4,7 +4,8 @@ const DEFAULTS = {
   illegalUnlockWait: 0,
   legitimateUnlockWait: 0,
   lockoutsServerUrl: '',
-  metricLogKey: 'record_metric',
+  lockoutsSecret: '',
+  metricLogKey: 'record_metric_iOS',
   notificationsEnabled: true
 };
 
@@ -23,7 +24,7 @@ const UNLOCK_WINDOWS = {
   }
 };
 
-const SERVER_DECISION_KEYS = ['app_closer_v2', 'app_closer'];
+const SERVER_DECISION_KEYS = ['app_closer_v2'];
 
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.local.get(Object.keys(DEFAULTS));
@@ -166,6 +167,7 @@ async function saveOptions(payload) {
   await chrome.storage.local.set({
     blockedDomains,
     lockoutsServerUrl: String(payload.lockoutsServerUrl || '').trim(),
+    lockoutsSecret: String(payload.lockoutsSecret || '').trim(),
     metricLogKey: String(payload.metricLogKey || '').trim() || DEFAULTS.metricLogKey,
     notificationsEnabled: Boolean(payload.notificationsEnabled)
   });
@@ -222,7 +224,7 @@ async function queryServerBlockDecision(cfg) {
     return { allowed: false, message: 'Blocked by local rules.' };
   }
 
-  const decisionKeys = getServerDecisionKeys(cfg.lockoutsServerUrl);
+  const decisionKeys = getServerDecisionKeys();
   for (const decisionKey of decisionKeys) {
     const result = await fetchServerDecisionForKey(cfg, decisionKey);
     if (!result.shouldFallback) {
@@ -236,56 +238,42 @@ async function queryServerBlockDecision(cfg) {
   return { allowed: false, message: '' };
 }
 
-function getServerDecisionKeys(serverUrl) {
-  try {
-    const parsedUrl = new URL(serverUrl);
-    const configuredKey = parseServerKeyParam(parsedUrl.searchParams.get('key'));
-    if (!configuredKey) {
-      return SERVER_DECISION_KEYS;
-    }
-
-    return [configuredKey].concat(
-      SERVER_DECISION_KEYS.filter((decisionKey) => decisionKey !== configuredKey)
-    );
-  } catch (error) {
-    return SERVER_DECISION_KEYS;
-  }
+function getServerDecisionKeys() {
+  return SERVER_DECISION_KEYS;
 }
 
-function parseServerKeyParam(rawKey) {
-  if (typeof rawKey !== 'string') {
-    return '';
+async function postServerJson(cfg, key, data) {
+  const payload = {
+    key,
+    data,
+    secret: cfg.lockoutsSecret || ''
+  };
+
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  if (cfg.lockoutsSecret) {
+    headers['OpenHabits-Secret'] = cfg.lockoutsSecret;
   }
 
-  const trimmed = rawKey.trim();
-  if (!trimmed) {
-    return '';
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    return typeof parsed === 'string' ? parsed.trim() : '';
-  } catch (error) {
-    return trimmed;
-  }
+  return fetch(cfg.lockoutsServerUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload)
+  });
 }
 
 async function fetchServerDecisionForKey(cfg, decisionKey) {
   try {
-    const url = new URL(cfg.lockoutsServerUrl);
-    url.searchParams.set('key', JSON.stringify(decisionKey));
-    const response = await fetch(url.toString());
+    const response = await postServerJson(cfg, decisionKey, null);
     if (!response.ok) {
-      return { allowed: false, message: '', shouldFallback: true };
+      return { allowed: false, message: '', shouldFallback: false };
     }
 
     const contentType = response.headers.get('content-type') || '';
     const bodyText = await response.text();
     if (!contentType.includes('application/json')) {
-      if (looksLikeUnsupportedKeyResponse(bodyText, decisionKey)) {
-        return { allowed: false, message: '', shouldFallback: true };
-      }
-
       return { allowed: false, message: '', shouldFallback: false };
     }
 
@@ -297,17 +285,8 @@ async function fetchServerDecisionForKey(cfg, decisionKey) {
     const message = data && data.ui && typeof data.ui.message === 'string' ? data.ui.message : '';
     return { allowed: false, message, shouldFallback: false };
   } catch (error) {
-    return { allowed: false, message: '', shouldFallback: decisionKey !== 'app_closer' };
+    return { allowed: false, message: '', shouldFallback: false };
   }
-}
-
-function looksLikeUnsupportedKeyResponse(bodyText, decisionKey) {
-  if (typeof bodyText !== 'string') {
-    return false;
-  }
-
-  const normalized = bodyText.trim();
-  return normalized === `Unsupported key: ${decisionKey}`;
 }
 
 async function sendMetricIfConfigured(metricID, cfg) {
@@ -316,10 +295,7 @@ async function sendMetricIfConfigured(metricID, cfg) {
   }
 
   try {
-    const url = new URL(cfg.lockoutsServerUrl);
-    url.searchParams.set('key', JSON.stringify(cfg.metricLogKey || DEFAULTS.metricLogKey));
-    url.searchParams.set('metrics', JSON.stringify([[metricID]]));
-    await fetch(url.toString());
+    await postServerJson(cfg, cfg.metricLogKey || DEFAULTS.metricLogKey, [[metricID]]);
   } catch (error) {
     // best effort metric logging
   }
