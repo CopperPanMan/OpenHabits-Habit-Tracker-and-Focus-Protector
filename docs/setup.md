@@ -136,6 +136,7 @@ Important setup notes:
 In **Project Settings → Script properties**, add at least:
 
 - `spreadsheetId`
+- `OPENHABITS_SECRET` (a long random shared secret used by POST clients)
 
 If using Notion, also add your Notion-related properties referenced in config (database IDs, block IDs, token plumbing used by your existing setup).
 
@@ -149,11 +150,22 @@ If using Notion, also add your Notion-related properties referenced in config (d
 
 ## 8) Connect iOS Shortcuts / clients
 
-Use query parameters expected by `doGet(e)`:
+Use `POST` requests with a JSON body. Recommended request shape:
 
-- `key` (JSON string, e.g. `"record_metric_iOS"`)
-- `data` (optional JSON/string payload depending on key)
-- `metrics` (legacy keys; optional for V2 flow)
+Headers:
+- `Content-Type: application/json`
+- `OpenHabits-Secret: <your secret>`
+
+Body:
+```json
+{
+  "key": "record_metric_iOS",
+  "secret": "your_random_secret_string",
+  "data": [["weightNumber", 140]]
+}
+```
+
+> Apps Script web apps do not expose custom request headers to `doPost(e)`, so the same secret must also be included in the JSON body as `secret` (or `openHabitsSecret`) for server-side validation.
 
 Primary V2 keys:
 
@@ -166,7 +178,7 @@ Primary V2 keys:
 
 ## 9) Smoke-test each path
 
-Run these from a browser or Shortcut URL action:
+Run these from Shortcuts, curl, Postman, or another HTTP client that can send JSON POST requests:
 
 1. **Record a metric (Habits V2):** call `record_metric_iOS` for a known metric ID and verify today's cell updates.
 2. **Sync that metric to Notion (Habits V2):** call `update_metric_notion` with the same payload format used for `record_metric_iOS`.
@@ -202,6 +214,6 @@ If lockouts are not behaving as expected:
 - [ ] Required ID rows exist (`dailyPointsID`, `cumulativePointsID`, plus any metric-derived IDs).
 - [ ] `metricSettings` populated with real metrics.
 - [ ] `lockoutsV2.globals` and `lockoutsV2.blocks` configured.
-- [ ] Script properties set (`spreadsheetId`, plus Notion properties if needed).
+- [ ] Script properties set (`spreadsheetId`, `OPENHABITS_SECRET`, plus Notion properties if needed).
 - [ ] Web app deployed and URL wired into Shortcuts.
 - [ ] Smoke tests pass for all V2 keys you use.

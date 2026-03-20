@@ -153,16 +153,19 @@ Each metric object:
 
 # 5) Web app API
 
-Habits V2 is invoked via “keyed” requests. Existing unrelated keys may exist; Habits V2 adds these keys.
+Habits V2 is invoked via JSON `POST` requests. Existing unrelated keys may exist; Habits V2 adds these keys.
 
 ## 5.1 Request format (common)
 
 Each request is JSON. Common fields:
 
 - `key` (string): one of the supported keys below
+- `secret` or `openHabitsSecret` (string): must match the Apps Script `OPENHABITS_SECRET` Script Property
 - `data` (varies by key): payload
 - Optional:
     - `source` (string): `"iOS"` or `"Notion"` (if not provided, infer from key)
+
+Clients may also send `OpenHabits-Secret` as an HTTP header, but Apps Script cannot read custom headers from `doPost(e)`, so the same secret must be present in the JSON body for validation.
 
 ### 5.1.1 `data` format for record keys
 
@@ -175,7 +178,7 @@ For `record_metric_iOS`, `update_metric_notion`, and `record_metric_notion`:
 Example:
 
 ```json
-{"key":"record_metric_iOS","data":[["weightNumber",140],["runDuration","00:21:24"],["workTimerStart"],["weightTimestamp",null]]}
+{"key":"record_metric_iOS","secret":"your_random_secret_string","data":[["weightNumber",140],["runDuration","00:21:24"],["workTimerStart"],["weightTimestamp",null]]}
 ```
 
 ## 5.2 Response format (common)

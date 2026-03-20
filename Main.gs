@@ -59,25 +59,15 @@ var dailyPointsID;
 var cumulativePointsID;
 var positive_push_notifications;
 
-function parseRequest_(e) {
-  var parameters = e && e.parameters ? e.parameters : {};
-  return {
-    key: JSON.parse(parameters.key),
-    metricsRaw: parameters.metrics,
-    dataRaw: parameters.data
-  };
-}
-
-function parseNotionPostRequest_(e) {
+function parseRequestBody_(e) {
   var postData = e && e.postData ? e.postData : null;
   var body = postData && typeof postData.contents === 'string' ? postData.contents : '';
-  var parameters = e && e.parameters ? e.parameters : {};
   var parsedBody;
 
   if (!body) {
     return {
       ok: false,
-      errors: ['Missing POST body. Expected JSON with a metricID field.']
+      errors: ['Missing POST body. Expected JSON with key and optional data fields.']
     };
   }
 
@@ -90,6 +80,50 @@ function parseNotionPostRequest_(e) {
     };
   }
 
+  if (!parsedBody || typeof parsedBody !== 'object' || Array.isArray(parsedBody)) {
+    return {
+      ok: false,
+      errors: ['POST body must be a JSON object.']
+    };
+  }
+
+  return {
+    ok: true,
+    body: parsedBody
+  };
+}
+
+function parseRequest_(e) {
+  var parsedBodyResult = parseRequestBody_(e);
+  if (!parsedBodyResult.ok) {
+    return parsedBodyResult;
+  }
+
+  var parsedBody = parsedBodyResult.body;
+  var keyParam = parseOptionalKeyParameter_(parsedBody.key);
+  if (!keyParam) {
+    return {
+      ok: false,
+      errors: ['Missing key in POST body. Expected a string key.']
+    };
+  }
+
+  return {
+    ok: true,
+    key: keyParam,
+    dataRaw: parsedBody.data === undefined ? null : JSON.stringify(parsedBody.data),
+    secret: extractRequestSecret_(parsedBody),
+    rawBody: parsedBody
+  };
+}
+
+function parseNotionPostRequest_(e) {
+  var parsedBodyResult = parseRequestBody_(e);
+  if (!parsedBodyResult.ok) {
+    return parsedBodyResult;
+  }
+
+  var parsedBody = parsedBodyResult.body;
   var metricID = extractMetricIdFromNotionPayload_(parsedBody);
   if (!metricID) {
     return {
@@ -98,13 +132,57 @@ function parseNotionPostRequest_(e) {
     };
   }
 
-  var keyParam = parseOptionalKeyParameter_(parameters.key);
-
   return {
     ok: true,
-    key: keyParam || 'record_metric_notion',
-    dataRaw: JSON.stringify([[metricID]])
+    key: 'record_metric_notion',
+    dataRaw: JSON.stringify([[metricID]]),
+    secret: extractRequestSecret_(parsedBody),
+    rawBody: parsedBody
   };
+}
+
+function extractRequestSecret_(body) {
+  if (!body || typeof body !== 'object') {
+    return '';
+  }
+
+  if (typeof body.openHabitsSecret === 'string') {
+    return body.openHabitsSecret.trim();
+  }
+
+  if (typeof body.secret === 'string') {
+    return body.secret.trim();
+  }
+
+  return '';
+}
+
+function validateRequestSecret_(providedSecret) {
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var expectedSecret = scriptProperties.getProperty('OPENHABITS_SECRET') || scriptProperties.getProperty('openHabitsSecret') || '';
+
+  if (!expectedSecret) {
+    return {
+      ok: false,
+      errors: ['Missing OPENHABITS_SECRET script property.']
+    };
+  }
+
+  if (!providedSecret) {
+    return {
+      ok: false,
+      errors: ['Missing secret. Apps Script web apps do not expose custom request headers to doPost(e), so include the same secret in the JSON body as secret or openHabitsSecret.']
+    };
+  }
+
+  if (providedSecret !== expectedSecret) {
+    return {
+      ok: false,
+      errors: ['Unauthorized request. Secret did not match OPENHABITS_SECRET.']
+    };
+  }
+
+  return { ok: true };
 }
 
 function parseOptionalKeyParameter_(rawKey) {
@@ -290,17 +368,7 @@ function createColumnAccessor_(sheet, columnNumber) {
   };
 }
 
-//main function
-function doGet(e) {
-  var request = parseRequest_(e);
-
-  /*var request = {
-    key: "record_metric_iOS",
-    dataRaw: JSON.stringify([["brush_teeth_by"]]),
-    metricsRaw: null
-  };*/
-
-
+function handleApiRequest_(request) {
   key = request.key;
   if (isHabitsV2Key_(key)) {
     loadSettings(key);
@@ -379,22 +447,33 @@ function doGet(e) {
   return respondText_('Unsupported key: ' + key);
 }
 
-function doPost(e) {
-  var parsedRequest = parseNotionPostRequest_(e);
+function doGet(e) {
+  return respondText_('GET is no longer supported. Send a POST request with a JSON body.');
+}
 
-  if (!parsedRequest.ok) {
+function doPost(e) {
+  var request = parseRequest_(e);
+  if (!request.ok) {
+    var notionFallbackRequest = parseNotionPostRequest_(e);
+    if (notionFallbackRequest.ok) {
+      request = notionFallbackRequest;
+    } else {
+      return respondText_(buildHabitsV2Response({
+        ok: false,
+        errors: request.errors
+      }));
+    }
+  }
+
+  var secretValidation = validateRequestSecret_(request.secret);
+  if (!secretValidation.ok) {
     return respondText_(buildHabitsV2Response({
       ok: false,
-      errors: parsedRequest.errors
+      errors: secretValidation.errors
     }));
   }
 
-  return doGet({
-    parameters: {
-      key: JSON.stringify(parsedRequest.key),
-      data: parsedRequest.dataRaw
-    }
-  });
+  return handleApiRequest_(request);
 }
 
 function isHabitsV2Key_(requestKey) {

@@ -1,27 +1,16 @@
-# V1 map
+# API map
 
-This is a quick orientation map for the current V1 flow.
+This repository now routes web-app traffic through `doPost(e)` in `Main.gs`.
 
 ## Entrypoint
-- `doGet(e)` in `Main.gs` is the main web app entrypoint.
-- It reads `e.parameters.key` and routes behavior by key.
-- In the legacy path, it also parses `e.parameters.metrics` for key-specific handlers.
+- `doPost(e)` is the supported web app entrypoint.
+- It expects a JSON body containing `key`, optional `data`, and a shared secret (`secret` or `openHabitsSecret`).
+- `doGet(e)` returns an unsupported-method message so old query-string clients fail closed.
 
 ## Key dispatch pattern
-- Dispatch is primarily an `if/else if` chain keyed on `key` inside `doGet(e)`.
-- There is an early V2 branch (`isHabitsV2Key_(key)`), then V1 key routing continues for legacy keys.
+- POST bodies are parsed once, validated against `OPENHABITS_SECRET`, and then routed by `key`.
+- Habits V2 keys and Lockouts V2 keys still use the existing helper functions after request validation.
 
-## Where `app_closer` lives
-- `app_closer` handling is in `Main.gs` inside the `doGet(e)` key-dispatch chain.
-- It starts at the `else if (key == "app_closer")` block.
-
-## Key helpers used by `app_closer`
-Common helper/utilities that support app lockout logic and related time formatting include:
-- `areWeInsideTimeSpan(startHour, hourDuration)`
-- `convertTimeToMs(timeStr)`
-- `convertHoursToHoursMinutes(hoursDecimal)`
-
-Other nearby support used in lockout/timing paths:
-- `calculateAndWriteDuration(startTime, stopTime, durationRow)`
-- `convertMsToTime(milliseconds)`
-- `findactiveCol()`
+## Security
+- Store the shared secret in Script Properties as `OPENHABITS_SECRET`.
+- Clients may send `OpenHabits-Secret` as an HTTP header, but Apps Script cannot read custom headers in `doPost(e)`, so the body must also include the same secret.

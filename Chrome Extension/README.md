@@ -7,8 +7,9 @@
   - Illegal unlock: first click starts 30s timer, second click (between 30s and 5m) grants 10m unlock and logs `illegal_unlock`.
   - Legitimate unlock: first click starts 60s timer, second click (between 60s and 5m) grants 20m unlock and logs `legitimate_unlock`.
 - Creates `unlockedUntil` state on first run (using extension storage).
-- Optionally queries a Lockouts server before blocking, respecting any `key=...` already present in the configured URL and otherwise preferring `key="app_closer_v2"` with fallback to legacy `key="app_closer"`.
-- Optionally sends metrics to server using configurable key.
+- Optionally queries a Lockouts server before blocking via JSON `POST` requests to `app_closer_v2`.
+- Optionally sends metrics to the same server using configurable POST key names (default: `record_metric_iOS`).
+- Sends an `OpenHabits-Secret` header and also includes the same secret in the JSON body so Apps Script can validate it.
 
 ## Install locally (Windows 10 + Chrome)
 
@@ -28,8 +29,9 @@
    - `reddit.com`
    - `facebook.com`
 2. (Optional) Add your `.../exec` Apps Script URL in **Lockouts server URL**.
-3. Click **Save settings**.
-4. Open one of the blocked sites to verify the block page appears.
+3. Add the same shared secret you stored in Apps Script as `OPENHABITS_SECRET`.
+4. Click **Save settings**.
+5. Open one of the blocked sites to verify the block page appears.
 
 ## Notes
 
