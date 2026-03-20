@@ -43,7 +43,6 @@
 var key;
 var spreadsheetID;
 var sheet1;
-var separatorChar;
 var activeCol;
 var taskIdColumn;
 var labelColumn;
@@ -57,7 +56,6 @@ var trackingSheetName;
 var writeToNotion;
 var dailyPointsID;
 var cumulativePointsID;
-var positive_push_notifications;
 
 function parseRequestBody_(e) {
   var postData = e && e.postData ? e.postData : null;
@@ -595,12 +593,6 @@ function positivePushNotificationV2_() {
   var extensionHours = lateExtensionHours !== undefined ? lateExtensionHours : lateExtension;
   var todayAccessor = createColumnAccessor_(sheet1, activeCol);
 
-  if (positive_push_notifications === "Off") {
-    return buildHabitsV2Response({
-      ok: true,
-      messages: ["PPN is OFF"]
-    });
-  }
 
   for (var i = 0; i < settings.length; i++) {
     var metric = settings[i] || {};
@@ -2508,9 +2500,9 @@ function recomputeAllStreaks() {
   taskIdColumn = config.sheetConfig.taskIdColumn || 1;
   labelColumn = config.sheetConfig.labelColumn || (taskIdColumn + 1);
   dataStartColumn = config.sheetConfig.dataStartColumn || (labelColumn + 1);
-  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours : (config.rows && config.rows.lateExtension !== undefined ? config.rows.lateExtension : 0);
+  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours : 0;
   lateExtension = lateExtensionHours;
-  trackingSheetName = config.trackingSheetName || (config.sheetConfig && config.sheetConfig.trackingSheetName);
+  trackingSheetName = config.trackingSheetName;
 
   var trackingSheet = getTrackingSheet_();
   var now = new Date();
@@ -3139,7 +3131,7 @@ function getTrackingSheet_() {
   var config = getAppConfig();
   var scriptProperties = PropertiesService.getScriptProperties();
   var resolvedSpreadsheetID = spreadsheetID || scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
-  var resolvedTrackingSheetName = trackingSheetName || config.trackingSheetName || (config.sheetConfig && config.sheetConfig.trackingSheetName);
+  var resolvedTrackingSheetName = trackingSheetName || config.trackingSheetName;
 
   if (!resolvedSpreadsheetID) {
     throw new Error('Missing spreadsheet ID script property: ' + config.scriptProperties.spreadsheetId);
@@ -3228,24 +3220,20 @@ function loadSettings(global_key) {
   var scriptProperties = PropertiesService.getScriptProperties();
   var config = getAppConfig();
 
-  positive_push_notifications = config.positive_push_notifications || 'On';
-
   taskIdColumn = config.sheetConfig && config.sheetConfig.taskIdColumn || 1;
   labelColumn = config.sheetConfig && config.sheetConfig.labelColumn || (taskIdColumn + 1);
   dataStartColumn = config.sheetConfig && config.sheetConfig.dataStartColumn || (labelColumn + 1);
 
-  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours :
-    (config.rows && config.rows.lateExtension !== undefined ? config.rows.lateExtension : 0);
+  lateExtensionHours = config.lateExtensionHours !== undefined ? config.lateExtensionHours : 0;
   lateExtension = lateExtensionHours; // Backward-compatible alias.
 
-  trackingSheetName = config.trackingSheetName || (config.sheetConfig && config.sheetConfig.trackingSheetName) || 'Tracking Data';
+  trackingSheetName = config.trackingSheetName || 'Tracking Data';
   writeToNotion = !!config.writeToNotion;
   dailyPointsID = config.dailyPointsID;
   cumulativePointsID = config.cumulativePointsID;
 
   spreadsheetID = scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
   sheet1 = getTrackingSheet_();
-  separatorChar = (config.sheetConfig && config.sheetConfig.separatorChar) || 'Ù';
   taskIdRowMap = buildTaskIdRowMap_(sheet1, taskIdColumn);
 
   return [];
@@ -3280,7 +3268,7 @@ function validateConfig() {
   var errors = [];
   var warnings = [];
 
-  if (!config.trackingSheetName && !(config.sheetConfig && config.sheetConfig.trackingSheetName)) {
+  if (!config.trackingSheetName) {
     errors.push('Missing trackingSheetName.');
   }
 
@@ -3291,7 +3279,7 @@ function validateConfig() {
     warnings.push('cumulativePointsID is not set.');
   }
 
-  if (config.lateExtensionHours === undefined && !(config.rows && config.rows.lateExtension !== undefined)) {
+  if (config.lateExtensionHours === undefined) {
     warnings.push('lateExtensionHours is not set. Falling back to default behavior may be inconsistent.');
   }
 
