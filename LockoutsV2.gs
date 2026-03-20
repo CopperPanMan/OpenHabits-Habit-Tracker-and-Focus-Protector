@@ -34,7 +34,7 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
     }
   };
 
-  var config = context.config || getAppConfig().lockoutsV2;
+  var config = context.config || getLockoutsV2Config_();
   var configValidation = lockoutsV2_validateConfig_(config);
   if (!configValidation.isValid) {
     response.status = 'error';

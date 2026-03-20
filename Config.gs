@@ -86,3 +86,19 @@ function getAppConfig() {
     }
   };
 }
+
+function getLockoutsV2Config_() {
+  var config = getAppConfig();
+  if (config && config.lockoutsV2) {
+    return config.lockoutsV2;
+  }
+
+  return {
+    globals: {
+      cumulativeScreentimeID: null,
+      barLength: 20,
+      presetCalendarName: ''
+    },
+    blocks: []
+  };
+}
