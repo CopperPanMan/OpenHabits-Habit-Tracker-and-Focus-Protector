@@ -98,11 +98,11 @@ function parseRequest_(e) {
   }
 
   var parsedBody = parsedBodyResult.body;
-  var keyParam = parseOptionalKeyParameter_(parsedBody.key);
+  var keyParam = extractRequestKey_(parsedBody, e);
   if (!keyParam) {
     return {
       ok: false,
-      errors: ['Missing key in POST body. Expected a string key.']
+      errors: ['Missing key. Expected a string key in the POST body or URL query params.']
     };
   }
 
@@ -110,7 +110,7 @@ function parseRequest_(e) {
     ok: true,
     key: keyParam,
     dataRaw: parsedBody.data === undefined ? null : JSON.stringify(parsedBody.data),
-    secret: extractRequestSecret_(parsedBody),
+    secret: extractRequestSecret_(parsedBody, e),
     rawBody: parsedBody
   };
 }
@@ -134,14 +134,23 @@ function parseNotionPostRequest_(e) {
     ok: true,
     key: 'record_metric_notion',
     dataRaw: JSON.stringify([[metricID]]),
-    secret: extractRequestSecret_(parsedBody),
+    secret: extractRequestSecret_(parsedBody, e),
     rawBody: parsedBody
   };
 }
 
-function extractRequestSecret_(body) {
+function extractRequestKey_(body, e) {
+  var bodyKey = parseOptionalKeyParameter_(body && body.key);
+  if (bodyKey) {
+    return bodyKey;
+  }
+
+  return extractOptionalEventParameter_(e, ['key']);
+}
+
+function extractRequestSecret_(body, e) {
   if (!body || typeof body !== 'object') {
-    return '';
+    return extractOptionalEventParameter_(e, ['openHabitsSecret', 'secret']);
   }
 
   if (typeof body.openHabitsSecret === 'string') {
@@ -152,7 +161,46 @@ function extractRequestSecret_(body) {
     return body.secret.trim();
   }
 
+  return extractOptionalEventParameter_(e, ['openHabitsSecret', 'secret']);
+}
+
+function extractOptionalEventParameter_(e, candidateNames) {
+  if (!e || !candidateNames || !candidateNames.length) {
+    return '';
+  }
+
+  var parameters = e.parameters || {};
+  var parameter = e.parameter || {};
+  for (var i = 0; i < candidateNames.length; i++) {
+    var name = candidateNames[i];
+    var directValue = normalizeOptionalEventParameterValue_(parameter[name]);
+    if (directValue) {
+      return directValue;
+    }
+
+    var multiValue = normalizeOptionalEventParameterValue_(parameters[name]);
+    if (multiValue) {
+      return multiValue;
+    }
+  }
+
   return '';
+}
+
+function normalizeOptionalEventParameterValue_(rawValue) {
+  if (Array.isArray(rawValue)) {
+    if (!rawValue.length) {
+      return '';
+    }
+    rawValue = rawValue[0];
+  }
+
+  if (typeof rawValue !== 'string') {
+    return '';
+  }
+
+  var trimmed = rawValue.trim();
+  return trimmed ? trimmed : '';
 }
 
 function validateRequestSecret_(providedSecret) {
@@ -169,7 +217,7 @@ function validateRequestSecret_(providedSecret) {
   if (!providedSecret) {
     return {
       ok: false,
-      errors: ['Missing secret. Apps Script web apps do not expose custom request headers to doPost(e), so include the same secret in the JSON body as secret or openHabitsSecret.']
+      errors: ['Missing secret. Include the same secret in the JSON body as secret/openHabitsSecret or in the URL query params as secret/openHabitsSecret. Apps Script web apps do not expose custom request headers to doPost(e).']
     };
   }
 

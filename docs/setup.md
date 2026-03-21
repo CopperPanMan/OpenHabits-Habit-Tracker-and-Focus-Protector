@@ -166,7 +166,9 @@ Body:
 }
 ```
 
-> Apps Script web apps do not expose custom request headers to `doPost(e)`, so the same secret must also be included in the JSON body as `secret` (or `openHabitsSecret`) for server-side validation.
+> Apps Script web apps do not expose custom request headers to `doPost(e)`, so server-side validation must receive the same secret in the JSON body as `secret`/`openHabitsSecret` or in the web-app URL query params.
+
+> Alternatively, you can supply `key` and `secret`/`openHabitsSecret` in the web-app URL query params when a client cannot place them in the JSON body.
 
 Primary V2 keys:
 
