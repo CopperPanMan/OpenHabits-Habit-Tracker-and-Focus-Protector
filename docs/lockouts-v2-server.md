@@ -20,7 +20,7 @@ OpenHabits-Secret: your_random_secret_string
 }
 ```
 
-> Apps Script does not expose custom request headers to `doPost(e)`, so the body must include `secret` (or `openHabitsSecret`) even if the client also sends the `OpenHabits-Secret` header.
+> Apps Script does not expose custom request headers to `doPost(e)`, so authentication must provide `secret` (or `openHabitsSecret`) in the JSON body or in the web-app URL query params even if the client also sends the `OpenHabits-Secret` header.
 
 ### `key="app_closer_v2"`
 

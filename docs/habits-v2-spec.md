@@ -167,7 +167,7 @@ Each request is JSON. Common fields:
 - Optional:
     - `source` (string): `"iOS"` or `"Notion"` (if not provided, infer from key)
 
-Clients may also send `OpenHabits-Secret` as an HTTP header, but Apps Script cannot read custom headers from `doPost(e)`, so the same secret must be present in the JSON body for validation.
+For Apps Script validation, `key` and `secret`/`openHabitsSecret` may be supplied either in the JSON body or in the web-app URL query params. Clients may also send `OpenHabits-Secret` as an HTTP header, but Apps Script cannot read custom headers from `doPost(e)`.
 
 ### 5.1.1 `data` format for record keys
 

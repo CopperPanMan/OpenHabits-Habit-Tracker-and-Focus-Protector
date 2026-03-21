@@ -4,7 +4,7 @@ This repository now routes web-app traffic through `doPost(e)` in `Main.gs`.
 
 ## Entrypoint
 - `doPost(e)` is the supported web app entrypoint.
-- It expects a JSON body containing `key`, optional `data`, and a shared secret (`secret` or `openHabitsSecret`).
+- It expects a JSON body containing optional `data`, plus a `key` and shared secret (`secret` or `openHabitsSecret`) supplied either in the JSON body or URL query params.
 - `doGet(e)` returns an unsupported-method message so old query-string clients fail closed.
 
 ## Key dispatch pattern
@@ -13,4 +13,4 @@ This repository now routes web-app traffic through `doPost(e)` in `Main.gs`.
 
 ## Security
 - Store the shared secret in Script Properties as `OPENHABITS_SECRET`.
-- Clients may send `OpenHabits-Secret` as an HTTP header, but Apps Script cannot read custom headers in `doPost(e)`, so the body must also include the same secret.
+- Clients may send `OpenHabits-Secret` as an HTTP header, but Apps Script cannot read custom headers in `doPost(e)`, so authentication must use the JSON body and/or URL query params instead.
