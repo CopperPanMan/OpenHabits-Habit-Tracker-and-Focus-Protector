@@ -1386,7 +1386,8 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   if (metricIDs.length === 0) {
     return {
       ok: false,
-      error: 'Missing metricID. Provide data="metricID", data=["metricA","metricB"], data={"metricID":"..."}, or data={"metricIDs":["metricA","metricB"]}.'
+      error: 'Missing metricID. Provide data="metricID", data=["metricA","metricB"], data={"metricID":"..."}, or data={"metricIDs":["metricA","metricB"]}.',
+      metricsByID: []
     };
   }
 
@@ -1420,34 +1421,8 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     }
   }
 
-  if (metricIDs.length === 1) {
-    var onlyEntry = metricsByID[0];
-
-    if (!onlyEntry.found) {
-      return {
-        ok: false,
-        metricID: onlyEntry.metricID,
-        found: false,
-        error: onlyEntry.error,
-        warnings: onlyEntry.warnings || []
-      };
-    }
-
-    return {
-      ok: true,
-      metricID: onlyEntry.metricID,
-      found: true,
-      generatedAtISO: nowISO,
-      todayCol: todayCol,
-      value: onlyEntry.value,
-      displayValue: onlyEntry.displayValue,
-      warnings: onlyEntry.warnings || []
-    };
-  }
-
   return {
-    ok: true,
-    multiple: true,
+    ok: allFound,
     requestedMetricIDs: metricIDs,
     found: allFound,
     generatedAtISO: nowISO,

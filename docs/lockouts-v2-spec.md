@@ -490,20 +490,21 @@ To support faster on-device lockout decisions, Lockouts V2 also exposes read-onl
 
 #### `metric_state`
 
-- Purpose: return the current value for one metric ID.
+- Purpose: return the current value for one or more metric IDs.
 - Input:
   - JSON POST body with `key = "metric_state"`
   - `secret` or `openHabitsSecret` matching `OPENHABITS_SECRET`
   - `data = "metricID"` (string), or
   - `data = {"metricID":"..."}`
+  - `data = ["metricA", "metricB"]`, or
+  - `data = {"metricIDs":["metricA", "metricB"]}`
 - Output:
-  - `ok`
-  - `metricID`
+  - `ok` (`true` only when every requested metric is found)
+  - `requestedMetricIDs`
   - `found`
-  - `value`
-  - `displayValue`
   - `generatedAtISO`
   - `todayCol`
+  - `metricsByID` (always present, even for a single metric)
   - `warnings` / `error` as applicable.
 
 ### 14.2 Lockout cache file shape
