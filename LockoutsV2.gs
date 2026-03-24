@@ -138,6 +138,10 @@ function lockoutsV2_parsePresetOverride_(rawData) {
   }
 
   var trimmed = presetFromData.trim();
+  var normalized = trimmed.toLowerCase();
+  if (normalized === 'null' || normalized === 'undefined') {
+    return null;
+  }
   return trimmed || null;
 }
 
