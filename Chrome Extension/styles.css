@@ -61,6 +61,19 @@ button + button {
   background: #ff6a5f;
 }
 
+
+.row .unlock-button {
+  background: #ff6a5f;
+}
+
+.row .unlock-button.unlock-waiting {
+  background: #666e80;
+}
+
+.status-hint {
+  color: #8b95ab;
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

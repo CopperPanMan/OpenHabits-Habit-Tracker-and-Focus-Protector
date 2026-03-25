@@ -8,6 +8,7 @@ const DEFAULTS = {
   metricLogKey: 'record_metric_iOS',
   startTimerMetricID: '',
   stopTimerMetricID: '',
+  illegalUnlockMetricID: '',
   screenTimeLoggingEnabled: false,
   notificationsEnabled: true
 };
@@ -108,6 +109,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'get_unlock_state') {
+    getUnlockState()
+      .then((unlockState) => sendResponse({ ok: true, unlockState }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   sendResponse({ ok: false, error: 'Unknown action.' });
   return false;
 });
@@ -127,16 +135,26 @@ async function handleUnlockAttempt(type, targetUrl, sender) {
   if (!lastWait || elapsed > rules.maxWaitMs) {
     await chrome.storage.local.set({ [waitKey]: now });
     notify(type === 'illegal'
-      ? '30s timer started. You will lose 10 points if you continue.'
+      ? '30s timer started for illegal unlock.'
       : '60s timer started for legitimate unlock.');
-    return { ok: true, status: 'timer_started', waitSeconds: Math.ceil(rules.minWaitMs / 1000) };
+    return {
+      ok: true,
+      status: 'timer_started',
+      waitSeconds: Math.ceil(rules.minWaitMs / 1000),
+      extraMessage: getIllegalUnlockReminder(type, cfg)
+    };
   }
 
   if (elapsed < rules.minWaitMs) {
+    const previousRemainingSeconds = Math.ceil((rules.minWaitMs - elapsed) / 1000);
+    await chrome.storage.local.set({ [waitKey]: now });
     return {
       ok: true,
       status: 'too_early',
-      remainingSeconds: Math.ceil((rules.minWaitMs - elapsed) / 1000)
+      remainingSeconds: Math.ceil(rules.minWaitMs / 1000),
+      previousRemainingSeconds,
+      timerWasReset: true,
+      extraMessage: getIllegalUnlockReminder(type, cfg)
     };
   }
 
@@ -147,12 +165,17 @@ async function handleUnlockAttempt(type, targetUrl, sender) {
   });
 
   if (type === 'illegal') {
-    notify('10 points deducted. 10 minute unlock granted.');
+    notify('Illegal unlock granted for 10 minutes.');
   } else {
     notify('Legitimate unlock granted for 20 minutes.');
   }
 
   await sendMetricIfConfigured(rules.metricID, cfg);
+
+  const illegalUnlockMetricID = String(cfg.illegalUnlockMetricID || '').trim();
+  if (type === 'illegal' && illegalUnlockMetricID) {
+    await sendMetricIfConfigured(illegalUnlockMetricID, cfg);
+  }
 
   if (targetUrl && sender && sender.tab && sender.tab.id) {
     await chrome.tabs.update(sender.tab.id, { url: targetUrl });
@@ -162,6 +185,47 @@ async function handleUnlockAttempt(type, targetUrl, sender) {
     ok: true,
     status: 'unlock_granted',
     unlockedUntil
+  };
+}
+
+
+function getIllegalUnlockReminder(type, cfg) {
+  const illegalUnlockMetricID = String(cfg.illegalUnlockMetricID || '').trim();
+  if (type !== 'illegal' || !illegalUnlockMetricID) {
+    return '';
+  }
+
+  return `[${illegalUnlockMetricID}] will be sent upon entry! Think carefully.`;
+}
+
+async function getUnlockState() {
+  const cfg = await getConfig();
+  const now = Date.now();
+
+  return {
+    illegal: getWaitStateForType('illegal', cfg, now),
+    legitimate: getWaitStateForType('legitimate', cfg, now)
+  };
+}
+
+function getWaitStateForType(type, cfg, now) {
+  const waitKey = type === 'illegal' ? 'illegalUnlockWait' : 'legitimateUnlockWait';
+  const lastWait = Number(cfg[waitKey] || 0);
+  const rules = UNLOCK_WINDOWS[type];
+
+  if (!lastWait) {
+    return { isActive: false, remainingSeconds: 0 };
+  }
+
+  const elapsed = now - lastWait;
+  if (elapsed > rules.maxWaitMs) {
+    return { isActive: false, remainingSeconds: 0 };
+  }
+
+  const remainingMs = Math.max(rules.minWaitMs - elapsed, 0);
+  return {
+    isActive: true,
+    remainingSeconds: Math.ceil(remainingMs / 1000)
   };
 }
 
@@ -175,6 +239,7 @@ async function saveOptions(payload) {
     metricLogKey: String(payload.metricLogKey || '').trim() || DEFAULTS.metricLogKey,
     startTimerMetricID: String(payload.startTimerMetricID || '').trim(),
     stopTimerMetricID: String(payload.stopTimerMetricID || '').trim(),
+    illegalUnlockMetricID: String(payload.illegalUnlockMetricID || '').trim(),
     screenTimeLoggingEnabled: Boolean(payload.screenTimeLoggingEnabled),
     notificationsEnabled: Boolean(payload.notificationsEnabled)
   });
