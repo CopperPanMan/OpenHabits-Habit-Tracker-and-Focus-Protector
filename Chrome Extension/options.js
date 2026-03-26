@@ -4,6 +4,8 @@ const lockoutsSecretEl = document.getElementById('lockoutsSecret');
 const startTimerMetricIDEl = document.getElementById('startTimerMetricID');
 const stopTimerMetricIDEl = document.getElementById('stopTimerMetricID');
 const illegalUnlockMetricIDEl = document.getElementById('illegalUnlockMetricID');
+const illegalUnlockWaitSecondsEl = document.getElementById('illegalUnlockWaitSeconds');
+const legitimateUnlockWaitSecondsEl = document.getElementById('legitimateUnlockWaitSeconds');
 const metricLogKeyEl = document.getElementById('metricLogKey');
 const screenTimeLoggingEnabledEl = document.getElementById('screenTimeLoggingEnabled');
 const notificationsEnabledEl = document.getElementById('notificationsEnabled');
@@ -24,6 +26,8 @@ async function loadOptions() {
   startTimerMetricIDEl.value = cfg.startTimerMetricID || '';
   stopTimerMetricIDEl.value = cfg.stopTimerMetricID || '';
   illegalUnlockMetricIDEl.value = cfg.illegalUnlockMetricID || '';
+  illegalUnlockWaitSecondsEl.value = cfg.illegalUnlockWaitSeconds || 30;
+  legitimateUnlockWaitSecondsEl.value = cfg.legitimateUnlockWaitSeconds || 60;
   metricLogKeyEl.value = cfg.metricLogKey || 'record_metric_iOS';
   screenTimeLoggingEnabledEl.checked = cfg.screenTimeLoggingEnabled === true;
   notificationsEnabledEl.checked = cfg.notificationsEnabled !== false;
@@ -37,6 +41,8 @@ async function saveOptions() {
     startTimerMetricID: startTimerMetricIDEl.value,
     stopTimerMetricID: stopTimerMetricIDEl.value,
     illegalUnlockMetricID: illegalUnlockMetricIDEl.value,
+    illegalUnlockWaitSeconds: illegalUnlockWaitSecondsEl.value,
+    legitimateUnlockWaitSeconds: legitimateUnlockWaitSecondsEl.value,
     metricLogKey: metricLogKeyEl.value,
     screenTimeLoggingEnabled: screenTimeLoggingEnabledEl.checked,
     notificationsEnabled: notificationsEnabledEl.checked

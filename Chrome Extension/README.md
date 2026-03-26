@@ -4,8 +4,8 @@
 
 - Blocks a configurable list of websites (defaults: youtube.com, instagram.com, reddit.com, facebook.com).
 - Implements timed unlock logic inspired by your Apple Shortcuts flow:
-  - Illegal unlock: first click starts 30s timer, second click (between 30s and 5m) grants 10m unlock and logs `illegal_unlock`.
-  - Legitimate unlock: first click starts 60s timer, second click (between 60s and 5m) grants 20m unlock and logs `legitimate_unlock`.
+  - Illegal unlock: first click starts a configurable timer (default 30s), second click (between timer completion and 5m) grants 10m unlock and logs `illegal_unlock`.
+  - Legitimate unlock: first click starts a configurable timer (default 60s), second click (between timer completion and 5m) grants 20m unlock and logs `legitimate_unlock`.
 - Creates `unlockedUntil` state on first run (using extension storage).
 - Optionally queries a Lockouts server before blocking via JSON `POST` requests to `app_closer_v2`.
 - Supports optional screentime start/stop metric logging with configurable metric IDs and POST key name (default: `record_metric_iOS`).
@@ -32,9 +32,10 @@
 2. (Optional) Add your `.../exec` Apps Script URL in **Lockouts server URL**.
 3. Add the same shared secret you stored in Apps Script as `OPENHABITS_SECRET`.
 4. (Optional) Enable screentime logging and enter your `start_timer` / `stop_timer` metric IDs.
-5. Leave **Metric logging key** as `record_metric_iOS` unless you use a different metric endpoint key.
-6. Click **Save settings**.
-7. Open one of the blocked sites to verify the block page appears.
+5. Set **Illegal unlock wait (seconds)** and **Legitimate unlock wait (seconds)** if you want values other than 30/60.
+6. Leave **Metric logging key** as `record_metric_iOS` unless you use a different metric endpoint key.
+7. Click **Save settings**.
+8. Open one of the blocked sites to verify the block page appears.
 
 ## Notes
 
