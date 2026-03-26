@@ -3,6 +3,8 @@ const DEFAULTS = {
   unlockedUntil: 0,
   illegalUnlockWait: 0,
   legitimateUnlockWait: 0,
+  illegalUnlockWaitSeconds: 30,
+  legitimateUnlockWaitSeconds: 60,
   lockoutsServerUrl: '',
   lockoutsSecret: '',
   metricLogKey: 'record_metric_iOS',
@@ -15,16 +17,16 @@ const DEFAULTS = {
 
 const UNLOCK_WINDOWS = {
   illegal: {
-    minWaitMs: 30 * 1000,
     maxWaitMs: 5 * 60 * 1000,
     grantedMs: 10 * 60 * 1000,
-    metricID: 'illegal_unlock'
+    metricID: 'illegal_unlock',
+    defaultWaitSeconds: 30
   },
   legitimate: {
-    minWaitMs: 60 * 1000,
     maxWaitMs: 5 * 60 * 1000,
     grantedMs: 20 * 60 * 1000,
-    metricID: 'legitimate_unlock'
+    metricID: 'legitimate_unlock',
+    defaultWaitSeconds: 60
   }
 };
 
@@ -129,18 +131,18 @@ async function handleUnlockAttempt(type, targetUrl, sender) {
   const now = Date.now();
   const waitKey = type === 'illegal' ? 'illegalUnlockWait' : 'legitimateUnlockWait';
   const lastWait = Number(cfg[waitKey] || 0);
-  const rules = UNLOCK_WINDOWS[type];
+  const rules = getUnlockRules(type, cfg);
   const elapsed = now - lastWait;
 
   if (!lastWait || elapsed > rules.maxWaitMs) {
     await chrome.storage.local.set({ [waitKey]: now });
     notify(type === 'illegal'
-      ? '30s timer started for illegal unlock.'
-      : '60s timer started for legitimate unlock.');
+      ? `${rules.waitSeconds}s timer started for illegal unlock.`
+      : `${rules.waitSeconds}s timer started for legitimate unlock.`);
     return {
       ok: true,
       status: 'timer_started',
-      waitSeconds: Math.ceil(rules.minWaitMs / 1000),
+      waitSeconds: rules.waitSeconds,
       extraMessage: getIllegalUnlockReminder(type, cfg)
     };
   }
@@ -151,7 +153,7 @@ async function handleUnlockAttempt(type, targetUrl, sender) {
     return {
       ok: true,
       status: 'too_early',
-      remainingSeconds: Math.ceil(rules.minWaitMs / 1000),
+      remainingSeconds: rules.waitSeconds,
       previousRemainingSeconds,
       timerWasReset: true,
       extraMessage: getIllegalUnlockReminder(type, cfg)
@@ -204,14 +206,18 @@ async function getUnlockState() {
 
   return {
     illegal: getWaitStateForType('illegal', cfg, now),
-    legitimate: getWaitStateForType('legitimate', cfg, now)
+    legitimate: getWaitStateForType('legitimate', cfg, now),
+    waitSecondsByType: {
+      illegal: getUnlockRules('illegal', cfg).waitSeconds,
+      legitimate: getUnlockRules('legitimate', cfg).waitSeconds
+    }
   };
 }
 
 function getWaitStateForType(type, cfg, now) {
   const waitKey = type === 'illegal' ? 'illegalUnlockWait' : 'legitimateUnlockWait';
   const lastWait = Number(cfg[waitKey] || 0);
-  const rules = UNLOCK_WINDOWS[type];
+  const rules = getUnlockRules(type, cfg);
 
   if (!lastWait) {
     return { isActive: false, remainingSeconds: 0 };
@@ -229,6 +235,33 @@ function getWaitStateForType(type, cfg, now) {
   };
 }
 
+
+function getUnlockRules(type, cfg) {
+  const baseRules = UNLOCK_WINDOWS[type];
+  const waitSeconds = type === 'illegal'
+    ? parseUnlockWaitSeconds(cfg && cfg.illegalUnlockWaitSeconds, baseRules.defaultWaitSeconds)
+    : parseUnlockWaitSeconds(cfg && cfg.legitimateUnlockWaitSeconds, baseRules.defaultWaitSeconds);
+
+  return {
+    ...baseRules,
+    waitSeconds,
+    minWaitMs: waitSeconds * 1000
+  };
+}
+
+function parseUnlockWaitSeconds(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  const rounded = Math.round(parsed);
+  if (rounded < 1) {
+    return fallback;
+  }
+
+  return rounded;
+}
 async function saveOptions(payload) {
   const blockedDomains = parseDomainList(payload.blockedDomains);
 
@@ -240,6 +273,8 @@ async function saveOptions(payload) {
     startTimerMetricID: String(payload.startTimerMetricID || '').trim(),
     stopTimerMetricID: String(payload.stopTimerMetricID || '').trim(),
     illegalUnlockMetricID: String(payload.illegalUnlockMetricID || '').trim(),
+    illegalUnlockWaitSeconds: parseUnlockWaitSeconds(payload.illegalUnlockWaitSeconds, UNLOCK_WINDOWS.illegal.defaultWaitSeconds),
+    legitimateUnlockWaitSeconds: parseUnlockWaitSeconds(payload.legitimateUnlockWaitSeconds, UNLOCK_WINDOWS.legitimate.defaultWaitSeconds),
     screenTimeLoggingEnabled: Boolean(payload.screenTimeLoggingEnabled),
     notificationsEnabled: Boolean(payload.notificationsEnabled)
   });

@@ -46,12 +46,21 @@ function setButtonActive(type, isActive) {
   button.classList.toggle('unlock-waiting', Boolean(isActive));
 }
 
+function setButtonLabels(waitSecondsByType) {
+  const illegalWait = waitSecondsByType && Number(waitSecondsByType.illegal) > 0 ? Number(waitSecondsByType.illegal) : 30;
+  const legitimateWait = waitSecondsByType && Number(waitSecondsByType.legitimate) > 0 ? Number(waitSecondsByType.legitimate) : 60;
+
+  illegalBtn.textContent = `Illegal Unlock (${illegalWait}s wait, +10m unlock)`;
+  legitimateBtn.textContent = `Legitimate Unlock (${legitimateWait}s wait, +20m unlock)`;
+}
+
 async function refreshUnlockState() {
   const response = await chrome.runtime.sendMessage({ action: 'get_unlock_state' });
   if (!response || !response.ok || !response.unlockState) {
     return;
   }
 
+  setButtonLabels(response.unlockState.waitSecondsByType);
   setButtonActive('illegal', response.unlockState.illegal && response.unlockState.illegal.isActive);
   setButtonActive('legitimate', response.unlockState.legitimate && response.unlockState.legitimate.isActive);
 }
