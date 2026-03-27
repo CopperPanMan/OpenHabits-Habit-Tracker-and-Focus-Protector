@@ -415,6 +415,7 @@ function createColumnAccessor_(sheet, columnNumber) {
 }
 
 function handleApiRequest_(request) {
+  currentTimeStamp = new Date();
   key = request.key;
   if (isHabitsV2Key_(key)) {
     loadSettings(key);
@@ -3209,7 +3210,31 @@ function getEffectiveDayKey_(dateObj, extensionHours) {
   return Utilities.formatDate(shiftedDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
 }
 
+function ensureDateColumnContextLoaded_() {
+  var config = getAppConfig();
+  var sheetConfig = config && config.sheetConfig ? config.sheetConfig : {};
+
+  if (!dataStartColumn || Number(dataStartColumn) < 1) {
+    var fallbackTaskIdColumn = sheetConfig.taskIdColumn || 1;
+    var fallbackLabelColumn = sheetConfig.labelColumn || (fallbackTaskIdColumn + 1);
+    dataStartColumn = sheetConfig.dataStartColumn || (fallbackLabelColumn + 1);
+  }
+
+  if (lateExtensionHours === undefined || lateExtensionHours === null || !isFinite(Number(lateExtensionHours))) {
+    if (config && config.lateExtensionHours !== undefined && config.lateExtensionHours !== null && isFinite(Number(config.lateExtensionHours))) {
+      lateExtensionHours = Number(config.lateExtensionHours);
+      lateExtension = lateExtensionHours;
+    } else if (lateExtension !== undefined && lateExtension !== null && isFinite(Number(lateExtension))) {
+      lateExtensionHours = Number(lateExtension);
+    } else {
+      lateExtensionHours = 0;
+      lateExtension = 0;
+    }
+  }
+}
+
 function ensureTodayColumn_(optionalSheet, optionalNow) {
+  ensureDateColumnContextLoaded_();
   var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
   var now = optionalNow || new Date();
 
