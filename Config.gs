@@ -1,82 +1,58 @@
 function getAppConfig() {
-  return {
-    scriptProperties: {
-      spreadsheetId: 'spreadSheetID'
-    },
-    trackingSheetName: 'Tracking Data',
-    writeToNotion: false,
-    notion: {
-      databaseIdsScriptProperty: 'notionMetricDatabaseIDs',
-      pointBlockIdScriptProperty: 'pointBlock',
-      insightBlockIdScriptProperty: 'insightBlock',
-      outputStyles: {
-        pointBlock: {
-          blockType: 'heading_1',
-          segments: [
-            { token: 'point_total', color: 'blue' },
-            { text: ' Points', color: 'default' }
-          ]
-        },
-        insightBlock: {
-          blockType: 'paragraph',
-          italic: true
-        }
-      },
-      propertyNames: {
-        metricId: 'metricID',
-        status: 'Status',
-        streak: 'Streak',
-        pointMultiplier: 'Point Multiplier',
-        points: 'Points'
-      },
-      completeStatusName: 'Complete'
-    },
-    dailyPointsID: 'point_total_today',
-    cumulativePointsID: 'point_total_alltime',
-    lateExtensionHours: 5,
-    sheetConfig: {
-      taskIdColumn: 1,
-      labelColumn: 2,
-      dataStartColumn: 3
-    },
-    habitsV2Insights: {
-      comparisonArray: [
-        [1, 'yesterday'],
-        [2, '2 days ago'],
-        [3, '3 days ago'],
-        [4, '4 days ago'],
-        [5, '5 days ago'],
-        [6, '6 days ago'],
-        [7, '7 days ago'],
-        [14, 'two weeks ago'],
-        [21, '3 weeks ago'],
-        [30, 'this day last month'],
-        [60, '2 months ago'],
-        [90, '3 months ago'],
-        [180, '6 months ago'],
-        [365, 'one year ago today'],
-        [730, '2 years ago today']
-      ],
-      posPerformanceFreq: 0.75,
-      negPerformanceFreq: 0.25,
-      averageSpan: 7
-    },
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var rawConfig = scriptProperties.getProperty('config');
 
+  if (!rawConfig) {
+    throw new Error('Missing required script property "config". Set it to a valid JSON object before using the API.');
+  }
 
-    // Habits V2 settings
-    // dates format supports either legacy [day, dueByTime, startHour, endHour]
-    // or V2 multi-window [day, dueByTime, [[startHour, endHour], ...]].
-    metricSettings: [],
+  var parsedConfig;
+  try {
+    parsedConfig = JSON.parse(rawConfig);
+  } catch (error) {
+    throw new Error('Invalid JSON in script property "config": ' + error.message);
+  }
 
+  if (!parsedConfig || typeof parsedConfig !== 'object' || Array.isArray(parsedConfig)) {
+    throw new Error('Script property "config" must be a JSON object.');
+  }
 
-    // Lockouts V2 settings
-    lockoutsV2: {
-      globals: {
-        cumulativeScreentimeID: null,
-        barLength: 20,
-        presetCalendarName: ''
-      },
-      blocks: []
-    }
-  };
+  assertAppConfigShape_(parsedConfig);
+  return parsedConfig;
+}
+
+function assertAppConfigShape_(config) {
+  if (!config.scriptProperties || typeof config.scriptProperties !== 'object' || Array.isArray(config.scriptProperties)) {
+    throw new Error('config.scriptProperties must be an object.');
+  }
+
+  if (typeof config.scriptProperties.spreadsheetId !== 'string' || !config.scriptProperties.spreadsheetId.trim()) {
+    throw new Error('config.scriptProperties.spreadsheetId must be a non-empty string.');
+  }
+
+  if (!config.sheetConfig || typeof config.sheetConfig !== 'object' || Array.isArray(config.sheetConfig)) {
+    throw new Error('config.sheetConfig must be an object.');
+  }
+
+  if (typeof config.sheetConfig.taskIdColumn !== 'number' ||
+      typeof config.sheetConfig.labelColumn !== 'number' ||
+      typeof config.sheetConfig.dataStartColumn !== 'number') {
+    throw new Error('config.sheetConfig.taskIdColumn, labelColumn, and dataStartColumn must be numbers.');
+  }
+
+  if (!Array.isArray(config.metricSettings)) {
+    throw new Error('config.metricSettings must be an array.');
+  }
+
+  if (!config.lockoutsV2 || typeof config.lockoutsV2 !== 'object' || Array.isArray(config.lockoutsV2)) {
+    throw new Error('config.lockoutsV2 must be an object.');
+  }
+
+  if (!config.lockoutsV2.globals || typeof config.lockoutsV2.globals !== 'object' || Array.isArray(config.lockoutsV2.globals)) {
+    throw new Error('config.lockoutsV2.globals must be an object.');
+  }
+
+  if (!Array.isArray(config.lockoutsV2.blocks)) {
+    throw new Error('config.lockoutsV2.blocks must be an array.');
+  }
 }
