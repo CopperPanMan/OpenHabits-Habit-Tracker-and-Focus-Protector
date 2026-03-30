@@ -465,7 +465,7 @@ function handleApiRequest_(request) {
       todayCol: lockoutsTodayCol,
       activeCol: lockoutsTodayCol,
       tz: Session.getScriptTimeZone(),
-      config: getLockoutsV2Config_()
+      config: getAppConfig().lockoutsV2
     }));
   }
 
@@ -475,7 +475,7 @@ function handleApiRequest_(request) {
     }, {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
-      config: getLockoutsV2Config_(),
+      config: getAppConfig().lockoutsV2,
       tz: Session.getScriptTimeZone()
     }));
   }
@@ -486,7 +486,7 @@ function handleApiRequest_(request) {
     }, {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
-      config: getLockoutsV2Config_(),
+      config: getAppConfig().lockoutsV2,
       tz: Session.getScriptTimeZone()
     }));
   }
@@ -520,14 +520,7 @@ function doPost(e) {
     }));
   }
 
-  try {
-    return handleApiRequest_(request);
-  } catch (error) {
-    return respondText_(buildHabitsV2Response({
-      ok: false,
-      errors: [error && error.message ? error.message : String(error)]
-    }));
-  }
+  return handleApiRequest_(request);
 }
 
 function isHabitsV2Key_(requestKey) {
