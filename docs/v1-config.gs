@@ -9,6 +9,12 @@ function getAppConfig() {
       databaseIdsScriptProperty: "notionMetricDatabaseIDs",
       pointBlockIdScriptProperty: "pointBlock",
       insightBlockIdScriptProperty: "insightBlock",
+      syncFields: {
+        status: true,
+        streak: true,
+        pointMultiplier: true,
+        points: true
+      },
       propertyNames: {
         metricId: "metricID",
         status: "Status",

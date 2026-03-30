@@ -1687,20 +1687,10 @@ function syncSingleMetricToNotion_(result, setting, notionConfig, databaseIds, s
     outcome.errors.push('Duplicate Notion tasks found for metricID: ' + result.metricID + '. Updating all matches (' + matches.length + ').');
   }
 
-  var properties = {};
-  var pointsName = propertyNames.points || 'Points';
-  var multiplierName = propertyNames.pointMultiplier || 'Point Multiplier';
-  var streakName = propertyNames.streak || 'Streak';
-  var statusName = propertyNames.status || 'Status';
-  var completeStatusName = notionConfig.completeStatusName || 'Complete';
-
-  properties[pointsName] = { number: roundToOneDecimal_(Number(result.metricPointsToday || 0)) };
-  properties[multiplierName] = { number: Number(result.multiplier || 1) };
-  if (result.streak !== undefined && result.streak !== null && result.streak !== '') {
-    properties[streakName] = { number: Number(result.streak) };
-  }
-  if (!sourceIsNotion) {
-    properties[statusName] = { status: { name: completeStatusName } };
+  var properties = buildNotionMetricProperties_(result, notionConfig, sourceIsNotion);
+  if (!Object.keys(properties).length) {
+    outcome.warnings.push('Notion sync skipped for metricID ' + result.metricID + ': no enabled task properties to update.');
+    return outcome;
   }
 
   for (var m = 0; m < matches.length; m++) {
@@ -1713,6 +1703,38 @@ function syncSingleMetricToNotion_(result, setting, notionConfig, databaseIds, s
   }
 
   return outcome;
+}
+
+function buildNotionMetricProperties_(result, notionConfig, sourceIsNotion) {
+  var properties = {};
+  var propertyNames = notionConfig && notionConfig.propertyNames ? notionConfig.propertyNames : {};
+  var syncFields = notionConfig && notionConfig.syncFields ? notionConfig.syncFields : {};
+  var completeStatusName = notionConfig.completeStatusName || 'Complete';
+
+  var shouldSyncPoints = syncFields.points !== false;
+  var shouldSyncMultiplier = syncFields.pointMultiplier !== false;
+  var shouldSyncStreak = syncFields.streak !== false;
+  var shouldSyncStatus = syncFields.status !== false && !sourceIsNotion;
+
+  var pointsName = propertyNames.points || 'Points';
+  var multiplierName = propertyNames.pointMultiplier || 'Point Multiplier';
+  var streakName = propertyNames.streak || 'Streak';
+  var statusName = propertyNames.status || 'Status';
+
+  if (shouldSyncPoints) {
+    properties[pointsName] = { number: roundToOneDecimal_(Number(result.metricPointsToday || 0)) };
+  }
+  if (shouldSyncMultiplier) {
+    properties[multiplierName] = { number: Number(result.multiplier || 1) };
+  }
+  if (shouldSyncStreak && result.streak !== undefined && result.streak !== null && result.streak !== '') {
+    properties[streakName] = { number: Number(result.streak) };
+  }
+  if (shouldSyncStatus) {
+    properties[statusName] = { status: { name: completeStatusName } };
+  }
+
+  return properties;
 }
 
 function parseNotionDatabaseIds_(rawValue) {
