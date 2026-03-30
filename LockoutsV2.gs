@@ -5,6 +5,16 @@
  * Existing V1 app_closer behavior is intentionally untouched.
  */
 
+
+function getLockoutsV2Config_() {
+  var appConfig = getAppConfig();
+  if (!appConfig.lockoutsV2 || typeof appConfig.lockoutsV2 !== 'object' || Array.isArray(appConfig.lockoutsV2)) {
+    throw new Error('config.lockoutsV2 must be an object.');
+  }
+
+  return appConfig.lockoutsV2;
+}
+
 /**
  * Handler for the Lockouts V2 app_closer flow.
  *
