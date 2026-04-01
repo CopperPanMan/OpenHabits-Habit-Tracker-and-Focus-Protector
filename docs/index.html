@@ -3,80 +3,54 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenHabits Config.gs Generator</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Config.gs GUI Generator</title>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <header>
-    <h1>OpenHabits Config.gs Generator</h1>
-    <p>Paste an existing <code>Config.gs</code> to edit it visually, or start from scratch.</p>
+    <h1>Config.gs GUI Generator 2.0</h1>
+    <p>Edit your Habit + Lockouts config with a normal UI, then export ready-to-paste <code>Config.gs</code>.</p>
   </header>
 
   <main>
-    <section class="card">
-      <h2>1) Import Existing Config (Optional)</h2>
-      <label for="importText">Paste full <code>Config.gs</code> file contents</label>
-      <textarea
-        id="importText"
-        rows="10"
-        placeholder="function getAppConfig() {&#10;  return { ... }&#10;}"
-      ></textarea>
-      <div class="row">
-        <button id="parseBtn" type="button">Parse Config.gs</button>
-        <button id="resetBtn" type="button" class="secondary">Start From Scratch</button>
+    <section class="panel">
+      <h2>Import Existing Config.gs</h2>
+      <p>Paste your full <code>Config.gs</code> contents and click <strong>Parse</strong>, or click <strong>Start Fresh</strong>.</p>
+      <textarea id="importText" rows="10" placeholder="Paste full Config.gs code here..."></textarea>
+      <div class="row gap">
+        <button id="parseBtn">Parse Config.gs</button>
+        <button id="freshBtn" class="secondary">Start Fresh</button>
       </div>
       <p id="importStatus" class="status"></p>
     </section>
 
-    <section class="card">
-      <h2>2) Edit Configuration</h2>
-      <p class="status">
-        This editor uses normal form fields instead of raw JSON. Advanced sections can be expanded when needed.
-      </p>
-
-      <div class="tabs" role="tablist" aria-label="Config sections">
-        <button id="tabGlobal" class="tab active" data-tab="global" role="tab" aria-selected="true">Global</button>
-        <button id="tabMetrics" class="tab" data-tab="metrics" role="tab" aria-selected="false">Metrics</button>
-        <button id="tabBlocks" class="tab" data-tab="blocks" role="tab" aria-selected="false">Blocks</button>
+    <section class="panel">
+      <div class="tabs" role="tablist" aria-label="Config Sections">
+        <button class="tab active" data-tab="global" role="tab" aria-selected="true">Global</button>
+        <button class="tab" data-tab="metrics" role="tab" aria-selected="false">Metrics</button>
+        <button class="tab" data-tab="blocks" role="tab" aria-selected="false">Blocks</button>
       </div>
 
-      <div id="panelGlobal" data-panel="global" class="tab-panel active" role="tabpanel" aria-labelledby="tabGlobal">
-        <div id="globalContainer"></div>
-      </div>
-
-      <div id="panelMetrics" data-panel="metrics" class="tab-panel" role="tabpanel" aria-labelledby="tabMetrics">
-        <div class="section-header">
-          <h3>Metrics</h3>
-          <button id="addMetricBtn" type="button">Add Metric</button>
-        </div>
-        <div id="metricsContainer"></div>
-      </div>
-
-      <div id="panelBlocks" data-panel="blocks" class="tab-panel" role="tabpanel" aria-labelledby="tabBlocks">
-        <div class="section-header">
-          <h3>Blocks</h3>
-          <button id="addBlockBtn" type="button">Add Block</button>
-        </div>
-        <div id="blocksContainer"></div>
-      </div>
+      <div id="tab-global" class="tab-panel active"></div>
+      <div id="tab-metrics" class="tab-panel"></div>
+      <div id="tab-blocks" class="tab-panel"></div>
     </section>
 
-    <section class="card">
-      <h2>3) Export Config.gs</h2>
-      <div class="row">
-        <button id="exportBtn" type="button">Generate Config.gs</button>
-        <button id="copyBtn" type="button" class="secondary">Copy to Clipboard</button>
+    <section class="panel">
+      <h2>Export</h2>
+      <div class="row gap">
+        <button id="exportBtn">Generate Config.gs</button>
+        <button id="copyBtn" class="secondary">Copy to Clipboard</button>
       </div>
-      <textarea
-        id="exportText"
-        rows="16"
-        readonly
-        placeholder="Generated Config.gs appears here"
-      ></textarea>
+      <textarea id="exportText" rows="14" placeholder="Generated Config.gs will appear here..."></textarea>
       <p id="exportStatus" class="status"></p>
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <template id="helpIconTemplate">
+    <span class="help" tabindex="0" aria-label="Help">?</span>
+  </template>
+
+  <script src="./app.js"></script>
 </body>
 </html>
