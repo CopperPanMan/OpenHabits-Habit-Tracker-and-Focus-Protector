@@ -92,17 +92,3 @@ button.secondary { background: #1f2937; color: var(--text); border: 1px solid va
 .error-message { color: var(--danger); font-size: 0.8rem; margin-top: 0.2rem; min-height: 1rem; }
 .nested-list { border-top: 1px dashed var(--line); padding-top: 0.65rem; margin-top: 0.65rem; }
 h4 { margin: 0.2rem 0 0.7rem; }
-.toggle-section {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  margin-bottom: 0.8rem;
-  padding: 0.55rem 0.7rem;
-  background: #0b1224;
-}
-.toggle-section summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-.toggle-body {
-  margin-top: 0.7rem;
-}

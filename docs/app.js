@@ -6,12 +6,11 @@ const POINT_BLOCK_TYPES = ['heading_1', 'heading_2', 'heading_3', 'paragraph', '
 const SEGMENT_COLORS = ['default', 'gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];
 
 const HELP = {
-  defaultProperty: 'Configuration property used when generating Config.gs.',
   spreadsheetId: 'Apps Script property key that stores the spreadsheet ID.',
   comparisonArray: 'Performance comparison rows used by insights logic.',
   metricID: 'Stable metric key referenced by streaks, points, timer links, and lockout blocks.',
   metricType: 'Timer-specific settings appear only for start_timer and stop_timer metrics.',
-  dates: 'Day rule format is [day_of_week, due_by, start_time, end_time]. Start/end are numeric hours.',
+  dates: 'Allowed completion windows by day. Add multiple windows for split-day schedules.',
   blockType: 'Choose duration, task, or first-X-minutes block behavior.',
   ifTimer: 'Used for timer workflows, including stop message and metric links.',
   segments: 'Notion point output tokens or text chunks with color styling.',
@@ -19,7 +18,7 @@ const HELP = {
 
 const state = {
   config: defaultConfig(),
-  activeTab: 'global',
+  activeTab: 'lockouts',
 };
 
 function defaultConfig() {
@@ -80,7 +79,7 @@ function defaultMetric() {
     type: 'number',
     displayName: '',
     recordType: 'overwrite',
-    dates: [['Monday', '23:59', 0, 24]],
+    dates: [['Monday', '23:59', [[0, 24]]]],
     streaks: { unit: 'days', streaksID: '' },
     points: { value: 0, multiplierDays: 0, maxMultiplier: 1, pointsID: '' },
     insights: {
@@ -94,6 +93,7 @@ function defaultMetric() {
       insightFirstWords: '',
       insightUnits: '',
     },
+    ppnMessage: ['', ''],
     writeToNotion: true,
     ifTimer_Settings: {
       stopTimerMessage: '',
@@ -155,22 +155,22 @@ function extractReturnedObjectLiteral(text) {
 function sanitizeConfig(parsed) {
   const merged = deepMerge(defaultConfig(), parsed);
   const normalizeDateRule = (rule) => {
-    if (!Array.isArray(rule)) return ['Monday', '23:59', 0, 24];
+    if (!Array.isArray(rule)) return ['Monday', '23:59', [[0, 24]]];
     const day = typeof rule[0] === 'string' ? rule[0] : 'Monday';
     const dueBy = typeof rule[1] === 'string' ? rule[1] : '23:59';
-    if (Array.isArray(rule[2])) {
-      const win = Array.isArray(rule[2][0]) ? rule[2][0] : [0, 24];
-      return [day, dueBy, typeof win[0] === 'number' ? win[0] : 0, typeof win[1] === 'number' ? win[1] : 24];
-    }
-    const startHour = typeof rule[2] === 'number' ? rule[2] : 0;
-    const endHour = typeof rule[3] === 'number' ? rule[3] : 24;
-    return [day, dueBy, startHour, endHour];
+
+    if (Array.isArray(rule[2])) return [day, dueBy, rule[2]];
+
+    const legacyStart = typeof rule[2] === 'number' ? rule[2] : 0;
+    const legacyEnd = typeof rule[3] === 'number' ? rule[3] : 24;
+    return [day, dueBy, [[legacyStart, legacyEnd]]];
   };
 
   merged.metricSettings = Array.isArray(merged.metricSettings) ? merged.metricSettings.map((m) => deepMerge(defaultMetric(), m || {})) : [];
   merged.metricSettings.forEach((metric) => {
-    metric.dates = Array.isArray(metric.dates) ? metric.dates.map(normalizeDateRule) : [['Monday', '23:59', 0, 24]];
-    delete metric.ppnMessage;
+    metric.dates = Array.isArray(metric.dates) ? metric.dates.map(normalizeDateRule) : [['Monday', '23:59', [[0, 24]]]];
+    if (!Array.isArray(metric.ppnMessage)) metric.ppnMessage = ['', ''];
+    if (metric.ppnMessage.length === 0) metric.ppnMessage = ['', ''];
   });
   merged.lockoutsV2 = merged.lockoutsV2 || { globals: {}, blocks: [] };
   merged.lockoutsV2.globals = deepMerge(defaultConfig().lockoutsV2.globals, merged.lockoutsV2.globals || {});
@@ -197,20 +197,12 @@ function el(tag, attrs = {}, children = []) {
 
 function labelWithHelp(text, help) {
   const label = el('label', { text });
-  const icon = el('span', { class: 'help', tabindex: '0', text: '?' });
-  icon.dataset.help = help || HELP.defaultProperty;
-  label.appendChild(icon);
+  if (help) {
+    const icon = el('span', { class: 'help', tabindex: '0', text: '?' });
+    icon.dataset.help = help;
+    label.appendChild(icon);
+  }
   return label;
-}
-
-function addToggleSection(container, title, open = false) {
-  const details = el('details', { class: 'toggle-section' });
-  if (open) details.open = true;
-  details.appendChild(el('summary', { text: title }));
-  const body = el('div', { class: 'toggle-body' });
-  details.appendChild(body);
-  container.appendChild(details);
-  return body;
 }
 
 function addField(container, { label, help, type = 'text', value, onInput, min, max, step = 'any', select }) {
@@ -331,32 +323,20 @@ function renderNotion(container) {
 
 function renderHabitsGlobals(container) {
   const c = state.config;
-  const base = addToggleSection(container, 'Core Global Properties', true);
-  const baseGrid = el('div', { class: 'form-grid' });
-  addField(baseGrid, { label: 'Spreadsheet Property Key', value: c.scriptProperties.spreadsheetId, help: HELP.spreadsheetId, onInput: (v) => { c.scriptProperties.spreadsheetId = v; } });
-  addField(baseGrid, { label: 'Tracking Sheet Name', value: c.trackingSheetName, onInput: (v) => { c.trackingSheetName = v; } });
-  addField(baseGrid, { label: 'Write To Notion', type: 'boolean', value: c.writeToNotion, onInput: (v) => { c.writeToNotion = v; } });
-  addField(baseGrid, { label: 'Daily Points Metric ID', value: c.dailyPointsID, onInput: (v) => { c.dailyPointsID = v; } });
-  addField(baseGrid, { label: 'Cumulative Points Metric ID', value: c.cumulativePointsID, onInput: (v) => { c.cumulativePointsID = v; } });
-  addField(baseGrid, { label: 'Late Extension Hours', type: 'number', value: c.lateExtensionHours, min: 0, onInput: (v) => { c.lateExtensionHours = v; } });
-  base.appendChild(baseGrid);
+  addField(container, { label: 'scriptProperties.spreadsheetId', value: c.scriptProperties.spreadsheetId, help: HELP.spreadsheetId, onInput: (v) => { c.scriptProperties.spreadsheetId = v; } });
+  addField(container, { label: 'trackingSheetName', value: c.trackingSheetName, onInput: (v) => { c.trackingSheetName = v; } });
+  addField(container, { label: 'writeToNotion', type: 'boolean', value: c.writeToNotion, onInput: (v) => { c.writeToNotion = v; } });
+  addField(container, { label: 'dailyPointsID', value: c.dailyPointsID, onInput: (v) => { c.dailyPointsID = v; } });
+  addField(container, { label: 'cumulativePointsID', value: c.cumulativePointsID, onInput: (v) => { c.cumulativePointsID = v; } });
+  addField(container, { label: 'lateExtensionHours', type: 'number', value: c.lateExtensionHours, min: 0, onInput: (v) => { c.lateExtensionHours = v; } });
+  addField(container, { label: 'sheetConfig.taskIdColumn', type: 'number', value: c.sheetConfig.taskIdColumn, min: 1, onInput: (v) => { c.sheetConfig.taskIdColumn = v; } });
+  addField(container, { label: 'sheetConfig.labelColumn', type: 'number', value: c.sheetConfig.labelColumn, min: 1, onInput: (v) => { c.sheetConfig.labelColumn = v; } });
+  addField(container, { label: 'sheetConfig.dataStartColumn', type: 'number', value: c.sheetConfig.dataStartColumn, min: 1, onInput: (v) => { c.sheetConfig.dataStartColumn = v; } });
+  addField(container, { label: 'habitsV2Insights.posPerformanceFreq', type: 'number', value: c.habitsV2Insights.posPerformanceFreq, min: 0, max: 1, onInput: (v) => { c.habitsV2Insights.posPerformanceFreq = v; } });
+  addField(container, { label: 'habitsV2Insights.negPerformanceFreq', type: 'number', value: c.habitsV2Insights.negPerformanceFreq, min: 0, max: 1, onInput: (v) => { c.habitsV2Insights.negPerformanceFreq = v; } });
+  addField(container, { label: 'habitsV2Insights.averageSpan', type: 'number', value: c.habitsV2Insights.averageSpan, min: 1, onInput: (v) => { c.habitsV2Insights.averageSpan = v; } });
 
-  const sheet = addToggleSection(container, 'Sheet Column Properties');
-  const sheetGrid = el('div', { class: 'form-grid' });
-  addField(sheetGrid, { label: 'Task ID Column', type: 'number', value: c.sheetConfig.taskIdColumn, min: 1, onInput: (v) => { c.sheetConfig.taskIdColumn = v; } });
-  addField(sheetGrid, { label: 'Label Column', type: 'number', value: c.sheetConfig.labelColumn, min: 1, onInput: (v) => { c.sheetConfig.labelColumn = v; } });
-  addField(sheetGrid, { label: 'Data Start Column', type: 'number', value: c.sheetConfig.dataStartColumn, min: 1, onInput: (v) => { c.sheetConfig.dataStartColumn = v; } });
-  sheet.appendChild(sheetGrid);
-
-  const insights = addToggleSection(container, 'Habits Insights Properties');
-  const insightsGrid = el('div', { class: 'form-grid' });
-  addField(insightsGrid, { label: 'Positive Performance Frequency', type: 'number', value: c.habitsV2Insights.posPerformanceFreq, min: 0, max: 1, onInput: (v) => { c.habitsV2Insights.posPerformanceFreq = v; } });
-  addField(insightsGrid, { label: 'Negative Performance Frequency', type: 'number', value: c.habitsV2Insights.negPerformanceFreq, min: 0, max: 1, onInput: (v) => { c.habitsV2Insights.negPerformanceFreq = v; } });
-  addField(insightsGrid, { label: 'Average Span', type: 'number', value: c.habitsV2Insights.averageSpan, min: 1, onInput: (v) => { c.habitsV2Insights.averageSpan = v; } });
-  insights.appendChild(insightsGrid);
-
-  const comparison = addToggleSection(container, 'Comparison Array', false);
-  addListEditor(comparison, {
+  addListEditor(container, {
     title: 'Comparison Rows',
     items: c.habitsV2Insights.comparisonArray,
     addLabel: 'Add Comparison Row',
@@ -379,14 +359,25 @@ function renderMetricDates(container, metric) {
     title: 'Date Rules',
     items: metric.dates,
     addLabel: 'Add Date Rule',
-    makeItem: () => ['Monday', '23:59', 0, 24],
+    makeItem: () => ['Monday', '23:59', [[0, 24]]],
     renderItem: (card, rule) => {
+      if (!Array.isArray(rule[2])) rule[2] = [[0, 24]];
       const grid = el('div', { class: 'form-grid' });
-      addField(grid, { label: 'Day of Week', value: rule[0], select: DAY_OPTIONS, onInput: (v) => { rule[0] = v; } });
+      addField(grid, { label: 'Day', value: rule[0], select: DAY_OPTIONS, onInput: (v) => { rule[0] = v; } });
       addField(grid, { label: 'Due By', type: 'time', value: rule[1], onInput: (v) => { rule[1] = v; } });
-      addField(grid, { label: 'Start Hour', type: 'number', value: rule[2], min: 0, max: 24, help: HELP.dates, onInput: (v) => { rule[2] = v; } });
-      addField(grid, { label: 'End Hour', type: 'number', value: rule[3], min: 0, max: 24, onInput: (v) => { rule[3] = v; } });
       card.appendChild(grid);
+      addListEditor(card, {
+        title: 'Allowed Windows',
+        items: rule[2],
+        addLabel: 'Add Allowed Window',
+        makeItem: () => [0, 24],
+        renderItem: (windowCard, win) => {
+          const winGrid = el('div', { class: 'form-grid' });
+          addField(winGrid, { label: 'Start Hour', type: 'number', value: win[0], min: 0, max: 24, onInput: (v) => { win[0] = v; } });
+          addField(winGrid, { label: 'End Hour', type: 'number', value: win[1], min: 0, max: 24, onInput: (v) => { win[1] = v; } });
+          windowCard.appendChild(winGrid);
+        },
+      });
     },
   });
 }
@@ -404,48 +395,46 @@ function renderMetrics(container) {
     card.appendChild(title);
 
     const grid = el('div', { class: 'form-grid' });
-    addField(grid, { label: 'Metric ID', value: metric.metricID, help: HELP.metricID, onInput: (v) => { metric.metricID = v; } });
-    addField(grid, { label: 'Display Name', value: metric.displayName, onInput: (v) => { metric.displayName = v; } });
-    addField(grid, { label: 'Type', value: metric.type, select: METRIC_TYPES, help: HELP.metricType, onInput: (v) => { metric.type = v; renderAll(); } });
-    addField(grid, { label: 'Record Type', value: metric.recordType, select: RECORD_TYPES, onInput: (v) => { metric.recordType = v; } });
-    addField(grid, { label: 'Write To Notion', type: 'boolean', value: metric.writeToNotion, onInput: (v) => { metric.writeToNotion = v; } });
+    addField(grid, { label: 'metricID', value: metric.metricID, help: HELP.metricID, onInput: (v) => { metric.metricID = v; } });
+    addField(grid, { label: 'displayName', value: metric.displayName, onInput: (v) => { metric.displayName = v; } });
+    addField(grid, { label: 'type', value: metric.type, select: METRIC_TYPES, help: HELP.metricType, onInput: (v) => { metric.type = v; renderAll(); } });
+    addField(grid, { label: 'recordType', value: metric.recordType, select: RECORD_TYPES, onInput: (v) => { metric.recordType = v; } });
+    addField(grid, { label: 'writeToNotion', type: 'boolean', value: metric.writeToNotion, onInput: (v) => { metric.writeToNotion = v; } });
+    addField(grid, { label: 'streaks.unit', value: metric.streaks.unit, onInput: (v) => { metric.streaks.unit = v; } });
+    addField(grid, { label: 'streaks.streaksID', value: metric.streaks.streaksID, onInput: (v) => { metric.streaks.streaksID = v; } });
+    addField(grid, { label: 'points.value', type: 'number', value: metric.points.value, onInput: (v) => { metric.points.value = v; } });
+    addField(grid, { label: 'points.multiplierDays', type: 'number', value: metric.points.multiplierDays, min: 0, onInput: (v) => { metric.points.multiplierDays = v; } });
+    addField(grid, { label: 'points.maxMultiplier', type: 'number', value: metric.points.maxMultiplier, min: 0, onInput: (v) => { metric.points.maxMultiplier = v; } });
+    addField(grid, { label: 'points.pointsID', value: metric.points.pointsID, onInput: (v) => { metric.points.pointsID = v; } });
+    addField(grid, { label: 'insights.insightChance', type: 'number', value: metric.insights.insightChance, min: 0, max: 1, onInput: (v) => { metric.insights.insightChance = v; } });
+    addField(grid, { label: 'insights.streakProb', type: 'number', value: metric.insights.streakProb, min: 0, max: 1, onInput: (v) => { metric.insights.streakProb = v; } });
+    addField(grid, { label: 'insights.dayToDayChance', type: 'number', value: metric.insights.dayToDayChance, min: 0, max: 1, onInput: (v) => { metric.insights.dayToDayChance = v; } });
+    addField(grid, { label: 'insights.dayToAvgChance', type: 'number', value: metric.insights.dayToAvgChance, min: 0, max: 1, onInput: (v) => { metric.insights.dayToAvgChance = v; } });
+    addField(grid, { label: 'insights.rawValueChance', type: 'number', value: metric.insights.rawValueChance, min: 0, max: 1, onInput: (v) => { metric.insights.rawValueChance = v; } });
+    addField(grid, { label: 'insights.increaseGood', value: String(metric.insights.increaseGood), select: ['-1', '1'], onInput: (v) => { metric.insights.increaseGood = Number(v); } });
+    addField(grid, { label: 'insights.firstWords', value: metric.insights.firstWords, onInput: (v) => { metric.insights.firstWords = v; } });
+    addField(grid, { label: 'insights.insightFirstWords', value: metric.insights.insightFirstWords, onInput: (v) => { metric.insights.insightFirstWords = v; } });
+    addField(grid, { label: 'insights.insightUnits', value: metric.insights.insightUnits, onInput: (v) => { metric.insights.insightUnits = v; } });
     const timerType = metric.type === 'start_timer' || metric.type === 'stop_timer';
     if (timerType) {
-      addField(grid, { label: 'Stop Timer Message', value: metric.ifTimer_Settings.stopTimerMessage, help: HELP.ifTimer, onInput: (v) => { metric.ifTimer_Settings.stopTimerMessage = v; } });
-      addField(grid, { label: 'Timer Start Metric ID', value: metric.ifTimer_Settings.timerStartMetricID || '', onInput: (v) => { metric.ifTimer_Settings.timerStartMetricID = v || null; } });
-      addField(grid, { label: 'Timer Duration Metric ID', value: metric.ifTimer_Settings.timerDurationMetricID || '', onInput: (v) => { metric.ifTimer_Settings.timerDurationMetricID = v || null; } });
-      addField(grid, { label: 'Mute Timer Output', type: 'boolean', value: metric.ifTimer_Settings.muteOutput, onInput: (v) => { metric.ifTimer_Settings.muteOutput = v; } });
+      addField(grid, { label: 'ifTimer_Settings.stopTimerMessage', value: metric.ifTimer_Settings.stopTimerMessage, help: HELP.ifTimer, onInput: (v) => { metric.ifTimer_Settings.stopTimerMessage = v; } });
+      addField(grid, { label: 'ifTimer_Settings.timerStartMetricID', value: metric.ifTimer_Settings.timerStartMetricID || '', onInput: (v) => { metric.ifTimer_Settings.timerStartMetricID = v || null; } });
+      addField(grid, { label: 'ifTimer_Settings.timerDurationMetricID', value: metric.ifTimer_Settings.timerDurationMetricID || '', onInput: (v) => { metric.ifTimer_Settings.timerDurationMetricID = v || null; } });
+      addField(grid, { label: 'ifTimer_Settings.muteOutput', type: 'boolean', value: metric.ifTimer_Settings.muteOutput, onInput: (v) => { metric.ifTimer_Settings.muteOutput = v; } });
     }
 
     card.appendChild(grid);
-
-    const streaks = addToggleSection(card, 'Streak Properties');
-    const streakGrid = el('div', { class: 'form-grid' });
-    addField(streakGrid, { label: 'Unit', value: metric.streaks.unit, onInput: (v) => { metric.streaks.unit = v; } });
-    addField(streakGrid, { label: 'Streak ID', value: metric.streaks.streaksID, onInput: (v) => { metric.streaks.streaksID = v; } });
-    streaks.appendChild(streakGrid);
-
-    const points = addToggleSection(card, 'Points Properties');
-    const pointsGrid = el('div', { class: 'form-grid' });
-    addField(pointsGrid, { label: 'Point Value', type: 'number', value: metric.points.value, onInput: (v) => { metric.points.value = v; } });
-    addField(pointsGrid, { label: 'Multiplier Days', type: 'number', value: metric.points.multiplierDays, min: 0, onInput: (v) => { metric.points.multiplierDays = v; } });
-    addField(pointsGrid, { label: 'Max Multiplier', type: 'number', value: metric.points.maxMultiplier, min: 0, onInput: (v) => { metric.points.maxMultiplier = v; } });
-    addField(pointsGrid, { label: 'Points ID', value: metric.points.pointsID, onInput: (v) => { metric.points.pointsID = v; } });
-    points.appendChild(pointsGrid);
-
-    const insights = addToggleSection(card, 'Insights Properties');
-    const insightsGrid = el('div', { class: 'form-grid' });
-    addField(insightsGrid, { label: 'Insight Chance', type: 'number', value: metric.insights.insightChance, min: 0, max: 1, onInput: (v) => { metric.insights.insightChance = v; } });
-    addField(insightsGrid, { label: 'Streak Probability', type: 'number', value: metric.insights.streakProb, min: 0, max: 1, onInput: (v) => { metric.insights.streakProb = v; } });
-    addField(insightsGrid, { label: 'Day to Day Chance', type: 'number', value: metric.insights.dayToDayChance, min: 0, max: 1, onInput: (v) => { metric.insights.dayToDayChance = v; } });
-    addField(insightsGrid, { label: 'Day to Average Chance', type: 'number', value: metric.insights.dayToAvgChance, min: 0, max: 1, onInput: (v) => { metric.insights.dayToAvgChance = v; } });
-    addField(insightsGrid, { label: 'Raw Value Chance', type: 'number', value: metric.insights.rawValueChance, min: 0, max: 1, onInput: (v) => { metric.insights.rawValueChance = v; } });
-    addField(insightsGrid, { label: 'Increase Direction', value: String(metric.insights.increaseGood), select: ['-1', '1'], onInput: (v) => { metric.insights.increaseGood = Number(v); } });
-    addField(insightsGrid, { label: 'First Words', value: metric.insights.firstWords, onInput: (v) => { metric.insights.firstWords = v; } });
-    addField(insightsGrid, { label: 'Insight First Words', value: metric.insights.insightFirstWords, onInput: (v) => { metric.insights.insightFirstWords = v; } });
-    addField(insightsGrid, { label: 'Insight Units', value: metric.insights.insightUnits, onInput: (v) => { metric.insights.insightUnits = v; } });
-    insights.appendChild(insightsGrid);
-
+    addListEditor(card, {
+      title: 'Positive Push Message Parts',
+      items: metric.ppnMessage,
+      addLabel: 'Add Message Part',
+      makeItem: () => '',
+      renderItem: (messageCard, part, partIdx) => {
+        const messageGrid = el('div', { class: 'form-grid' });
+        addField(messageGrid, { label: 'Message Text', value: part, onInput: (v) => { metric.ppnMessage[partIdx] = v; } });
+        messageCard.appendChild(messageGrid);
+      },
+    });
     renderMetricDates(card, metric);
     container.appendChild(card);
   });
@@ -464,13 +453,13 @@ function renderBlocks(container) {
     card.appendChild(title);
 
     const grid = el('div', { class: 'form-grid' });
-    addField(grid, { label: 'Block ID', value: block.id, onInput: (v) => { block.id = v; } });
-    addField(grid, { label: 'Block Type', value: block.type, select: BLOCK_TYPES, help: HELP.blockType, onInput: (v) => { block.type = v; renderAll(); } });
-    addField(grid, { label: 'Begin Time', type: 'time', value: block.times.beg, onInput: (v) => { block.times.beg = v; } });
-    addField(grid, { label: 'End Time', type: 'time', value: block.times.end, onInput: (v) => { block.times.end = v; } });
-    addField(grid, { label: 'On Block Message', value: block.onBlock.message, onInput: (v) => { block.onBlock.message = v; } });
-    addField(grid, { label: 'Shortcut Name', value: block.onBlock.shortcutName, onInput: (v) => { block.onBlock.shortcutName = v; } });
-    addField(grid, { label: 'Shortcut Input', value: block.onBlock.shortcutInput, onInput: (v) => { block.onBlock.shortcutInput = v; } });
+    addField(grid, { label: 'id', value: block.id, onInput: (v) => { block.id = v; } });
+    addField(grid, { label: 'type', value: block.type, select: BLOCK_TYPES, help: HELP.blockType, onInput: (v) => { block.type = v; renderAll(); } });
+    addField(grid, { label: 'times.beg', type: 'time', value: block.times.beg, onInput: (v) => { block.times.beg = v; } });
+    addField(grid, { label: 'times.end', type: 'time', value: block.times.end, onInput: (v) => { block.times.end = v; } });
+    addField(grid, { label: 'onBlock.message', value: block.onBlock.message, onInput: (v) => { block.onBlock.message = v; } });
+    addField(grid, { label: 'onBlock.shortcutName', value: block.onBlock.shortcutName, onInput: (v) => { block.onBlock.shortcutName = v; } });
+    addField(grid, { label: 'onBlock.shortcutInput', value: block.onBlock.shortcutInput, onInput: (v) => { block.onBlock.shortcutInput = v; } });
     card.appendChild(grid);
 
     addListEditor(card, {
@@ -488,12 +477,12 @@ function renderBlocks(container) {
     if (block.type === 'duration_block') {
       const d = block.typeSpecific.duration;
       const dur = el('div', { class: 'form-grid' });
-      addField(dur, { label: 'Max Minutes', type: 'number', value: d.maxMinutes, min: 0, onInput: (v) => { d.maxMinutes = v; } });
-      addField(dur, { label: 'Screen Time ID', value: d.screenTimeID, onInput: (v) => { d.screenTimeID = v; } });
-      addField(dur, { label: 'Rationing Enabled', type: 'boolean', value: d.rationing.isON, onInput: (v) => { d.rationing.isON = v; renderAll(); } });
+      addField(dur, { label: 'duration.maxMinutes', type: 'number', value: d.maxMinutes, min: 0, onInput: (v) => { d.maxMinutes = v; } });
+      addField(dur, { label: 'duration.screenTimeID', value: d.screenTimeID, onInput: (v) => { d.screenTimeID = v; } });
+      addField(dur, { label: 'duration.rationing.isON', type: 'boolean', value: d.rationing.isON, onInput: (v) => { d.rationing.isON = v; renderAll(); } });
       if (d.rationing.isON) {
-        addField(dur, { label: 'Rationing Begin Minutes', type: 'number', value: d.rationing.begMinutes, min: 0, onInput: (v) => { d.rationing.begMinutes = v; } });
-        addField(dur, { label: 'Rationing End Minutes', type: 'number', value: d.rationing.endMinutes, min: 0, onInput: (v) => { d.rationing.endMinutes = v; } });
+        addField(dur, { label: 'duration.rationing.begMinutes', type: 'number', value: d.rationing.begMinutes, min: 0, onInput: (v) => { d.rationing.begMinutes = v; } });
+        addField(dur, { label: 'duration.rationing.endMinutes', type: 'number', value: d.rationing.endMinutes, min: 0, onInput: (v) => { d.rationing.endMinutes = v; } });
       }
       card.appendChild(dur);
     }
@@ -506,7 +495,7 @@ function renderBlocks(container) {
         makeItem: () => '',
         renderItem: (taskCard, id, taskIdx) => {
           const taskGrid = el('div', { class: 'form-grid' });
-          addField(taskGrid, { label: 'Metric ID', value: id, onInput: (v) => { block.typeSpecific.task_block_IDs[taskIdx] = v; } });
+          addField(taskGrid, { label: 'metricID', value: id, onInput: (v) => { block.typeSpecific.task_block_IDs[taskIdx] = v; } });
           taskCard.appendChild(taskGrid);
         },
       });
@@ -515,8 +504,8 @@ function renderBlocks(container) {
     if (block.type === 'firstXMinutesAfterTimestamp_block') {
       const fx = block.typeSpecific.firstXMinutes;
       const fxGrid = el('div', { class: 'form-grid' });
-      addField(fxGrid, { label: 'Minutes', type: 'number', value: fx.minutes, min: 0, onInput: (v) => { fx.minutes = v; } });
-      addField(fxGrid, { label: 'Timestamp ID', value: fx.timestampID, onInput: (v) => { fx.timestampID = v; } });
+      addField(fxGrid, { label: 'firstXMinutes.minutes', type: 'number', value: fx.minutes, min: 0, onInput: (v) => { fx.minutes = v; } });
+      addField(fxGrid, { label: 'firstXMinutes.timestampID', value: fx.timestampID, onInput: (v) => { fx.timestampID = v; } });
       card.appendChild(fxGrid);
     }
 
@@ -526,11 +515,9 @@ function renderBlocks(container) {
 
 function renderLockoutGlobals(container) {
   const g = state.config.lockoutsV2.globals;
-  const grid = el('div', { class: 'form-grid' });
-  addField(grid, { label: 'Cumulative Screentime ID', value: g.cumulativeScreentimeID, onInput: (v) => { g.cumulativeScreentimeID = v; } });
-  addField(grid, { label: 'Bar Length', type: 'number', value: g.barLength, min: 0, onInput: (v) => { g.barLength = v; } });
-  addField(grid, { label: 'Preset Calendar Name', value: g.presetCalendarName, onInput: (v) => { g.presetCalendarName = v; } });
-  container.appendChild(grid);
+  addField(container, { label: 'cumulativeScreentimeID', value: g.cumulativeScreentimeID, onInput: (v) => { g.cumulativeScreentimeID = v; } });
+  addField(container, { label: 'barLength', type: 'number', value: g.barLength, min: 0, onInput: (v) => { g.barLength = v; } });
+  addField(container, { label: 'presetCalendarName', value: g.presetCalendarName, onInput: (v) => { g.presetCalendarName = v; } });
 }
 
 function switchTab(tabName) {
@@ -544,19 +531,17 @@ function switchTab(tabName) {
 }
 
 function renderAll() {
-  const globalContainer = document.getElementById('globalContainer');
+  const lockoutGlobals = document.getElementById('lockoutGlobals');
   const blocks = document.getElementById('blocksContainer');
+  const habitsGlobals = document.getElementById('habitsGlobals');
   const metrics = document.getElementById('metricsContainer');
-  globalContainer.innerHTML = '';
+  lockoutGlobals.innerHTML = '';
   blocks.innerHTML = '';
+  habitsGlobals.innerHTML = '';
   metrics.innerHTML = '';
-
-  const habitsGlobalSection = addToggleSection(globalContainer, 'Habits V2 Global Properties', true);
-  renderHabitsGlobals(habitsGlobalSection);
-  const lockoutsGlobalSection = addToggleSection(globalContainer, 'Lockouts V2 Globals', true);
-  renderLockoutGlobals(lockoutsGlobalSection);
-
+  renderLockoutGlobals(lockoutGlobals);
   renderBlocks(blocks);
+  renderHabitsGlobals(habitsGlobals);
   renderMetrics(metrics);
   switchTab(state.activeTab);
 }
