@@ -2,35 +2,28 @@ const DAY_OPTIONS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fr
 const METRIC_TYPES = ['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'];
 const RECORD_TYPES = ['overwrite', 'keep_first', 'add'];
 const BLOCK_TYPES = ['duration_block', 'task_block', 'firstXMinutesAfterTimestamp_block'];
+const POINT_BLOCK_TYPES = ['heading_1', 'heading_2', 'heading_3', 'paragraph', 'quote', 'bulleted_list_item', 'numbered_list_item', 'to_do'];
+const SEGMENT_COLORS = ['default', 'gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];
 
 const HELP = {
-  spreadsheetId: 'Apps Script property key that stores the spreadsheet ID. Use-case: keep sheet IDs out of source code.',
-  trackingSheetName: 'Tracking tab name where metric rows live.',
-  writeToNotion: 'Global Notion sync default. Metric-level writeToNotion can override this.',
-  lateExtensionHours: 'Grace period (hours) for previous-day completion windows.',
-  comparisonArray: 'Pairs of [daysAgo, label] used for insight comparisons.',
-  metricID: 'Stable key used across streak IDs, points IDs, and lockout references.',
-  metricType: 'Metric behavior. Timer-only fields appear for start_timer and stop_timer.',
-  recordType: 'How new submissions affect existing values.',
-  dates: 'Each row: [dayOfWeek, dueByTime, [[startHour,endHour], ...]].',
-  ifTimer: 'Timer config for start_timer / stop_timer metrics, including linkage and output message.',
-  blockType: 'Lockout block mode. Only matching typeSpecific sub-fields are shown.',
-  presets: 'Calendar preset names that activate this block.',
-  times: 'Active window in HH:MM local script time. beg == end means 24 hours.',
-  rationing: 'Optional progressive allowance curve for duration blocks.',
-  onBlockMessage: 'Message shown when blocked. Supports runtime tokens like {endTime}.',
+  spreadsheetId: 'Apps Script property key that stores the spreadsheet ID.',
+  comparisonArray: 'Performance comparison rows used by insights logic.',
+  metricID: 'Stable metric key referenced by streaks, points, timer links, and lockout blocks.',
+  metricType: 'Timer-specific settings appear only for start_timer and stop_timer metrics.',
+  dates: 'Allowed completion windows by day. Add multiple windows for split-day schedules.',
+  blockType: 'Choose duration, task, or first-X-minutes block behavior.',
+  ifTimer: 'Used for timer workflows, including stop message and metric links.',
+  segments: 'Notion point output tokens or text chunks with color styling.',
 };
 
 const state = {
   config: defaultConfig(),
-  activeTab: 'lockouts'
+  activeTab: 'lockouts',
 };
 
 function defaultConfig() {
   return {
-    scriptProperties: {
-      spreadsheetId: 'spreadSheetID',
-    },
+    scriptProperties: { spreadsheetId: 'spreadSheetID' },
     trackingSheetName: 'Tracking Data',
     writeToNotion: true,
     notion: {
@@ -42,68 +35,41 @@ function defaultConfig() {
           blockType: 'heading_1',
           segments: [
             { token: 'point_total', color: 'blue' },
-            { text: ' Points', color: 'default' }
-          ]
+            { text: ' Points', color: 'default' },
+          ],
         },
-        insightBlock: {
-          blockType: 'paragraph',
-          italic: true
-        }
+        insightBlock: { blockType: 'paragraph', italic: true },
       },
-      syncFields: {
-        status: true,
-        streak: true,
-        pointMultiplier: true,
-        points: true
-      },
+      syncFields: { status: true, streak: true, pointMultiplier: true, points: true },
       propertyNames: {
         metricId: 'metricID',
         status: 'State',
         streak: 'Streak',
         pointMultiplier: 'Point Multiplier',
-        points: 'Points'
+        points: 'Points',
       },
-      completeStatusName: 'Complete'
+      completeStatusName: 'Complete',
     },
     dailyPointsID: 'point_total_today',
     cumulativePointsID: 'point_total_alltime',
     lateExtensionHours: 5,
-    sheetConfig: {
-      taskIdColumn: 1,
-      labelColumn: 2,
-      dataStartColumn: 3
-    },
+    sheetConfig: { taskIdColumn: 1, labelColumn: 2, dataStartColumn: 3 },
     habitsV2Insights: {
       comparisonArray: [
-        [1, 'yesterday'],
-        [2, '2 days ago'],
-        [3, '3 days ago'],
-        [4, '4 days ago'],
-        [5, '5 days ago'],
-        [6, '6 days ago'],
-        [7, '7 days ago'],
-        [14, 'two weeks ago'],
-        [21, '3 weeks ago'],
-        [30, 'this day last month'],
-        [60, '2 months ago'],
-        [90, '3 months ago'],
-        [180, '6 months ago'],
-        [365, 'one year ago today'],
-        [730, '2 years ago today']
+        [1, 'yesterday'], [2, '2 days ago'], [3, '3 days ago'], [4, '4 days ago'], [5, '5 days ago'],
+        [6, '6 days ago'], [7, '7 days ago'], [14, 'two weeks ago'], [21, '3 weeks ago'],
+        [30, 'this day last month'], [60, '2 months ago'], [90, '3 months ago'], [180, '6 months ago'],
+        [365, 'one year ago today'], [730, '2 years ago today'],
       ],
       posPerformanceFreq: 0.75,
       negPerformanceFreq: 0.25,
-      averageSpan: 7
+      averageSpan: 7,
     },
     metricSettings: [],
     lockoutsV2: {
-      globals: {
-        cumulativeScreentimeID: 'cumulative_app_opened',
-        barLength: 20,
-        presetCalendarName: 'App Lockout Settings'
-      },
-      blocks: []
-    }
+      globals: { cumulativeScreentimeID: 'cumulative_app_opened', barLength: 20, presetCalendarName: 'App Lockout Settings' },
+      blocks: [],
+    },
   };
 }
 
@@ -125,7 +91,7 @@ function defaultMetric() {
       increaseGood: 1,
       firstWords: '',
       insightFirstWords: '',
-      insightUnits: ''
+      insightUnits: '',
     },
     ppnMessage: ['', ''],
     writeToNotion: true,
@@ -133,8 +99,8 @@ function defaultMetric() {
       stopTimerMessage: '',
       timerStartMetricID: null,
       timerDurationMetricID: null,
-      muteOutput: false
-    }
+      muteOutput: false,
+    },
   };
 }
 
@@ -145,15 +111,11 @@ function defaultBlock() {
     presets: [],
     times: { beg: '00:00', end: '00:00' },
     typeSpecific: {
-      duration: {
-        maxMinutes: 0,
-        screenTimeID: '',
-        rationing: { isON: false, begMinutes: 0, endMinutes: 0 }
-      },
+      duration: { maxMinutes: 0, screenTimeID: '', rationing: { isON: false, begMinutes: 0, endMinutes: 0 } },
       task_block_IDs: [],
-      firstXMinutes: { minutes: 0, timestampID: '' }
+      firstXMinutes: { minutes: 0, timestampID: '' },
     },
-    onBlock: { message: '', shortcutName: '', shortcutInput: '' }
+    onBlock: { message: '', shortcutName: '', shortcutInput: '' },
   };
 }
 
@@ -161,34 +123,21 @@ function deepMerge(base, incoming) {
   if (Array.isArray(base)) return Array.isArray(incoming) ? incoming : base;
   if (!base || typeof base !== 'object') return incoming === undefined ? base : incoming;
   const out = { ...base };
-  for (const [k, v] of Object.entries(incoming || {})) {
-    out[k] = k in base ? deepMerge(base[k], v) : v;
-  }
+  for (const [k, v] of Object.entries(incoming || {})) out[k] = k in base ? deepMerge(base[k], v) : v;
   return out;
 }
 
 function extractReturnedObjectLiteral(text) {
   const returnIdx = text.indexOf('return');
-  if (returnIdx === -1) throw new Error('No return statement found. Paste a full Config.gs body.');
+  if (returnIdx === -1) throw new Error('No return statement found. Paste full Config.gs content.');
   const start = text.indexOf('{', returnIdx);
-  if (start === -1) throw new Error('No object found after return.');
-
+  if (start === -1) throw new Error('No object literal found after return.');
   let depth = 0;
-  let inS = false;
-  let inD = false;
-  let inT = false;
-  let esc = false;
-
-  for (let i = start; i < text.length; i++) {
+  let inS = false; let inD = false; let inT = false; let esc = false;
+  for (let i = start; i < text.length; i += 1) {
     const ch = text[i];
-    if (esc) {
-      esc = false;
-      continue;
-    }
-    if (ch === '\\') {
-      esc = true;
-      continue;
-    }
+    if (esc) { esc = false; continue; }
+    if (ch === '\\') { esc = true; continue; }
     if (!inD && !inT && ch === "'") inS = !inS;
     else if (!inS && !inT && ch === '"') inD = !inD;
     else if (!inS && !inD && ch === '`') inT = !inT;
@@ -200,61 +149,33 @@ function extractReturnedObjectLiteral(text) {
       }
     }
   }
-
-  throw new Error('Could not find matching braces for returned object.');
+  throw new Error('Could not find matching braces for returned config object.');
 }
 
-function sanitizeConfig(parsedConfig) {
-  const merged = deepMerge(defaultConfig(), parsedConfig);
-  merged.metricSettings = Array.isArray(merged.metricSettings)
-    ? merged.metricSettings.map((m) => deepMerge(defaultMetric(), m || {}))
-    : [];
+function sanitizeConfig(parsed) {
+  const merged = deepMerge(defaultConfig(), parsed);
+  merged.metricSettings = Array.isArray(merged.metricSettings) ? merged.metricSettings.map((m) => deepMerge(defaultMetric(), m || {})) : [];
   merged.lockoutsV2 = merged.lockoutsV2 || { globals: {}, blocks: [] };
   merged.lockoutsV2.globals = deepMerge(defaultConfig().lockoutsV2.globals, merged.lockoutsV2.globals || {});
-  merged.lockoutsV2.blocks = Array.isArray(merged.lockoutsV2.blocks)
-    ? merged.lockoutsV2.blocks.map((b) => deepMerge(defaultBlock(), b || {}))
-    : [];
+  merged.lockoutsV2.blocks = Array.isArray(merged.lockoutsV2.blocks) ? merged.lockoutsV2.blocks.map((b) => deepMerge(defaultBlock(), b || {})) : [];
   return merged;
 }
 
 function parseConfigFromText(text) {
-  const objectLiteral = extractReturnedObjectLiteral(text);
-  const parsed = Function(`"use strict"; return (${objectLiteral});`)();
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Parsed return value is not an object.');
-  }
+  const parsed = Function(`"use strict"; return (${extractReturnedObjectLiteral(text)});`)();
+  if (!parsed || typeof parsed !== 'object') throw new Error('Parsed return value is not an object.');
   return sanitizeConfig(parsed);
 }
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
+  Object.entries(attrs).forEach(([k, v]) => {
     if (k === 'class') node.className = v;
     else if (k === 'text') node.textContent = v;
     else node.setAttribute(k, v);
-  }
-  for (const c of children) node.appendChild(c);
+  });
+  children.forEach((child) => node.appendChild(child));
   return node;
-}
-
-function validateValue(raw, kind, opts = {}) {
-  if (kind === 'text') return { valid: true, value: raw };
-  if (kind === 'boolean') {
-    if (raw === 'true' || raw === 'false') return { valid: true, value: raw === 'true' };
-    return { valid: false, message: 'Must be true or false.' };
-  }
-  if (kind === 'number') {
-    if (raw === '' || Number.isNaN(Number(raw))) return { valid: false, message: 'Must be a number.' };
-    const num = Number(raw);
-    if (opts.min !== undefined && num < opts.min) return { valid: false, message: `Must be ≥ ${opts.min}.` };
-    if (opts.max !== undefined && num > opts.max) return { valid: false, message: `Must be ≤ ${opts.max}.` };
-    return { valid: true, value: num };
-  }
-  if (kind === 'time') {
-    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(raw)) return { valid: false, message: 'Use HH:MM (24h).' };
-    return { valid: true, value: raw };
-  }
-  return { valid: true, value: raw };
 }
 
 function labelWithHelp(text, help) {
@@ -267,314 +188,311 @@ function labelWithHelp(text, help) {
   return label;
 }
 
-function addInput(container, opts) {
+function addField(container, { label, help, type = 'text', value, onInput, min, max, step = 'any', select }) {
   const field = el('div', { class: 'field' });
-  field.appendChild(labelWithHelp(opts.label, opts.help));
   const error = el('div', { class: 'error-message' });
+  field.appendChild(labelWithHelp(label, help));
 
   let input;
-  if (opts.select) {
+  if (select) {
     input = el('select');
-    opts.select.forEach((v) => input.appendChild(el('option', { value: v, text: v })));
-    input.value = String(opts.value ?? opts.select[0]);
+    select.forEach((opt) => input.appendChild(el('option', { value: opt, text: opt })));
+    input.value = value;
+  } else if (type === 'boolean') {
+    input = el('select');
+    ['true', 'false'].forEach((opt) => input.appendChild(el('option', { value: opt, text: opt })));
+    input.value = String(Boolean(value));
   } else {
-    input = el('input', { type: 'text', placeholder: opts.placeholder || '' });
-    input.value = opts.value === null || opts.value === undefined ? '' : String(opts.value);
+    input = el('input', { type, step });
+    if (min !== undefined) input.min = String(min);
+    if (max !== undefined) input.max = String(max);
+    input.value = value === null || value === undefined ? '' : String(value);
   }
 
-  function onEdit() {
-    const raw = input.value.trim();
-    const result = opts.kind ? validateValue(raw, opts.kind, opts.validateOptions) : { valid: true, value: raw };
-    if (!result.valid) {
-      error.textContent = result.message;
-      return;
+  const commit = () => {
+    const raw = input.value;
+    let parsed = raw;
+    if (type === 'number') {
+      if (raw === '' || Number.isNaN(Number(raw))) {
+        error.textContent = 'Must be a valid number.';
+        return;
+      }
+      parsed = Number(raw);
+      if (min !== undefined && parsed < min) { error.textContent = `Must be ≥ ${min}.`; return; }
+      if (max !== undefined && parsed > max) { error.textContent = `Must be ≤ ${max}.`; return; }
+    } else if (type === 'time') {
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(raw)) { error.textContent = 'Use HH:MM (24h).'; return; }
+    } else if (type === 'boolean') {
+      parsed = raw === 'true';
     }
     error.textContent = '';
-    opts.onChange(result.value);
-    if (opts.onRender) opts.onRender();
-  }
+    onInput(parsed);
+  };
 
-  input.addEventListener('input', onEdit);
-
+  input.addEventListener('input', commit);
+  input.addEventListener('change', commit);
   field.appendChild(input);
   field.appendChild(error);
   container.appendChild(field);
 }
 
-function addJsonArea(container, opts) {
-  const field = el('div', { class: 'field wide' });
-  field.appendChild(labelWithHelp(opts.label, opts.help));
-  const area = el('textarea', { rows: opts.rows || '4' });
-  area.value = JSON.stringify(opts.value ?? null, null, 2);
-  const error = el('div', { class: 'error-message' });
+function moveInArray(arr, idx, delta) {
+  const next = idx + delta;
+  if (next < 0 || next >= arr.length) return;
+  [arr[idx], arr[next]] = [arr[next], arr[idx]];
+  renderAll();
+}
 
-  area.addEventListener('input', () => {
-    try {
-      const parsed = JSON.parse(area.value);
-      opts.validate?.(parsed);
-      opts.onChange(parsed);
-      error.textContent = '';
-    } catch (err) {
-      error.textContent = err.message || 'Must be valid JSON.';
+function addListEditor(container, { title, items, addLabel, renderItem, makeItem }) {
+  const box = el('div', { class: 'nested-list' });
+  box.appendChild(el('h4', { text: title }));
+  items.forEach((item, idx) => {
+    const card = el('div', { class: 'nested-item' });
+    const top = el('div', { class: 'item-title' }, [el('strong', { text: `${title} #${idx + 1}` })]);
+    const controls = el('div', { class: 'row compact' });
+    const up = el('button', { type: 'button', class: 'secondary', text: '↑' });
+    up.onclick = () => moveInArray(items, idx, -1);
+    const down = el('button', { type: 'button', class: 'secondary', text: '↓' });
+    down.onclick = () => moveInArray(items, idx, 1);
+    const del = el('button', { type: 'button', class: 'remove', text: 'Delete' });
+    del.onclick = () => { items.splice(idx, 1); renderAll(); };
+    controls.append(up, down, del);
+    top.appendChild(controls);
+    card.appendChild(top);
+    renderItem(card, item, idx);
+    box.appendChild(card);
+  });
+  const addBtn = el('button', { type: 'button', class: 'secondary', text: addLabel });
+  addBtn.onclick = () => { items.push(makeItem()); renderAll(); };
+  box.appendChild(addBtn);
+  container.appendChild(box);
+}
+
+function renderNotion(container) {
+  const n = state.config.notion;
+  addListEditor(container, {
+    title: 'Notion Point Segments',
+    items: n.outputStyles.pointBlock.segments,
+    addLabel: 'Add Segment',
+    makeItem: () => ({ text: '', color: 'default' }),
+    renderItem: (card, segment) => {
+      const grid = el('div', { class: 'form-grid' });
+      addField(grid, { label: 'Token (optional)', value: segment.token || '', type: 'text', help: HELP.segments, onInput: (v) => { segment.token = v; if (v) delete segment.text; renderAll(); } });
+      addField(grid, { label: 'Text (optional)', value: segment.text || '', type: 'text', onInput: (v) => { segment.text = v; if (v) delete segment.token; renderAll(); } });
+      addField(grid, { label: 'Color', value: segment.color || 'default', select: SEGMENT_COLORS, onInput: (v) => { segment.color = v; } });
+      card.appendChild(grid);
+    },
+  });
+
+  const grid = el('div', { class: 'form-grid' });
+  addField(grid, { label: 'Notion databaseIdsScriptProperty', value: n.databaseIdsScriptProperty, onInput: (v) => { n.databaseIdsScriptProperty = v; } });
+  addField(grid, { label: 'pointBlockIdScriptProperty', value: n.pointBlockIdScriptProperty, onInput: (v) => { n.pointBlockIdScriptProperty = v; } });
+  addField(grid, { label: 'insightBlockIdScriptProperty', value: n.insightBlockIdScriptProperty, onInput: (v) => { n.insightBlockIdScriptProperty = v; } });
+  addField(grid, { label: 'Point blockType', value: n.outputStyles.pointBlock.blockType, select: POINT_BLOCK_TYPES, onInput: (v) => { n.outputStyles.pointBlock.blockType = v; } });
+  addField(grid, { label: 'Insight blockType', value: n.outputStyles.insightBlock.blockType, select: POINT_BLOCK_TYPES, onInput: (v) => { n.outputStyles.insightBlock.blockType = v; } });
+  addField(grid, { label: 'Insight italic', type: 'boolean', value: n.outputStyles.insightBlock.italic, onInput: (v) => { n.outputStyles.insightBlock.italic = v; } });
+  addField(grid, { label: 'syncFields.status', type: 'boolean', value: n.syncFields.status, onInput: (v) => { n.syncFields.status = v; } });
+  addField(grid, { label: 'syncFields.streak', type: 'boolean', value: n.syncFields.streak, onInput: (v) => { n.syncFields.streak = v; } });
+  addField(grid, { label: 'syncFields.pointMultiplier', type: 'boolean', value: n.syncFields.pointMultiplier, onInput: (v) => { n.syncFields.pointMultiplier = v; } });
+  addField(grid, { label: 'syncFields.points', type: 'boolean', value: n.syncFields.points, onInput: (v) => { n.syncFields.points = v; } });
+  addField(grid, { label: 'propertyNames.metricId', value: n.propertyNames.metricId, onInput: (v) => { n.propertyNames.metricId = v; } });
+  addField(grid, { label: 'propertyNames.status', value: n.propertyNames.status, onInput: (v) => { n.propertyNames.status = v; } });
+  addField(grid, { label: 'propertyNames.streak', value: n.propertyNames.streak, onInput: (v) => { n.propertyNames.streak = v; } });
+  addField(grid, { label: 'propertyNames.pointMultiplier', value: n.propertyNames.pointMultiplier, onInput: (v) => { n.propertyNames.pointMultiplier = v; } });
+  addField(grid, { label: 'propertyNames.points', value: n.propertyNames.points, onInput: (v) => { n.propertyNames.points = v; } });
+  addField(grid, { label: 'completeStatusName', value: n.completeStatusName, onInput: (v) => { n.completeStatusName = v; } });
+  container.appendChild(grid);
+}
+
+function renderHabitsGlobals(container) {
+  const c = state.config;
+  addField(container, { label: 'scriptProperties.spreadsheetId', value: c.scriptProperties.spreadsheetId, help: HELP.spreadsheetId, onInput: (v) => { c.scriptProperties.spreadsheetId = v; } });
+  addField(container, { label: 'trackingSheetName', value: c.trackingSheetName, onInput: (v) => { c.trackingSheetName = v; } });
+  addField(container, { label: 'writeToNotion', type: 'boolean', value: c.writeToNotion, onInput: (v) => { c.writeToNotion = v; } });
+  addField(container, { label: 'dailyPointsID', value: c.dailyPointsID, onInput: (v) => { c.dailyPointsID = v; } });
+  addField(container, { label: 'cumulativePointsID', value: c.cumulativePointsID, onInput: (v) => { c.cumulativePointsID = v; } });
+  addField(container, { label: 'lateExtensionHours', type: 'number', value: c.lateExtensionHours, min: 0, onInput: (v) => { c.lateExtensionHours = v; } });
+  addField(container, { label: 'sheetConfig.taskIdColumn', type: 'number', value: c.sheetConfig.taskIdColumn, min: 1, onInput: (v) => { c.sheetConfig.taskIdColumn = v; } });
+  addField(container, { label: 'sheetConfig.labelColumn', type: 'number', value: c.sheetConfig.labelColumn, min: 1, onInput: (v) => { c.sheetConfig.labelColumn = v; } });
+  addField(container, { label: 'sheetConfig.dataStartColumn', type: 'number', value: c.sheetConfig.dataStartColumn, min: 1, onInput: (v) => { c.sheetConfig.dataStartColumn = v; } });
+  addField(container, { label: 'habitsV2Insights.posPerformanceFreq', type: 'number', value: c.habitsV2Insights.posPerformanceFreq, min: 0, max: 1, onInput: (v) => { c.habitsV2Insights.posPerformanceFreq = v; } });
+  addField(container, { label: 'habitsV2Insights.negPerformanceFreq', type: 'number', value: c.habitsV2Insights.negPerformanceFreq, min: 0, max: 1, onInput: (v) => { c.habitsV2Insights.negPerformanceFreq = v; } });
+  addField(container, { label: 'habitsV2Insights.averageSpan', type: 'number', value: c.habitsV2Insights.averageSpan, min: 1, onInput: (v) => { c.habitsV2Insights.averageSpan = v; } });
+
+  addListEditor(container, {
+    title: 'Comparison Rows',
+    items: c.habitsV2Insights.comparisonArray,
+    addLabel: 'Add Comparison Row',
+    makeItem: () => [1, 'label'],
+    renderItem: (card, row) => {
+      const grid = el('div', { class: 'form-grid' });
+      addField(grid, { label: 'Days Ago', type: 'number', value: row[0], min: 1, onInput: (v) => { row[0] = v; } });
+      addField(grid, { label: 'Label', value: row[1], help: HELP.comparisonArray, onInput: (v) => { row[1] = v; } });
+      card.appendChild(grid);
+    },
+  });
+
+  const notionSection = el('div', { class: 'item' }, [el('h4', { text: 'Notion Settings' })]);
+  renderNotion(notionSection);
+  container.appendChild(notionSection);
+}
+
+function renderMetricDates(container, metric) {
+  addListEditor(container, {
+    title: 'Date Rules',
+    items: metric.dates,
+    addLabel: 'Add Date Rule',
+    makeItem: () => ['Monday', '23:59', [[0, 24]]],
+    renderItem: (card, rule) => {
+      if (!Array.isArray(rule[2])) rule[2] = [[0, 24]];
+      const grid = el('div', { class: 'form-grid' });
+      addField(grid, { label: 'Day', value: rule[0], select: DAY_OPTIONS, onInput: (v) => { rule[0] = v; } });
+      addField(grid, { label: 'Due By', type: 'time', value: rule[1], onInput: (v) => { rule[1] = v; } });
+      card.appendChild(grid);
+      addListEditor(card, {
+        title: 'Allowed Windows',
+        items: rule[2],
+        addLabel: 'Add Allowed Window',
+        makeItem: () => [0, 24],
+        renderItem: (windowCard, win) => {
+          const winGrid = el('div', { class: 'form-grid' });
+          addField(winGrid, { label: 'Start Hour', type: 'number', value: win[0], min: 0, max: 24, onInput: (v) => { win[0] = v; } });
+          addField(winGrid, { label: 'End Hour', type: 'number', value: win[1], min: 0, max: 24, onInput: (v) => { win[1] = v; } });
+          windowCard.appendChild(winGrid);
+        },
+      });
+    },
+  });
+}
+
+function renderMetrics(container) {
+  state.config.metricSettings.forEach((metric, idx) => {
+    const card = el('div', { class: 'item' });
+    const title = el('div', { class: 'item-title' }, [el('strong', { text: `Metric #${idx + 1}` })]);
+    const controls = el('div', { class: 'row compact' });
+    const up = el('button', { type: 'button', class: 'secondary', text: '↑' }); up.onclick = () => moveInArray(state.config.metricSettings, idx, -1);
+    const down = el('button', { type: 'button', class: 'secondary', text: '↓' }); down.onclick = () => moveInArray(state.config.metricSettings, idx, 1);
+    const remove = el('button', { type: 'button', class: 'remove', text: 'Delete' }); remove.onclick = () => { state.config.metricSettings.splice(idx, 1); renderAll(); };
+    controls.append(up, down, remove);
+    title.appendChild(controls);
+    card.appendChild(title);
+
+    const grid = el('div', { class: 'form-grid' });
+    addField(grid, { label: 'metricID', value: metric.metricID, help: HELP.metricID, onInput: (v) => { metric.metricID = v; } });
+    addField(grid, { label: 'displayName', value: metric.displayName, onInput: (v) => { metric.displayName = v; } });
+    addField(grid, { label: 'type', value: metric.type, select: METRIC_TYPES, help: HELP.metricType, onInput: (v) => { metric.type = v; renderAll(); } });
+    addField(grid, { label: 'recordType', value: metric.recordType, select: RECORD_TYPES, onInput: (v) => { metric.recordType = v; } });
+    addField(grid, { label: 'writeToNotion', type: 'boolean', value: metric.writeToNotion, onInput: (v) => { metric.writeToNotion = v; } });
+    addField(grid, { label: 'streaks.unit', value: metric.streaks.unit, onInput: (v) => { metric.streaks.unit = v; } });
+    addField(grid, { label: 'streaks.streaksID', value: metric.streaks.streaksID, onInput: (v) => { metric.streaks.streaksID = v; } });
+    addField(grid, { label: 'points.value', type: 'number', value: metric.points.value, onInput: (v) => { metric.points.value = v; } });
+    addField(grid, { label: 'points.multiplierDays', type: 'number', value: metric.points.multiplierDays, min: 0, onInput: (v) => { metric.points.multiplierDays = v; } });
+    addField(grid, { label: 'points.maxMultiplier', type: 'number', value: metric.points.maxMultiplier, min: 0, onInput: (v) => { metric.points.maxMultiplier = v; } });
+    addField(grid, { label: 'points.pointsID', value: metric.points.pointsID, onInput: (v) => { metric.points.pointsID = v; } });
+    addField(grid, { label: 'insights.insightChance', type: 'number', value: metric.insights.insightChance, min: 0, max: 1, onInput: (v) => { metric.insights.insightChance = v; } });
+    addField(grid, { label: 'insights.streakProb', type: 'number', value: metric.insights.streakProb, min: 0, max: 1, onInput: (v) => { metric.insights.streakProb = v; } });
+    addField(grid, { label: 'insights.dayToDayChance', type: 'number', value: metric.insights.dayToDayChance, min: 0, max: 1, onInput: (v) => { metric.insights.dayToDayChance = v; } });
+    addField(grid, { label: 'insights.dayToAvgChance', type: 'number', value: metric.insights.dayToAvgChance, min: 0, max: 1, onInput: (v) => { metric.insights.dayToAvgChance = v; } });
+    addField(grid, { label: 'insights.rawValueChance', type: 'number', value: metric.insights.rawValueChance, min: 0, max: 1, onInput: (v) => { metric.insights.rawValueChance = v; } });
+    addField(grid, { label: 'insights.increaseGood', value: String(metric.insights.increaseGood), select: ['-1', '1'], onInput: (v) => { metric.insights.increaseGood = Number(v); } });
+    addField(grid, { label: 'insights.firstWords', value: metric.insights.firstWords, onInput: (v) => { metric.insights.firstWords = v; } });
+    addField(grid, { label: 'insights.insightFirstWords', value: metric.insights.insightFirstWords, onInput: (v) => { metric.insights.insightFirstWords = v; } });
+    addField(grid, { label: 'insights.insightUnits', value: metric.insights.insightUnits, onInput: (v) => { metric.insights.insightUnits = v; } });
+    addField(grid, { label: 'ppnMessage first part', value: metric.ppnMessage[0] || '', onInput: (v) => { metric.ppnMessage[0] = v; } });
+    addField(grid, { label: 'ppnMessage second part', value: metric.ppnMessage[1] || '', onInput: (v) => { metric.ppnMessage[1] = v; } });
+
+    const timerType = metric.type === 'start_timer' || metric.type === 'stop_timer';
+    if (timerType) {
+      addField(grid, { label: 'ifTimer_Settings.stopTimerMessage', value: metric.ifTimer_Settings.stopTimerMessage, help: HELP.ifTimer, onInput: (v) => { metric.ifTimer_Settings.stopTimerMessage = v; } });
+      addField(grid, { label: 'ifTimer_Settings.timerStartMetricID', value: metric.ifTimer_Settings.timerStartMetricID || '', onInput: (v) => { metric.ifTimer_Settings.timerStartMetricID = v || null; } });
+      addField(grid, { label: 'ifTimer_Settings.timerDurationMetricID', value: metric.ifTimer_Settings.timerDurationMetricID || '', onInput: (v) => { metric.ifTimer_Settings.timerDurationMetricID = v || null; } });
+      addField(grid, { label: 'ifTimer_Settings.muteOutput', type: 'boolean', value: metric.ifTimer_Settings.muteOutput, onInput: (v) => { metric.ifTimer_Settings.muteOutput = v; } });
     }
-  });
 
-  field.appendChild(area);
-  field.appendChild(error);
-  container.appendChild(field);
-}
-
-function validateDatesArray(value) {
-  if (!Array.isArray(value)) throw new Error('dates must be an array.');
-  value.forEach((entry) => {
-    if (!Array.isArray(entry) || entry.length < 3) throw new Error('Each date row must be [day, dueByTime, windows].');
-    if (!DAY_OPTIONS.includes(entry[0])) throw new Error(`Invalid day: ${entry[0]}`);
-    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(entry[1])) throw new Error('dueByTime must use HH:MM.');
-    if (!Array.isArray(entry[2])) throw new Error('allowedWindows must be an array.');
+    card.appendChild(grid);
+    renderMetricDates(card, metric);
+    container.appendChild(card);
   });
 }
 
-function validateComparisonArray(value) {
-  if (!Array.isArray(value)) throw new Error('comparisonArray must be an array.');
-  value.forEach((entry) => {
-    if (!Array.isArray(entry) || entry.length !== 2) throw new Error('comparisonArray entries must be [number, label].');
-    if (typeof entry[0] !== 'number' || typeof entry[1] !== 'string') throw new Error('comparisonArray entry types must be [number, string].');
+function renderBlocks(container) {
+  state.config.lockoutsV2.blocks.forEach((block, idx) => {
+    const card = el('div', { class: 'item' });
+    const title = el('div', { class: 'item-title' }, [el('strong', { text: `Block #${idx + 1}` })]);
+    const controls = el('div', { class: 'row compact' });
+    const up = el('button', { type: 'button', class: 'secondary', text: '↑' }); up.onclick = () => moveInArray(state.config.lockoutsV2.blocks, idx, -1);
+    const down = el('button', { type: 'button', class: 'secondary', text: '↓' }); down.onclick = () => moveInArray(state.config.lockoutsV2.blocks, idx, 1);
+    const remove = el('button', { type: 'button', class: 'remove', text: 'Delete' }); remove.onclick = () => { state.config.lockoutsV2.blocks.splice(idx, 1); renderAll(); };
+    controls.append(up, down, remove);
+    title.appendChild(controls);
+    card.appendChild(title);
+
+    const grid = el('div', { class: 'form-grid' });
+    addField(grid, { label: 'id', value: block.id, onInput: (v) => { block.id = v; } });
+    addField(grid, { label: 'type', value: block.type, select: BLOCK_TYPES, help: HELP.blockType, onInput: (v) => { block.type = v; renderAll(); } });
+    addField(grid, { label: 'times.beg', type: 'time', value: block.times.beg, onInput: (v) => { block.times.beg = v; } });
+    addField(grid, { label: 'times.end', type: 'time', value: block.times.end, onInput: (v) => { block.times.end = v; } });
+    addField(grid, { label: 'onBlock.message', value: block.onBlock.message, onInput: (v) => { block.onBlock.message = v; } });
+    addField(grid, { label: 'onBlock.shortcutName', value: block.onBlock.shortcutName, onInput: (v) => { block.onBlock.shortcutName = v; } });
+    addField(grid, { label: 'onBlock.shortcutInput', value: block.onBlock.shortcutInput, onInput: (v) => { block.onBlock.shortcutInput = v; } });
+    card.appendChild(grid);
+
+    addListEditor(card, {
+      title: 'Presets',
+      items: block.presets,
+      addLabel: 'Add Preset',
+      makeItem: () => '',
+      renderItem: (presetCard, preset, pIdx) => {
+        const presetGrid = el('div', { class: 'form-grid' });
+        addField(presetGrid, { label: 'Preset Name', value: preset, onInput: (v) => { block.presets[pIdx] = v; } });
+        presetCard.appendChild(presetGrid);
+      },
+    });
+
+    if (block.type === 'duration_block') {
+      const d = block.typeSpecific.duration;
+      const dur = el('div', { class: 'form-grid' });
+      addField(dur, { label: 'duration.maxMinutes', type: 'number', value: d.maxMinutes, min: 0, onInput: (v) => { d.maxMinutes = v; } });
+      addField(dur, { label: 'duration.screenTimeID', value: d.screenTimeID, onInput: (v) => { d.screenTimeID = v; } });
+      addField(dur, { label: 'duration.rationing.isON', type: 'boolean', value: d.rationing.isON, onInput: (v) => { d.rationing.isON = v; renderAll(); } });
+      if (d.rationing.isON) {
+        addField(dur, { label: 'duration.rationing.begMinutes', type: 'number', value: d.rationing.begMinutes, min: 0, onInput: (v) => { d.rationing.begMinutes = v; } });
+        addField(dur, { label: 'duration.rationing.endMinutes', type: 'number', value: d.rationing.endMinutes, min: 0, onInput: (v) => { d.rationing.endMinutes = v; } });
+      }
+      card.appendChild(dur);
+    }
+
+    if (block.type === 'task_block') {
+      addListEditor(card, {
+        title: 'Task Metric IDs',
+        items: block.typeSpecific.task_block_IDs,
+        addLabel: 'Add Task Metric ID',
+        makeItem: () => '',
+        renderItem: (taskCard, id, taskIdx) => {
+          const taskGrid = el('div', { class: 'form-grid' });
+          addField(taskGrid, { label: 'metricID', value: id, onInput: (v) => { block.typeSpecific.task_block_IDs[taskIdx] = v; } });
+          taskCard.appendChild(taskGrid);
+        },
+      });
+    }
+
+    if (block.type === 'firstXMinutesAfterTimestamp_block') {
+      const fx = block.typeSpecific.firstXMinutes;
+      const fxGrid = el('div', { class: 'form-grid' });
+      addField(fxGrid, { label: 'firstXMinutes.minutes', type: 'number', value: fx.minutes, min: 0, onInput: (v) => { fx.minutes = v; } });
+      addField(fxGrid, { label: 'firstXMinutes.timestampID', value: fx.timestampID, onInput: (v) => { fx.timestampID = v; } });
+      card.appendChild(fxGrid);
+    }
+
+    container.appendChild(card);
   });
 }
 
 function renderLockoutGlobals(container) {
   const g = state.config.lockoutsV2.globals;
-  addInput(container, {
-    label: 'cumulativeScreentimeID',
-    value: g.cumulativeScreentimeID,
-    kind: 'text',
-    onChange: (v) => { g.cumulativeScreentimeID = v; }
-  });
-  addInput(container, {
-    label: 'barLength',
-    value: g.barLength,
-    kind: 'number',
-    validateOptions: { min: 0 },
-    onChange: (v) => { g.barLength = v; }
-  });
-  addInput(container, {
-    label: 'presetCalendarName',
-    value: g.presetCalendarName,
-    kind: 'text',
-    onChange: (v) => { g.presetCalendarName = v; }
-  });
-}
-
-function renderBlocks(container) {
-  state.config.lockoutsV2.blocks.forEach((block, index) => {
-    const card = el('div', { class: 'item' });
-    const title = el('div', { class: 'item-title' }, [el('strong', { text: `Block #${index + 1}` })]);
-    const remove = el('button', { type: 'button', class: 'remove', text: 'Remove' });
-    remove.onclick = () => {
-      state.config.lockoutsV2.blocks.splice(index, 1);
-      renderAll();
-    };
-    title.appendChild(remove);
-    card.appendChild(title);
-
-    const grid = el('div', { class: 'form-grid' });
-
-    addInput(grid, { label: 'id', value: block.id, kind: 'text', onChange: (v) => { block.id = v; } });
-    addInput(grid, {
-      label: 'type',
-      value: block.type,
-      select: BLOCK_TYPES,
-      help: HELP.blockType,
-      onChange: (v) => {
-        block.type = v;
-      },
-      onRender: renderAll
-    });
-    addInput(grid, { label: 'times.beg', value: block.times.beg, kind: 'time', help: HELP.times, onChange: (v) => { block.times.beg = v; } });
-    addInput(grid, { label: 'times.end', value: block.times.end, kind: 'time', help: HELP.times, onChange: (v) => { block.times.end = v; } });
-    addJsonArea(grid, {
-      label: 'presets (JSON string[])',
-      value: block.presets,
-      help: HELP.presets,
-      onChange: (v) => { block.presets = v; },
-      validate: (v) => {
-        if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) throw new Error('Presets must be string[].');
-      }
-    });
-
-    addInput(grid, {
-      label: 'onBlock.message',
-      value: block.onBlock.message,
-      kind: 'text',
-      help: HELP.onBlockMessage,
-      onChange: (v) => { block.onBlock.message = v; }
-    });
-    addInput(grid, { label: 'onBlock.shortcutName', value: block.onBlock.shortcutName, kind: 'text', onChange: (v) => { block.onBlock.shortcutName = v; } });
-    addInput(grid, { label: 'onBlock.shortcutInput', value: block.onBlock.shortcutInput, kind: 'text', onChange: (v) => { block.onBlock.shortcutInput = v; } });
-
-    if (block.type === 'duration_block') {
-      const duration = block.typeSpecific.duration;
-      addInput(grid, { label: 'typeSpecific.duration.maxMinutes', value: duration.maxMinutes, kind: 'number', validateOptions: { min: 0 }, onChange: (v) => { duration.maxMinutes = v; } });
-      addInput(grid, { label: 'typeSpecific.duration.screenTimeID', value: duration.screenTimeID, kind: 'text', onChange: (v) => { duration.screenTimeID = v; } });
-      addInput(grid, {
-        label: 'typeSpecific.duration.rationing.isON',
-        value: String(Boolean(duration.rationing.isON)),
-        kind: 'boolean',
-        help: HELP.rationing,
-        onChange: (v) => { duration.rationing.isON = v; },
-        onRender: renderAll
-      });
-
-      if (duration.rationing.isON) {
-        addInput(grid, { label: 'typeSpecific.duration.rationing.begMinutes', value: duration.rationing.begMinutes, kind: 'number', validateOptions: { min: 0 }, onChange: (v) => { duration.rationing.begMinutes = v; } });
-        addInput(grid, { label: 'typeSpecific.duration.rationing.endMinutes', value: duration.rationing.endMinutes, kind: 'number', validateOptions: { min: 0 }, onChange: (v) => { duration.rationing.endMinutes = v; } });
-      }
-    }
-
-    if (block.type === 'task_block') {
-      addJsonArea(grid, {
-        label: 'typeSpecific.task_block_IDs (JSON string[])',
-        value: block.typeSpecific.task_block_IDs,
-        onChange: (v) => { block.typeSpecific.task_block_IDs = v; },
-        validate: (v) => {
-          if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) throw new Error('task_block_IDs must be string[].');
-        }
-      });
-    }
-
-    if (block.type === 'firstXMinutesAfterTimestamp_block') {
-      const firstX = block.typeSpecific.firstXMinutes;
-      addInput(grid, { label: 'typeSpecific.firstXMinutes.minutes', value: firstX.minutes, kind: 'number', validateOptions: { min: 0 }, onChange: (v) => { firstX.minutes = v; } });
-      addInput(grid, { label: 'typeSpecific.firstXMinutes.timestampID', value: firstX.timestampID, kind: 'text', onChange: (v) => { firstX.timestampID = v; } });
-    }
-
-    card.appendChild(grid);
-    container.appendChild(card);
-  });
-}
-
-function renderHabitsGlobals(container) {
-  const c = state.config;
-  addInput(container, { label: 'scriptProperties.spreadsheetId', value: c.scriptProperties.spreadsheetId, kind: 'text', help: HELP.spreadsheetId, onChange: (v) => { c.scriptProperties.spreadsheetId = v; } });
-  addInput(container, { label: 'trackingSheetName', value: c.trackingSheetName, kind: 'text', help: HELP.trackingSheetName, onChange: (v) => { c.trackingSheetName = v; } });
-  addInput(container, { label: 'writeToNotion', value: String(Boolean(c.writeToNotion)), kind: 'boolean', help: HELP.writeToNotion, onChange: (v) => { c.writeToNotion = v; } });
-  addInput(container, { label: 'dailyPointsID', value: c.dailyPointsID, kind: 'text', onChange: (v) => { c.dailyPointsID = v; } });
-  addInput(container, { label: 'cumulativePointsID', value: c.cumulativePointsID, kind: 'text', onChange: (v) => { c.cumulativePointsID = v; } });
-  addInput(container, { label: 'lateExtensionHours', value: c.lateExtensionHours, kind: 'number', help: HELP.lateExtensionHours, onChange: (v) => { c.lateExtensionHours = v; } });
-
-  addInput(container, { label: 'sheetConfig.taskIdColumn', value: c.sheetConfig.taskIdColumn, kind: 'number', onChange: (v) => { c.sheetConfig.taskIdColumn = v; } });
-  addInput(container, { label: 'sheetConfig.labelColumn', value: c.sheetConfig.labelColumn, kind: 'number', onChange: (v) => { c.sheetConfig.labelColumn = v; } });
-  addInput(container, { label: 'sheetConfig.dataStartColumn', value: c.sheetConfig.dataStartColumn, kind: 'number', onChange: (v) => { c.sheetConfig.dataStartColumn = v; } });
-
-  addJsonArea(container, { label: 'notion (JSON object)', value: c.notion, onChange: (v) => { c.notion = v; }, validate: (v) => { if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('notion must be an object.'); } });
-
-  addJsonArea(container, {
-    label: 'habitsV2Insights.comparisonArray',
-    value: c.habitsV2Insights.comparisonArray,
-    help: HELP.comparisonArray,
-    onChange: (v) => { c.habitsV2Insights.comparisonArray = v; },
-    validate: validateComparisonArray
-  });
-  addInput(container, { label: 'habitsV2Insights.posPerformanceFreq', value: c.habitsV2Insights.posPerformanceFreq, kind: 'number', validateOptions: { min: 0, max: 1 }, onChange: (v) => { c.habitsV2Insights.posPerformanceFreq = v; } });
-  addInput(container, { label: 'habitsV2Insights.negPerformanceFreq', value: c.habitsV2Insights.negPerformanceFreq, kind: 'number', validateOptions: { min: 0, max: 1 }, onChange: (v) => { c.habitsV2Insights.negPerformanceFreq = v; } });
-  addInput(container, { label: 'habitsV2Insights.averageSpan', value: c.habitsV2Insights.averageSpan, kind: 'number', validateOptions: { min: 1 }, onChange: (v) => { c.habitsV2Insights.averageSpan = v; } });
-}
-
-function renderMetrics(container) {
-  state.config.metricSettings.forEach((metric, index) => {
-    const card = el('div', { class: 'item' });
-    const title = el('div', { class: 'item-title' }, [el('strong', { text: `Metric #${index + 1}` })]);
-    const remove = el('button', { type: 'button', class: 'remove', text: 'Remove' });
-    remove.onclick = () => {
-      state.config.metricSettings.splice(index, 1);
-      renderAll();
-    };
-    title.appendChild(remove);
-    card.appendChild(title);
-
-    const grid = el('div', { class: 'form-grid' });
-
-    addInput(grid, { label: 'metricID', value: metric.metricID, kind: 'text', help: HELP.metricID, onChange: (v) => { metric.metricID = v; } });
-    addInput(grid, { label: 'displayName', value: metric.displayName, kind: 'text', onChange: (v) => { metric.displayName = v; } });
-    addInput(grid, {
-      label: 'type',
-      value: metric.type,
-      select: METRIC_TYPES,
-      help: HELP.metricType,
-      onChange: (v) => { metric.type = v; },
-      onRender: renderAll
-    });
-    addInput(grid, {
-      label: 'recordType',
-      value: metric.recordType,
-      select: RECORD_TYPES,
-      help: HELP.recordType,
-      onChange: (v) => { metric.recordType = v; }
-    });
-    addInput(grid, { label: 'writeToNotion', value: String(Boolean(metric.writeToNotion)), kind: 'boolean', onChange: (v) => { metric.writeToNotion = v; } });
-
-    addJsonArea(grid, { label: 'dates', value: metric.dates, help: HELP.dates, onChange: (v) => { metric.dates = v; }, validate: validateDatesArray });
-    addJsonArea(grid, {
-      label: 'streaks (JSON)',
-      value: metric.streaks,
-      onChange: (v) => { metric.streaks = v; },
-      validate: (v) => { if (!v || typeof v !== 'object') throw new Error('streaks must be an object.'); }
-    });
-    addJsonArea(grid, {
-      label: 'points (JSON)',
-      value: metric.points,
-      onChange: (v) => { metric.points = v; },
-      validate: (v) => {
-        if (!v || typeof v !== 'object') throw new Error('points must be an object.');
-        if (typeof v.value !== 'number') throw new Error('points.value must be a number.');
-      }
-    });
-    addJsonArea(grid, {
-      label: 'insights (JSON)',
-      value: metric.insights,
-      onChange: (v) => { metric.insights = v; },
-      validate: (v) => { if (!v || typeof v !== 'object') throw new Error('insights must be an object.'); }
-    });
-    addJsonArea(grid, {
-      label: 'ppnMessage (JSON [string,string])',
-      value: metric.ppnMessage,
-      onChange: (v) => { metric.ppnMessage = v; },
-      validate: (v) => {
-        if (!Array.isArray(v) || v.length !== 2 || v.some((x) => typeof x !== 'string')) {
-          throw new Error('ppnMessage must be [string, string].');
-        }
-      }
-    });
-
-    const timerType = metric.type === 'start_timer' || metric.type === 'stop_timer';
-    if (timerType) {
-      addInput(grid, { label: 'ifTimer_Settings.stopTimerMessage', value: metric.ifTimer_Settings.stopTimerMessage, kind: 'text', help: HELP.ifTimer, onChange: (v) => { metric.ifTimer_Settings.stopTimerMessage = v; } });
-      addInput(grid, { label: 'ifTimer_Settings.timerStartMetricID', value: metric.ifTimer_Settings.timerStartMetricID ?? '', kind: 'text', onChange: (v) => { metric.ifTimer_Settings.timerStartMetricID = v || null; } });
-      addInput(grid, { label: 'ifTimer_Settings.timerDurationMetricID', value: metric.ifTimer_Settings.timerDurationMetricID ?? '', kind: 'text', onChange: (v) => { metric.ifTimer_Settings.timerDurationMetricID = v || null; } });
-      addInput(grid, { label: 'ifTimer_Settings.muteOutput', value: String(Boolean(metric.ifTimer_Settings.muteOutput)), kind: 'boolean', onChange: (v) => { metric.ifTimer_Settings.muteOutput = v; } });
-    }
-
-    card.appendChild(grid);
-    container.appendChild(card);
-  });
-}
-
-function renderAll() {
-  const lockoutGlobals = document.getElementById('lockoutGlobals');
-  const blocksContainer = document.getElementById('blocksContainer');
-  const habitsGlobals = document.getElementById('habitsGlobals');
-  const metricsContainer = document.getElementById('metricsContainer');
-
-  lockoutGlobals.innerHTML = '';
-  blocksContainer.innerHTML = '';
-  habitsGlobals.innerHTML = '';
-  metricsContainer.innerHTML = '';
-
-  renderLockoutGlobals(lockoutGlobals);
-  renderBlocks(blocksContainer);
-  renderHabitsGlobals(habitsGlobals);
-  renderMetrics(metricsContainer);
-  switchTab(state.activeTab);
+  addField(container, { label: 'cumulativeScreentimeID', value: g.cumulativeScreentimeID, onInput: (v) => { g.cumulativeScreentimeID = v; } });
+  addField(container, { label: 'barLength', type: 'number', value: g.barLength, min: 0, onInput: (v) => { g.barLength = v; } });
+  addField(container, { label: 'presetCalendarName', value: g.presetCalendarName, onInput: (v) => { g.presetCalendarName = v; } });
 }
 
 function switchTab(tabName) {
@@ -584,91 +502,110 @@ function switchTab(tabName) {
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', String(active));
   });
-  document.querySelectorAll('.tab-panel').forEach((panel) => {
-    panel.classList.toggle('active', panel.dataset.panel === tabName);
+  document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tabName));
+}
+
+function renderAll() {
+  const lockoutGlobals = document.getElementById('lockoutGlobals');
+  const blocks = document.getElementById('blocksContainer');
+  const habitsGlobals = document.getElementById('habitsGlobals');
+  const metrics = document.getElementById('metricsContainer');
+  lockoutGlobals.innerHTML = '';
+  blocks.innerHTML = '';
+  habitsGlobals.innerHTML = '';
+  metrics.innerHTML = '';
+  renderLockoutGlobals(lockoutGlobals);
+  renderBlocks(blocks);
+  renderHabitsGlobals(habitsGlobals);
+  renderMetrics(metrics);
+  switchTab(state.activeTab);
+}
+
+function validateConfig(config) {
+  if (!config.scriptProperties?.spreadsheetId) throw new Error('scriptProperties.spreadsheetId is required.');
+  config.metricSettings.forEach((m, i) => {
+    if (!m.metricID) throw new Error(`metricSettings[${i}].metricID is required.`);
+    if (!METRIC_TYPES.includes(m.type)) throw new Error(`metricSettings[${i}].type is invalid.`);
+    m.dates.forEach((d, j) => {
+      if (!DAY_OPTIONS.includes(d[0])) throw new Error(`metricSettings[${i}].dates[${j}] has invalid day.`);
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(d[1])) throw new Error(`metricSettings[${i}].dates[${j}] has invalid dueByTime.`);
+    });
+  });
+  config.lockoutsV2.blocks.forEach((b, i) => {
+    if (!b.id) throw new Error(`blocks[${i}].id is required.`);
+    if (!BLOCK_TYPES.includes(b.type)) throw new Error(`blocks[${i}].type is invalid.`);
   });
 }
 
 function toPrettyJs(value, indent = 0) {
   const pad = ' '.repeat(indent);
   const next = ' '.repeat(indent + 2);
-
   if (value === null) return 'null';
   if (typeof value === 'string') return `'${value.replaceAll("'", "\\'")}'`;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-
   if (Array.isArray(value)) {
-    if (value.length === 0) return '[]';
-    return `[` + `\n${value.map((entry) => `${next}${toPrettyJs(entry, indent + 2)}`).join(',\n')}\n${pad}]`;
+    if (!value.length) return '[]';
+    return `[\n${value.map((v) => `${next}${toPrettyJs(v, indent + 2)}`).join(',\n')}\n${pad}]`;
   }
-
-  if (typeof value === 'object') {
-    const entries = Object.entries(value);
-    if (entries.length === 0) return '{}';
-    return `{\n${entries.map(([k, v]) => `${next}${k}: ${toPrettyJs(v, indent + 2)}`).join(',\n')}\n${pad}}`;
-  }
-
-  return 'null';
+  const entries = Object.entries(value || {});
+  if (!entries.length) return '{}';
+  return `{\n${entries.map(([k, v]) => `${next}${k}: ${toPrettyJs(v, indent + 2)}`).join(',\n')}\n${pad}}`;
 }
 
 function setup() {
-  document.querySelectorAll('.tab').forEach((tab) => {
-    tab.onclick = () => switchTab(tab.dataset.tab);
-  });
+  document.querySelectorAll('.tab').forEach((tab) => { tab.onclick = () => switchTab(tab.dataset.tab); });
 
   document.getElementById('parseBtn').onclick = () => {
     const status = document.getElementById('importStatus');
     try {
       state.config = parseConfigFromText(document.getElementById('importText').value);
       status.className = 'status';
-      status.textContent = 'Config parsed successfully.';
+      status.textContent = 'Config parsed into GUI successfully.';
       renderAll();
-    } catch (error) {
+    } catch (err) {
       status.className = 'status error';
-      status.textContent = `Import failed: ${error.message}`;
+      status.textContent = `Import failed: ${err.message}`;
     }
   };
 
   document.getElementById('resetBtn').onclick = () => {
     state.config = defaultConfig();
     document.getElementById('importStatus').className = 'status';
-    document.getElementById('importStatus').textContent = 'Reset to default config template.';
+    document.getElementById('importStatus').textContent = 'Started from default template.';
     renderAll();
   };
 
-  document.getElementById('addMetricBtn').onclick = () => {
-    state.config.metricSettings.push(defaultMetric());
-    renderAll();
-  };
-
-  document.getElementById('addBlockBtn').onclick = () => {
-    state.config.lockoutsV2.blocks.push(defaultBlock());
-    renderAll();
-  };
+  document.getElementById('addMetricBtn').onclick = () => { state.config.metricSettings.push(defaultMetric()); renderAll(); };
+  document.getElementById('addBlockBtn').onclick = () => { state.config.lockoutsV2.blocks.push(defaultBlock()); renderAll(); };
 
   document.getElementById('exportBtn').onclick = () => {
-    const output = `function getAppConfig() {\n  return ${toPrettyJs(state.config, 2)};\n}`;
-    document.getElementById('exportText').value = output;
     const status = document.getElementById('exportStatus');
-    status.className = 'status';
-    status.textContent = 'Generated Config.gs successfully.';
+    try {
+      validateConfig(state.config);
+      document.getElementById('exportText').value = `function getAppConfig() {\n  return ${toPrettyJs(state.config, 2)};\n}`;
+      status.className = 'status';
+      status.textContent = 'Generated Config.gs successfully.';
+    } catch (err) {
+      status.className = 'status error';
+      status.textContent = `Validation failed: ${err.message}`;
+    }
   };
 
   document.getElementById('copyBtn').onclick = async () => {
-    const output = document.getElementById('exportText').value;
     const status = document.getElementById('exportStatus');
-    if (!output.trim()) {
+    const text = document.getElementById('exportText').value;
+    if (!text.trim()) {
       status.className = 'status error';
       status.textContent = 'Generate Config.gs first.';
       return;
     }
     try {
-      await navigator.clipboard.writeText(output);
+      await navigator.clipboard.writeText(text);
       status.className = 'status';
       status.textContent = 'Copied to clipboard.';
     } catch {
       status.className = 'status error';
-      status.textContent = 'Clipboard API failed. Copy from the box manually.';
+      status.textContent = 'Clipboard copy failed. Copy manually from the export text box.';
     }
   };
 

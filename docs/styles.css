@@ -15,7 +15,7 @@ body {
   background: var(--bg);
   color: var(--text);
 }
-header, main { max-width: 1080px; margin: 0 auto; padding: 1rem; }
+header, main { max-width: 1150px; margin: 0 auto; padding: 1rem; }
 .card {
   background: var(--card);
   border: 1px solid var(--line);
@@ -38,11 +38,12 @@ button {
   border: none;
   border-radius: 8px;
   font-weight: 700;
-  padding: 0.5rem 0.8rem;
+  padding: 0.45rem 0.75rem;
   cursor: pointer;
 }
 button.secondary { background: #1f2937; color: var(--text); border: 1px solid var(--line); }
 .row { display: flex; gap: 0.75rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.row.compact { margin: 0; gap: 0.4rem; }
 .status { color: var(--muted); min-height: 1.2rem; }
 .status.error { color: var(--danger); }
 .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
@@ -50,13 +51,8 @@ button.secondary { background: #1f2937; color: var(--text); border: 1px solid va
 .tab.active { background: #164e63; border-color: var(--accent); }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
-}
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
 .field { position: relative; }
-.field.wide { grid-column: 1 / -1; }
 .help {
   display: inline-flex;
   width: 1rem;
@@ -85,7 +81,7 @@ button.secondary { background: #1f2937; color: var(--text); border: 1px solid va
   font-size: 0.8rem;
 }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; }
-.item {
+.item, .nested-item {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.75rem;
@@ -94,3 +90,5 @@ button.secondary { background: #1f2937; color: var(--text); border: 1px solid va
 .item-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
 .remove { background: #7f1d1d; color: #fee2e2; }
 .error-message { color: var(--danger); font-size: 0.8rem; margin-top: 0.2rem; min-height: 1rem; }
+.nested-list { border-top: 1px dashed var(--line); padding-top: 0.65rem; margin-top: 0.65rem; }
+h4 { margin: 0.2rem 0 0.7rem; }
