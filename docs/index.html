@@ -28,30 +28,29 @@
       <h2>2) Edit Configuration</h2>
       <p class="status">All settings are form-driven (no JSON editors). Use Move Up / Move Down on list cards to reorder metrics, blocks, and other list items.</p>
       <div class="tabs" role="tablist" aria-label="Config sections">
-        <button id="tabLockouts" class="tab active" data-tab="lockouts" role="tab" aria-selected="true">Lockouts</button>
-        <button id="tabHabits" class="tab" data-tab="habits" role="tab" aria-selected="false">Habits</button>
+        <button id="tabGlobal" class="tab active" data-tab="global" role="tab" aria-selected="true">Global</button>
+        <button id="tabMetrics" class="tab" data-tab="metrics" role="tab" aria-selected="false">Metrics</button>
+        <button id="tabBlocks" class="tab" data-tab="blocks" role="tab" aria-selected="false">Blocks</button>
       </div>
 
-      <div id="panelLockouts" data-panel="lockouts" class="tab-panel active" role="tabpanel" aria-labelledby="tabLockouts">
-        <h3>Global Settings</h3>
-        <div id="lockoutGlobals" class="form-grid"></div>
-
-        <div class="section-header">
-          <h3>Blocks</h3>
-          <button id="addBlockBtn" type="button">Add Block</button>
-        </div>
-        <div id="blocksContainer"></div>
+      <div id="panelGlobal" data-panel="global" class="tab-panel active" role="tabpanel" aria-labelledby="tabGlobal">
+        <div id="globalContainer"></div>
       </div>
 
-      <div id="panelHabits" data-panel="habits" class="tab-panel" role="tabpanel" aria-labelledby="tabHabits">
-        <h3>Global Settings</h3>
-        <div id="habitsGlobals" class="form-grid"></div>
-
+      <div id="panelMetrics" data-panel="metrics" class="tab-panel" role="tabpanel" aria-labelledby="tabMetrics">
         <div class="section-header">
           <h3>Metrics</h3>
           <button id="addMetricBtn" type="button">Add Metric</button>
         </div>
         <div id="metricsContainer"></div>
+      </div>
+
+      <div id="panelBlocks" data-panel="blocks" class="tab-panel" role="tabpanel" aria-labelledby="tabBlocks">
+        <div class="section-header">
+          <h3>Blocks</h3>
+          <button id="addBlockBtn" type="button">Add Block</button>
+        </div>
+        <div id="blocksContainer"></div>
       </div>
     </section>
 
