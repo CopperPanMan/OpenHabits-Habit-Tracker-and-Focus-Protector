@@ -154,7 +154,24 @@ function extractReturnedObjectLiteral(text) {
 
 function sanitizeConfig(parsed) {
   const merged = deepMerge(defaultConfig(), parsed);
+  const normalizeDateRule = (rule) => {
+    if (!Array.isArray(rule)) return ['Monday', '23:59', [[0, 24]]];
+    const day = typeof rule[0] === 'string' ? rule[0] : 'Monday';
+    const dueBy = typeof rule[1] === 'string' ? rule[1] : '23:59';
+
+    if (Array.isArray(rule[2])) return [day, dueBy, rule[2]];
+
+    const legacyStart = typeof rule[2] === 'number' ? rule[2] : 0;
+    const legacyEnd = typeof rule[3] === 'number' ? rule[3] : 24;
+    return [day, dueBy, [[legacyStart, legacyEnd]]];
+  };
+
   merged.metricSettings = Array.isArray(merged.metricSettings) ? merged.metricSettings.map((m) => deepMerge(defaultMetric(), m || {})) : [];
+  merged.metricSettings.forEach((metric) => {
+    metric.dates = Array.isArray(metric.dates) ? metric.dates.map(normalizeDateRule) : [['Monday', '23:59', [[0, 24]]]];
+    if (!Array.isArray(metric.ppnMessage)) metric.ppnMessage = ['', ''];
+    if (metric.ppnMessage.length === 0) metric.ppnMessage = ['', ''];
+  });
   merged.lockoutsV2 = merged.lockoutsV2 || { globals: {}, blocks: [] };
   merged.lockoutsV2.globals = deepMerge(defaultConfig().lockoutsV2.globals, merged.lockoutsV2.globals || {});
   merged.lockoutsV2.blocks = Array.isArray(merged.lockoutsV2.blocks) ? merged.lockoutsV2.blocks.map((b) => deepMerge(defaultBlock(), b || {})) : [];
@@ -250,9 +267,9 @@ function addListEditor(container, { title, items, addLabel, renderItem, makeItem
     const card = el('div', { class: 'nested-item' });
     const top = el('div', { class: 'item-title' }, [el('strong', { text: `${title} #${idx + 1}` })]);
     const controls = el('div', { class: 'row compact' });
-    const up = el('button', { type: 'button', class: 'secondary', text: '↑' });
+    const up = el('button', { type: 'button', class: 'secondary', text: 'Move Up' });
     up.onclick = () => moveInArray(items, idx, -1);
-    const down = el('button', { type: 'button', class: 'secondary', text: '↓' });
+    const down = el('button', { type: 'button', class: 'secondary', text: 'Move Down' });
     down.onclick = () => moveInArray(items, idx, 1);
     const del = el('button', { type: 'button', class: 'remove', text: 'Delete' });
     del.onclick = () => { items.splice(idx, 1); renderAll(); };
@@ -370,8 +387,8 @@ function renderMetrics(container) {
     const card = el('div', { class: 'item' });
     const title = el('div', { class: 'item-title' }, [el('strong', { text: `Metric #${idx + 1}` })]);
     const controls = el('div', { class: 'row compact' });
-    const up = el('button', { type: 'button', class: 'secondary', text: '↑' }); up.onclick = () => moveInArray(state.config.metricSettings, idx, -1);
-    const down = el('button', { type: 'button', class: 'secondary', text: '↓' }); down.onclick = () => moveInArray(state.config.metricSettings, idx, 1);
+    const up = el('button', { type: 'button', class: 'secondary', text: 'Move Up' }); up.onclick = () => moveInArray(state.config.metricSettings, idx, -1);
+    const down = el('button', { type: 'button', class: 'secondary', text: 'Move Down' }); down.onclick = () => moveInArray(state.config.metricSettings, idx, 1);
     const remove = el('button', { type: 'button', class: 'remove', text: 'Delete' }); remove.onclick = () => { state.config.metricSettings.splice(idx, 1); renderAll(); };
     controls.append(up, down, remove);
     title.appendChild(controls);
@@ -398,9 +415,6 @@ function renderMetrics(container) {
     addField(grid, { label: 'insights.firstWords', value: metric.insights.firstWords, onInput: (v) => { metric.insights.firstWords = v; } });
     addField(grid, { label: 'insights.insightFirstWords', value: metric.insights.insightFirstWords, onInput: (v) => { metric.insights.insightFirstWords = v; } });
     addField(grid, { label: 'insights.insightUnits', value: metric.insights.insightUnits, onInput: (v) => { metric.insights.insightUnits = v; } });
-    addField(grid, { label: 'ppnMessage first part', value: metric.ppnMessage[0] || '', onInput: (v) => { metric.ppnMessage[0] = v; } });
-    addField(grid, { label: 'ppnMessage second part', value: metric.ppnMessage[1] || '', onInput: (v) => { metric.ppnMessage[1] = v; } });
-
     const timerType = metric.type === 'start_timer' || metric.type === 'stop_timer';
     if (timerType) {
       addField(grid, { label: 'ifTimer_Settings.stopTimerMessage', value: metric.ifTimer_Settings.stopTimerMessage, help: HELP.ifTimer, onInput: (v) => { metric.ifTimer_Settings.stopTimerMessage = v; } });
@@ -410,6 +424,17 @@ function renderMetrics(container) {
     }
 
     card.appendChild(grid);
+    addListEditor(card, {
+      title: 'Positive Push Message Parts',
+      items: metric.ppnMessage,
+      addLabel: 'Add Message Part',
+      makeItem: () => '',
+      renderItem: (messageCard, part, partIdx) => {
+        const messageGrid = el('div', { class: 'form-grid' });
+        addField(messageGrid, { label: 'Message Text', value: part, onInput: (v) => { metric.ppnMessage[partIdx] = v; } });
+        messageCard.appendChild(messageGrid);
+      },
+    });
     renderMetricDates(card, metric);
     container.appendChild(card);
   });
@@ -420,8 +445,8 @@ function renderBlocks(container) {
     const card = el('div', { class: 'item' });
     const title = el('div', { class: 'item-title' }, [el('strong', { text: `Block #${idx + 1}` })]);
     const controls = el('div', { class: 'row compact' });
-    const up = el('button', { type: 'button', class: 'secondary', text: '↑' }); up.onclick = () => moveInArray(state.config.lockoutsV2.blocks, idx, -1);
-    const down = el('button', { type: 'button', class: 'secondary', text: '↓' }); down.onclick = () => moveInArray(state.config.lockoutsV2.blocks, idx, 1);
+    const up = el('button', { type: 'button', class: 'secondary', text: 'Move Up' }); up.onclick = () => moveInArray(state.config.lockoutsV2.blocks, idx, -1);
+    const down = el('button', { type: 'button', class: 'secondary', text: 'Move Down' }); down.onclick = () => moveInArray(state.config.lockoutsV2.blocks, idx, 1);
     const remove = el('button', { type: 'button', class: 'remove', text: 'Delete' }); remove.onclick = () => { state.config.lockoutsV2.blocks.splice(idx, 1); renderAll(); };
     controls.append(up, down, remove);
     title.appendChild(controls);
