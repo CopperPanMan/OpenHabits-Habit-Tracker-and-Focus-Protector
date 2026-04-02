@@ -63,6 +63,9 @@
 
   let state = defaultConfig();
   const sectionOpenState = new Map();
+  const undoStack = [];
+  const redoStack = [];
+  const HISTORY_LIMIT = 150;
 
   const HELP = {
     spreadsheetId: 'Google Sheet ID where tracking rows are stored.',
@@ -123,7 +126,7 @@
     if (max !== undefined) input.max = String(max);
     if (type === 'number') input.step = step;
     input.required = required;
-    input.addEventListener('input', () => onChange(type === 'number' ? Number(input.value) : input.value));
+    input.addEventListener('input', () => withHistory(() => onChange(type === 'number' ? Number(input.value) : input.value)));
     return input;
   }
 
@@ -131,7 +134,7 @@
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = !!value;
-    input.addEventListener('change', () => onChange(input.checked));
+    input.addEventListener('change', () => withHistory(() => onChange(input.checked)));
     return input;
   }
 
@@ -144,7 +147,7 @@
       if (opt === value) o.selected = true;
       sel.appendChild(o);
     });
-    sel.addEventListener('change', () => onChange(sel.value));
+    sel.addEventListener('change', () => withHistory(() => onChange(sel.value)));
     return sel;
   }
 
@@ -170,13 +173,70 @@
     return details;
   }
 
-  function button(text, cls, onClick) {
+  function button(text, cls, onClick, options = {}) {
+    const { trackHistory = true } = options;
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = text;
     if (cls) b.className = cls;
-    b.addEventListener('click', onClick);
+    if (trackHistory) {
+      b.addEventListener('click', () => withHistory(onClick));
+    } else {
+      b.addEventListener('click', onClick);
+    }
     return b;
+  }
+
+  function cloneState(input) {
+    return JSON.parse(JSON.stringify(input));
+  }
+
+  function pushUndoSnapshot(snapshot) {
+    undoStack.push(snapshot);
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack.length = 0;
+    updateUndoRedoButtons();
+  }
+
+  function withHistory(changeFn) {
+    const before = cloneState(state);
+    const beforeSerialized = JSON.stringify(before);
+    changeFn();
+    if (JSON.stringify(state) !== beforeSerialized) {
+      pushUndoSnapshot(before);
+    } else {
+      updateUndoRedoButtons();
+    }
+  }
+
+  function restoreState(snapshot) {
+    state = ensureShape(cloneState(snapshot));
+    renderAll();
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    const current = cloneState(state);
+    const previous = undoStack.pop();
+    redoStack.push(current);
+    restoreState(previous);
+    updateUndoRedoButtons();
+  }
+
+  function redo() {
+    if (!redoStack.length) return;
+    const current = cloneState(state);
+    const next = redoStack.pop();
+    undoStack.push(current);
+    restoreState(next);
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    const undoBtn = $('undoBtn');
+    const redoBtn = $('redoBtn');
+    if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
   }
 
   function newMetric() {
@@ -623,7 +683,7 @@
 
   $('parseBtn').addEventListener('click', () => {
     try {
-      state = parseConfigGs($('importText').value);
+      withHistory(() => { state = parseConfigGs($('importText').value); });
       $('importStatus').textContent = 'Config loaded successfully.';
       renderAll();
     } catch (err) {
@@ -632,10 +692,25 @@
   });
 
   $('freshBtn').addEventListener('click', () => {
-    state = defaultConfig();
+    withHistory(() => { state = defaultConfig(); });
     $('importText').value = '';
     $('importStatus').textContent = 'Started fresh config.';
     renderAll();
+  });
+
+  $('undoBtn').addEventListener('click', undo);
+  $('redoBtn').addEventListener('click', redo);
+
+  document.addEventListener('keydown', (event) => {
+    const key = event.key.toLowerCase();
+    const ctrlOrMeta = event.ctrlKey || event.metaKey;
+    if (!ctrlOrMeta || key !== 'z') return;
+    event.preventDefault();
+    if (event.shiftKey) {
+      redo();
+      return;
+    }
+    undo();
   });
 
   $('exportBtn').addEventListener('click', () => {
@@ -664,4 +739,5 @@
 
   renderAll();
   setTabExplainer('global');
+  updateUndoRedoButtons();
 })();
