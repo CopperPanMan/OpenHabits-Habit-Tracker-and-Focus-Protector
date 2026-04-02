@@ -5,7 +5,7 @@
     return {
       scriptProperties: { spreadsheetId: 'spreadSheetID' },
       trackingSheetName: 'Tracking Data',
-      writeToNotion: true,
+      writeToNotion: false,
       notion: {
         databaseIdsScriptProperty: 'notionMetricDatabaseIDs',
         pointBlockIdScriptProperty: 'pointBlock',
@@ -32,7 +32,23 @@
       lateExtensionHours: 5,
       sheetConfig: { taskIdColumn: 1, labelColumn: 2, dataStartColumn: 3 },
       habitsV2Insights: {
-        comparisonArray: [[1, 'yesterday'], [2, '2 days ago']],
+        comparisonArray: [
+          [1, 'yesterday'],
+          [2, '2 days ago'],
+          [3, '3 days ago'],
+          [4, '4 days ago'],
+          [5, '5 days ago'],
+          [6, '6 days ago'],
+          [7, '7 days ago'],
+          [14, 'two weeks ago'],
+          [21, '3 weeks ago'],
+          [30, 'this day last month'],
+          [60, '2 months ago'],
+          [90, '3 months ago'],
+          [180, '6 months ago'],
+          [365, 'one year ago today'],
+          [730, '2 years ago today']
+        ],
         posPerformanceFreq: 0.75,
         negPerformanceFreq: 0.25,
         averageSpan: 7
@@ -46,6 +62,7 @@
   }
 
   let state = defaultConfig();
+  const sectionOpenState = new Map();
 
   const HELP = {
     spreadsheetId: 'Google Sheet ID where tracking rows are stored.',
@@ -126,10 +143,15 @@
     container.appendChild(label);
   }
 
-  function toggleSection(title) {
+  function toggleSection(title, key, defaultOpen = true) {
     const details = document.createElement('details');
     details.className = 'section';
-    details.open = true;
+    details.open = key && sectionOpenState.has(key) ? sectionOpenState.get(key) : defaultOpen;
+    if (key) {
+      details.addEventListener('toggle', () => {
+        sectionOpenState.set(key, details.open);
+      });
+    }
     const summary = document.createElement('summary');
     summary.textContent = title;
     details.appendChild(summary);
@@ -150,14 +172,21 @@
       metricID: '', type: 'number', displayName: '', recordType: 'overwrite',
       dates: [],
       streaks: { unit: 'days', streaksID: '' },
-      points: { value: 1, multiplierDays: 0, maxMultiplier: 1, pointsID: '' },
+      points: { value: 0, multiplierDays: 5, maxMultiplier: 1, pointsID: '' },
       insights: {
-        insightChance: 1, streakProb: 0.8, dayToDayChance: 1, dayToAvgChance: 0.5,
+        insightChance: 0, streakProb: 0.8, dayToDayChance: 1, dayToAvgChance: 0.5,
         rawValueChance: 1, increaseGood: 1, firstWords: '', insightFirstWords: '', insightUnits: ''
       },
-      writeToNotion: true,
+      writeToNotion: false,
       ifTimer_Settings: { stopTimerMessage: '', timerStartMetricID: '', timerDurationMetricID: '', muteOutput: false }
     };
+  }
+
+  function applyMetricTypeDefaults(metric) {
+    if (metric.type === 'timestamp') {
+      if (!metric.insights.insightFirstWords) metric.insights.insightFirstWords = 'Time Completed:';
+      if (!metric.insights.insightUnits) metric.insights.insightUnits = 'minutes';
+    }
   }
 
   function newBlock() {
@@ -186,7 +215,7 @@
     const root = $('tab-global');
     root.innerHTML = '';
 
-    const basic = toggleSection('Basic Global Settings');
+    const basic = toggleSection('Basic Global Settings', 'global-basic');
     const basicGrid = document.createElement('div');
     basicGrid.className = 'grid';
     field(basicGrid, 'Spreadsheet ID', makeInput({ value: state.scriptProperties.spreadsheetId, onChange: v => state.scriptProperties.spreadsheetId = v, required: true }), HELP.spreadsheetId);
@@ -198,8 +227,7 @@
     basic.appendChild(basicGrid);
     root.appendChild(basic);
 
-    const notionSec = toggleSection('Notion Global Settings');
-    notionSec.open = false;
+    const notionSec = toggleSection('Notion Global Settings', 'global-notion', false);
     const notionGrid = document.createElement('div');
     notionGrid.className = 'grid';
     field(notionGrid, 'Database IDs Script Property', makeInput({ value: state.notion.databaseIdsScriptProperty, onChange: v => state.notion.databaseIdsScriptProperty = v }), 'Script property key that stores notion metric database IDs JSON.');
@@ -224,7 +252,7 @@
     notionSec.appendChild(notionGrid);
     root.appendChild(notionSec);
 
-    const sheetSec = toggleSection('Sheet Columns');
+    const sheetSec = toggleSection('Sheet Columns', 'global-sheet');
     const sheetGrid = document.createElement('div');
     sheetGrid.className = 'grid';
     field(sheetGrid, 'Task ID Column', makeInput({ type: 'number', min: 1, value: state.sheetConfig.taskIdColumn, onChange: v => state.sheetConfig.taskIdColumn = v }), '1-indexed column for task ID.');
@@ -233,7 +261,7 @@
     sheetSec.appendChild(sheetGrid);
     root.appendChild(sheetSec);
 
-    const insightSec = toggleSection('Insights Globals');
+    const insightSec = toggleSection('Insights Globals', 'global-insights');
     const insightGrid = document.createElement('div');
     insightGrid.className = 'grid';
     field(insightGrid, 'Positive Performance Frequency', makeInput({ type: 'number', min: 0, max: 1, step: '0.01', value: state.habitsV2Insights.posPerformanceFreq, onChange: v => state.habitsV2Insights.posPerformanceFreq = v }), 'Chance for positive insight style. 0 to 1.');
@@ -241,12 +269,14 @@
     field(insightGrid, 'Average Span (days)', makeInput({ type: 'number', min: 1, value: state.habitsV2Insights.averageSpan, onChange: v => state.habitsV2Insights.averageSpan = v }), 'Days used for moving-average comparisons.');
     insightSec.appendChild(insightGrid);
 
-    const compareToggle = toggleSection('Comparison Array');
-    compareToggle.open = false;
+    const compareToggle = toggleSection('Comparison Array', 'global-comparison-array', false);
     compareToggle.appendChild(document.createTextNode('Add and reorder “days back → label” pairs used in insight text.'));
     state.habitsV2Insights.comparisonArray.forEach((row, i) => {
       const card = document.createElement('div');
       card.className = 'card';
+      const rowTitle = document.createElement('h4');
+      rowTitle.textContent = `Comparison Row ${i + 1}`;
+      card.appendChild(rowTitle);
       const grid = document.createElement('div');
       grid.className = 'grid';
       field(grid, 'Days Back', makeInput({ type: 'number', min: 1, value: row[0], onChange: v => row[0] = v }), HELP.comparisonArray);
@@ -264,7 +294,7 @@
     insightSec.appendChild(compareToggle);
     root.appendChild(insightSec);
 
-    const lockouts = toggleSection('LockoutsV2 Globals');
+    const lockouts = toggleSection('LockoutsV2 Globals', 'global-lockouts');
     const lockGrid = document.createElement('div');
     lockGrid.className = 'grid';
     field(lockGrid, 'Cumulative Screentime Metric ID', makeInput({ value: state.lockoutsV2.globals.cumulativeScreentimeID, onChange: v => state.lockoutsV2.globals.cumulativeScreentimeID = v }), 'Metric ID used for global cumulative screentime.');
@@ -280,7 +310,7 @@
     const head = document.createElement('div');
     head.className = 'card-head';
     const name = document.createElement('h3');
-    name.textContent = metric.displayName || `Metric ${i + 1}`;
+    name.textContent = `${metric.displayName || 'Unnamed Metric'} (Metric ${i + 1})`;
     const ctr = document.createElement('div');
     ctr.className = 'controls';
     ctr.append(button('↑', 'secondary', () => move(state.metricSettings, i, -1)));
@@ -293,19 +323,20 @@
     g.className = 'grid';
     field(g, 'Metric ID', makeInput({ value: metric.metricID, onChange: v => metric.metricID = v, required: true }), 'Unique ID used for tracking row lookups.');
     field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => metric.displayName = v, required: true }), 'Friendly name shown to users.');
-    field(g, 'Type', makeSelect(['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'], metric.type, v => { metric.type = v; renderAll(); }), HELP.metricType);
+    field(g, 'Type', makeSelect(['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'], metric.type, v => { metric.type = v; applyMetricTypeDefaults(metric); renderAll(); }), HELP.metricType);
     field(g, 'Record Type', makeSelect(['overwrite', 'keep_first', 'add'], metric.recordType, v => metric.recordType = v), 'How writes merge with existing same-day values.');
     field(g, 'Write to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Enable this metric for Notion sync fields.');
     card.appendChild(g);
 
-    const advanced = toggleSection('Advanced');
-    advanced.open = !(metric.metricID === '' && metric.displayName === '');
+    const advanced = toggleSection(`Advanced (Metric ${i + 1})`, `metric-${i}-advanced`, !(metric.metricID === '' && metric.displayName === ''));
 
-    const dates = toggleSection('Date Rules');
-    dates.open = false;
+    const dates = toggleSection('Date Rules', `metric-${i}-dates`, false);
     metric.dates.forEach((d, di) => {
       const dCard = document.createElement('div');
       dCard.className = 'card';
+      const dateTitle = document.createElement('h4');
+      dateTitle.textContent = `Date Rule ${di + 1}`;
+      dCard.appendChild(dateTitle);
       const dg = document.createElement('div');
       dg.className = 'grid';
       field(dg, 'Day', makeSelect(DAYS, d[0], v => d[0] = v), HELP.dateRule);
@@ -324,8 +355,7 @@
     dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '', 20, 2]); renderAll(); }));
     advanced.appendChild(dates);
 
-    const streaks = toggleSection('Streak Properties');
-    streaks.open = false;
+    const streaks = toggleSection('Streak Properties', `metric-${i}-streaks`, false);
     const streakGrid = document.createElement('div');
     streakGrid.className = 'grid';
     field(streakGrid, 'Unit', makeInput({ value: metric.streaks.unit, onChange: v => metric.streaks.unit = v }), 'Display unit for streak narration (days, sessions, etc).');
@@ -333,8 +363,7 @@
     streaks.appendChild(streakGrid);
     advanced.appendChild(streaks);
 
-    const points = toggleSection('Points Properties');
-    points.open = false;
+    const points = toggleSection('Points Properties', `metric-${i}-points`, false);
     const pointsGrid = document.createElement('div');
     pointsGrid.className = 'grid';
     field(pointsGrid, 'Point Value', makeInput({ type: 'number', value: metric.points.value, onChange: v => metric.points.value = v }), 'Base points awarded per completion.');
@@ -344,8 +373,7 @@
     points.appendChild(pointsGrid);
     advanced.appendChild(points);
 
-    const insights = toggleSection('Insights Properties');
-    insights.open = false;
+    const insights = toggleSection('Insights Properties', `metric-${i}-insights`, false);
     const ig = document.createElement('div');
     ig.className = 'grid';
     [['Insight Chance', 'insightChance'], ['Streak Probability', 'streakProb'], ['Day-to-Day Chance', 'dayToDayChance'], ['Day-to-Average Chance', 'dayToAvgChance'], ['Raw Value Chance', 'rawValueChance']].forEach(([label, key]) => {
@@ -359,8 +387,7 @@
     advanced.appendChild(insights);
 
     if (metric.type === 'start_timer' || metric.type === 'stop_timer') {
-      const timer = toggleSection('Timer Settings');
-      timer.open = false;
+      const timer = toggleSection('Timer Settings', `metric-${i}-timer`, false);
       const tg = document.createElement('div');
       tg.className = 'grid';
       field(tg, 'Stop Timer Message', makeInput({ value: metric.ifTimer_Settings.stopTimerMessage, onChange: v => metric.ifTimer_Settings.stopTimerMessage = v }), HELP.ifTimer);
@@ -389,7 +416,7 @@
     const head = document.createElement('div');
     head.className = 'card-head';
     const title = document.createElement('h3');
-    title.textContent = block.id || `Block ${i + 1}`;
+    title.textContent = `${block.id || 'Unnamed Block'} (Block ${i + 1})`;
     const ctr = document.createElement('div');
     ctr.className = 'controls';
     ctr.append(button('↑', 'secondary', () => move(state.lockoutsV2.blocks, i, -1)));
@@ -406,10 +433,13 @@
     field(g, 'End Time', makeInput({ type: 'time', value: block.times.end, onChange: v => block.times.end = v }), 'Block activation end time (24h).');
     card.appendChild(g);
 
-    const presetSec = toggleSection('Presets');
+    const presetSec = toggleSection('Presets', `block-${i}-presets`);
     block.presets.forEach((p, pi) => {
       const pCard = document.createElement('div');
       pCard.className = 'card';
+      const presetTitle = document.createElement('h4');
+      presetTitle.textContent = `Preset ${pi + 1}`;
+      pCard.appendChild(presetTitle);
       const pg = document.createElement('div');
       pg.className = 'grid';
       field(pg, 'Preset Name', makeInput({ value: p, onChange: v => block.presets[pi] = v }), HELP.presets);
@@ -425,7 +455,7 @@
     presetSec.append(button('Add Preset', '', () => { block.presets.push(''); renderAll(); }));
     card.appendChild(presetSec);
 
-    const typeSec = toggleSection('Type-Specific Properties');
+    const typeSec = toggleSection('Type-Specific Properties', `block-${i}-type-specific`);
     if (block.type === 'duration_block') {
       const d = document.createElement('div'); d.className = 'grid';
       field(d, 'Max Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.maxMinutes, onChange: v => block.typeSpecific.duration.maxMinutes = v }), 'Max minutes allowed before block message/shortcut.');
@@ -440,6 +470,9 @@
       block.typeSpecific.task_block_IDs.forEach((id, ti) => {
         const tc = document.createElement('div');
         tc.className = 'card';
+        const reqTitle = document.createElement('h4');
+        reqTitle.textContent = `Required Metric ${ti + 1}`;
+        tc.appendChild(reqTitle);
         const tg = document.createElement('div'); tg.className = 'grid';
         field(tg, 'Required Metric ID', makeInput({ value: id, onChange: v => block.typeSpecific.task_block_IDs[ti] = v }), 'Completion of these metric IDs unlocks this block.');
         tc.appendChild(tg);
@@ -461,7 +494,7 @@
     }
     card.appendChild(typeSec);
 
-    const onBlock = toggleSection('On-Block Output');
+    const onBlock = toggleSection('On-Block Output', `block-${i}-onblock`);
     const og = document.createElement('div'); og.className = 'grid';
     field(og, 'Message', makeInput({ value: block.onBlock.message, onChange: v => block.onBlock.message = v }), 'Shown when block is active. Supports tokens like {endTime} and {screenTimeBar}.');
     field(og, 'Shortcut Name', makeInput({ value: block.onBlock.shortcutName, onChange: v => block.onBlock.shortcutName = v }), 'Optional iOS shortcut name to run on block.');
@@ -517,7 +550,11 @@
       { token: 'point_total', color: 'blue', ...(pointSegments[0] || {}) },
       { text: ' Points', color: 'default', ...(pointSegments[1] || {}) }
     ];
-    merged.metricSettings = (raw.metricSettings || []).map((m) => ({ ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, ifTimer_Settings: { ...newMetric().ifTimer_Settings, ...(m.ifTimer_Settings || {}) } }));
+    merged.metricSettings = (raw.metricSettings || []).map((m) => {
+      const normalized = { ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, ifTimer_Settings: { ...newMetric().ifTimer_Settings, ...(m.ifTimer_Settings || {}) } };
+      applyMetricTypeDefaults(normalized);
+      return normalized;
+    });
     merged.lockoutsV2.blocks = ((merged.lockoutsV2 && merged.lockoutsV2.blocks) || []).map((b) => ({ ...newBlock(), ...b, times: { ...newBlock().times, ...(b.times || {}) }, typeSpecific: { ...newBlock().typeSpecific, ...(b.typeSpecific || {}), duration: { ...newBlock().typeSpecific.duration, ...((b.typeSpecific && b.typeSpecific.duration) || {}), rationing: { ...newBlock().typeSpecific.duration.rationing, ...(((b.typeSpecific || {}).duration || {}).rationing || {}) } }, firstXMinutes: { ...newBlock().typeSpecific.firstXMinutes, ...((b.typeSpecific && b.typeSpecific.firstXMinutes) || {}) } }, onBlock: { ...newBlock().onBlock, ...(b.onBlock || {}) } }));
     return merged;
   }
