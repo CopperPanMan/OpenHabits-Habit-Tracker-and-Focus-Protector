@@ -52,7 +52,7 @@
     trackingSheetName: 'Name of sheet tab used for tracking data.',
     writeToNotion: 'Enable/disable Notion sync globally.',
     comparisonArray: 'Pairs of [days back, human label] used for insight comparisons.',
-    metricType: 'Determines what a metric records and which extra fields apply.',
+    metricType: 'Determines what a metric records and which extra fields apply. If you want to write text, please choose “number”, and a Record Type of “overwrite” or “keep_first”',
     ifTimer: 'Timer-only settings used when metric type is start_timer or stop_timer.',
     blockType: 'Determines which typeSpecific section is used for this block.',
     dateRule: 'Per-day rule: due-by time and allowed tracking hours.',
@@ -148,7 +148,7 @@
   function newMetric() {
     return {
       metricID: '', type: 'number', displayName: '', recordType: 'overwrite',
-      dates: DAYS.map((d) => [d, '22:30', 20, 2]),
+      dates: [],
       streaks: { unit: 'days', streaksID: '' },
       points: { value: 1, multiplierDays: 0, maxMultiplier: 1, pointsID: '' },
       insights: {
@@ -197,6 +197,32 @@
     field(basicGrid, 'Late Extension Hours', makeInput({ type: 'number', min: 0, value: state.lateExtensionHours, onChange: v => state.lateExtensionHours = v }), 'Hours after midnight still accepted for previous day due-by checks.');
     basic.appendChild(basicGrid);
     root.appendChild(basic);
+
+    const notionSec = toggleSection('Notion Global Settings');
+    notionSec.open = false;
+    const notionGrid = document.createElement('div');
+    notionGrid.className = 'grid';
+    field(notionGrid, 'Database IDs Script Property', makeInput({ value: state.notion.databaseIdsScriptProperty, onChange: v => state.notion.databaseIdsScriptProperty = v }), 'Script property key that stores notion metric database IDs JSON.');
+    field(notionGrid, 'Point Block ID Script Property', makeInput({ value: state.notion.pointBlockIdScriptProperty, onChange: v => state.notion.pointBlockIdScriptProperty = v }), 'Script property key for point block ID.');
+    field(notionGrid, 'Insight Block ID Script Property', makeInput({ value: state.notion.insightBlockIdScriptProperty, onChange: v => state.notion.insightBlockIdScriptProperty = v }), 'Script property key for insight block ID.');
+    field(notionGrid, 'Point Block Type', makeInput({ value: state.notion.outputStyles.pointBlock.blockType, onChange: v => state.notion.outputStyles.pointBlock.blockType = v }), 'Notion block type used for points output.');
+    field(notionGrid, 'Point Token Color', makeInput({ value: state.notion.outputStyles.pointBlock.segments[0].color, onChange: v => state.notion.outputStyles.pointBlock.segments[0].color = v }), 'Color for the point_total token segment.');
+    field(notionGrid, 'Point Suffix Text', makeInput({ value: state.notion.outputStyles.pointBlock.segments[1].text, onChange: v => state.notion.outputStyles.pointBlock.segments[1].text = v }), 'Text appended after point_total token.');
+    field(notionGrid, 'Point Suffix Color', makeInput({ value: state.notion.outputStyles.pointBlock.segments[1].color, onChange: v => state.notion.outputStyles.pointBlock.segments[1].color = v }), 'Color for points suffix text.');
+    field(notionGrid, 'Insight Block Type', makeInput({ value: state.notion.outputStyles.insightBlock.blockType, onChange: v => state.notion.outputStyles.insightBlock.blockType = v }), 'Notion block type used for insight output.');
+    field(notionGrid, 'Insight Italic', makeCheck(state.notion.outputStyles.insightBlock.italic, v => state.notion.outputStyles.insightBlock.italic = v), 'Whether insight block text is italicized.');
+    field(notionGrid, 'Sync Status', makeCheck(state.notion.syncFields.status, v => state.notion.syncFields.status = v), 'Sync State property to Notion.');
+    field(notionGrid, 'Sync Streak', makeCheck(state.notion.syncFields.streak, v => state.notion.syncFields.streak = v), 'Sync Streak property to Notion.');
+    field(notionGrid, 'Sync Point Multiplier', makeCheck(state.notion.syncFields.pointMultiplier, v => state.notion.syncFields.pointMultiplier = v), 'Sync point multiplier to Notion.');
+    field(notionGrid, 'Sync Points', makeCheck(state.notion.syncFields.points, v => state.notion.syncFields.points = v), 'Sync points to Notion.');
+    field(notionGrid, 'Property Name: Metric ID', makeInput({ value: state.notion.propertyNames.metricId, onChange: v => state.notion.propertyNames.metricId = v }), 'Notion property name for metric ID.');
+    field(notionGrid, 'Property Name: Status', makeInput({ value: state.notion.propertyNames.status, onChange: v => state.notion.propertyNames.status = v }), 'Notion property name for status.');
+    field(notionGrid, 'Property Name: Streak', makeInput({ value: state.notion.propertyNames.streak, onChange: v => state.notion.propertyNames.streak = v }), 'Notion property name for streak.');
+    field(notionGrid, 'Property Name: Point Multiplier', makeInput({ value: state.notion.propertyNames.pointMultiplier, onChange: v => state.notion.propertyNames.pointMultiplier = v }), 'Notion property name for point multiplier.');
+    field(notionGrid, 'Property Name: Points', makeInput({ value: state.notion.propertyNames.points, onChange: v => state.notion.propertyNames.points = v }), 'Notion property name for points.');
+    field(notionGrid, 'Complete Status Name', makeInput({ value: state.notion.completeStatusName, onChange: v => state.notion.completeStatusName = v }), 'Status name treated as complete in Notion sync.');
+    notionSec.appendChild(notionGrid);
+    root.appendChild(notionSec);
 
     const sheetSec = toggleSection('Sheet Columns');
     const sheetGrid = document.createElement('div');
@@ -272,7 +298,11 @@
     field(g, 'Write to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Enable this metric for Notion sync fields.');
     card.appendChild(g);
 
+    const advanced = toggleSection('Advanced');
+    advanced.open = !(metric.metricID === '' && metric.displayName === '');
+
     const dates = toggleSection('Date Rules');
+    dates.open = false;
     metric.dates.forEach((d, di) => {
       const dCard = document.createElement('div');
       dCard.className = 'card';
@@ -291,18 +321,20 @@
       dCard.appendChild(dCtr);
       dates.appendChild(dCard);
     });
-    dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '22:30', 20, 2]); renderAll(); }));
-    card.appendChild(dates);
+    dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '', 20, 2]); renderAll(); }));
+    advanced.appendChild(dates);
 
     const streaks = toggleSection('Streak Properties');
+    streaks.open = false;
     const streakGrid = document.createElement('div');
     streakGrid.className = 'grid';
     field(streakGrid, 'Unit', makeInput({ value: metric.streaks.unit, onChange: v => metric.streaks.unit = v }), 'Display unit for streak narration (days, sessions, etc).');
     field(streakGrid, 'Streak Metric ID', makeInput({ value: metric.streaks.streaksID, onChange: v => metric.streaks.streaksID = v }), 'Metric row used to store streak count.');
     streaks.appendChild(streakGrid);
-    card.appendChild(streaks);
+    advanced.appendChild(streaks);
 
     const points = toggleSection('Points Properties');
+    points.open = false;
     const pointsGrid = document.createElement('div');
     pointsGrid.className = 'grid';
     field(pointsGrid, 'Point Value', makeInput({ type: 'number', value: metric.points.value, onChange: v => metric.points.value = v }), 'Base points awarded per completion.');
@@ -310,9 +342,10 @@
     field(pointsGrid, 'Max Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.maxMultiplier, onChange: v => metric.points.maxMultiplier = v }), 'Upper limit for point multiplier.');
     field(pointsGrid, 'Points Metric ID', makeInput({ value: metric.points.pointsID, onChange: v => metric.points.pointsID = v }), 'Metric row used to store per-metric points.');
     points.appendChild(pointsGrid);
-    card.appendChild(points);
+    advanced.appendChild(points);
 
     const insights = toggleSection('Insights Properties');
+    insights.open = false;
     const ig = document.createElement('div');
     ig.className = 'grid';
     [['Insight Chance', 'insightChance'], ['Streak Probability', 'streakProb'], ['Day-to-Day Chance', 'dayToDayChance'], ['Day-to-Average Chance', 'dayToAvgChance'], ['Raw Value Chance', 'rawValueChance']].forEach(([label, key]) => {
@@ -323,10 +356,11 @@
     field(ig, 'Insight First Words (legacy alias)', makeInput({ value: metric.insights.insightFirstWords, onChange: v => metric.insights.insightFirstWords = v }), 'Backward-compatible alternative to First Words.');
     field(ig, 'Insight Units', makeInput({ value: metric.insights.insightUnits, onChange: v => metric.insights.insightUnits = v }), 'Unit text for insight values.');
     insights.appendChild(ig);
-    card.appendChild(insights);
+    advanced.appendChild(insights);
 
     if (metric.type === 'start_timer' || metric.type === 'stop_timer') {
       const timer = toggleSection('Timer Settings');
+      timer.open = false;
       const tg = document.createElement('div');
       tg.className = 'grid';
       field(tg, 'Stop Timer Message', makeInput({ value: metric.ifTimer_Settings.stopTimerMessage, onChange: v => metric.ifTimer_Settings.stopTimerMessage = v }), HELP.ifTimer);
@@ -334,8 +368,10 @@
       field(tg, 'Timer Duration Metric ID', makeInput({ value: metric.ifTimer_Settings.timerDurationMetricID || '', onChange: v => metric.ifTimer_Settings.timerDurationMetricID = v || null }), HELP.ifTimer);
       field(tg, 'Mute Output', makeCheck(metric.ifTimer_Settings.muteOutput, v => metric.ifTimer_Settings.muteOutput = v), HELP.ifTimer);
       timer.appendChild(tg);
-      card.appendChild(timer);
+      advanced.appendChild(timer);
     }
+
+    card.appendChild(advanced);
 
     return card;
   }
@@ -343,10 +379,6 @@
   function renderMetrics() {
     const root = $('tab-metrics');
     root.innerHTML = '';
-    const info = document.createElement('p');
-    info.className = 'muted';
-    info.textContent = 'All metric arrays are GUI-only with add/delete/reorder controls. ppnMessage is intentionally omitted.';
-    root.appendChild(info);
     state.metricSettings.forEach((m, i) => root.appendChild(renderMetric(m, i)));
     root.append(button('Add Metric', '', () => { state.metricSettings.push(newMetric()); renderAll(); }));
   }
@@ -459,8 +491,32 @@
         ...base.lockoutsV2,
         ...(raw.lockoutsV2 || {}),
         globals: { ...base.lockoutsV2.globals, ...((raw.lockoutsV2 && raw.lockoutsV2.globals) || {}) }
+      },
+      notion: {
+        ...base.notion,
+        ...(raw.notion || {}),
+        outputStyles: {
+          ...base.notion.outputStyles,
+          ...((raw.notion && raw.notion.outputStyles) || {}),
+          pointBlock: {
+            ...base.notion.outputStyles.pointBlock,
+            ...((((raw.notion || {}).outputStyles || {}).pointBlock) || {}),
+            segments: ((((raw.notion || {}).outputStyles || {}).pointBlock || {}).segments) || base.notion.outputStyles.pointBlock.segments
+          },
+          insightBlock: {
+            ...base.notion.outputStyles.insightBlock,
+            ...((((raw.notion || {}).outputStyles || {}).insightBlock) || {})
+          }
+        },
+        syncFields: { ...base.notion.syncFields, ...((raw.notion && raw.notion.syncFields) || {}) },
+        propertyNames: { ...base.notion.propertyNames, ...((raw.notion && raw.notion.propertyNames) || {}) }
       }
     };
+    const pointSegments = ((merged.notion.outputStyles.pointBlock || {}).segments || []).slice();
+    merged.notion.outputStyles.pointBlock.segments = [
+      { token: 'point_total', color: 'blue', ...(pointSegments[0] || {}) },
+      { text: ' Points', color: 'default', ...(pointSegments[1] || {}) }
+    ];
     merged.metricSettings = (raw.metricSettings || []).map((m) => ({ ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, ifTimer_Settings: { ...newMetric().ifTimer_Settings, ...(m.ifTimer_Settings || {}) } }));
     merged.lockoutsV2.blocks = ((merged.lockoutsV2 && merged.lockoutsV2.blocks) || []).map((b) => ({ ...newBlock(), ...b, times: { ...newBlock().times, ...(b.times || {}) }, typeSpecific: { ...newBlock().typeSpecific, ...(b.typeSpecific || {}), duration: { ...newBlock().typeSpecific.duration, ...((b.typeSpecific && b.typeSpecific.duration) || {}), rationing: { ...newBlock().typeSpecific.duration.rationing, ...(((b.typeSpecific || {}).duration || {}).rationing || {}) } }, firstXMinutes: { ...newBlock().typeSpecific.firstXMinutes, ...((b.typeSpecific && b.typeSpecific.firstXMinutes) || {}) } }, onBlock: { ...newBlock().onBlock, ...(b.onBlock || {}) } }));
     return merged;
@@ -482,7 +538,9 @@
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
       m.dates.forEach((d, di) => {
         if (!DAYS.includes(d[0])) errors.push(`Metric ${i + 1}, date ${di + 1}: invalid day.`);
-        if (!/^\d{2}:\d{2}$/.test(d[1])) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by must be HH:MM.`);
+        const hasDueBy = String(d[1] || '').trim() !== '';
+        if (m.type === 'due_by' && !hasDueBy) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by is required for due_by metrics.`);
+        if (hasDueBy && !/^\d{2}:\d{2}$/.test(d[1])) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by must be HH:MM.`);
         if (typeof d[2] !== 'number' || typeof d[3] !== 'number') errors.push(`Metric ${i + 1}, date ${di + 1}: start/end must be numbers.`);
       });
     });
