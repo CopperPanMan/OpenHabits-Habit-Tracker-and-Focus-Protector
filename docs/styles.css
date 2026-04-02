@@ -40,6 +40,19 @@ body {
 }
 header, main { max-width: 1200px; margin: 0 auto; padding: 1rem; }
 h1, h2, h3, h4 { margin: .2rem 0 .6rem; }
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+.section-header h2 {
+  margin: .2rem 0;
+}
+.section-actions {
+  justify-content: flex-end;
+}
 code { background: var(--code-bg); padding:.1rem .3rem; border-radius:4px; }
 .panel {
   background: var(--panel);
