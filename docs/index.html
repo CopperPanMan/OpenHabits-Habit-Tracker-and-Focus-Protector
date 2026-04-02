@@ -3,28 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Config.gs GUI Generator</title>
+  <title>OpenHabits Config Editor</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <header>
-    <h1>Config.gs GUI Generator</h1>
-    <p>Edit your Habit + Lockouts config with a normal UI, then export ready-to-paste <code>Config.gs</code>.</p>
+    <h1>OpenHabits Config Editor</h1>
+    <p>Start from scratch, or paste your existing config to edit it with a simple interface. Then copy the output into <code>Config.gs</code>.</p>
   </header>
 
   <main>
     <section class="panel">
-      <h2>Import Existing Config.gs</h2>
-      <p>Paste your full <code>Config.gs</code> contents and click <strong>Parse</strong>, or click <strong>Start Fresh</strong>.</p>
+      <h2>1. Get Started</h2>
+      <p>Paste your full <code>Config.gs</code> contents to load it into the editor, or click <strong>Start Fresh</strong>.</p>
       <textarea id="importText" rows="10" placeholder="Paste full Config.gs code here..."></textarea>
       <div class="row gap">
-        <button id="parseBtn">Parse Config.gs</button>
+        <button id="parseBtn">Load Existing</button>
         <button id="freshBtn" class="secondary">Start Fresh</button>
       </div>
       <p id="importStatus" class="status"></p>
     </section>
 
     <section class="panel">
+      <h2>2. Edit Config</h2>
       <div class="tabs" role="tablist" aria-label="Config Sections">
         <button class="tab active" data-tab="global" role="tab" aria-selected="true">Global</button>
         <button class="tab" data-tab="metrics" role="tab" aria-selected="false">Metrics</button>
@@ -37,12 +38,14 @@
     </section>
 
     <section class="panel">
-      <h2>Export</h2>
+      <h2>3. Export</h2>
       <div class="row gap">
-        <button id="exportBtn">Generate Config.gs</button>
-        <button id="copyBtn" class="secondary">Copy to Clipboard</button>
+        <button id="exportBtn">Generate Output</button>
+        <button id="copyBtn" class="secondary">Copy Output</button>
       </div>
-      <textarea id="exportText" rows="14" placeholder="Generated Config.gs will appear here..."></textarea>
+      <label for="exportText">Generated Output</label>
+      <p>Copy this output into <code>Config.gs</code>.</p>
+      <textarea id="exportText" rows="14" placeholder="Generated output will appear here..."></textarea>
       <p id="exportStatus" class="status"></p>
     </section>
   </main>

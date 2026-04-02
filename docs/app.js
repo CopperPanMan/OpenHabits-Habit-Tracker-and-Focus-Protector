@@ -612,10 +612,10 @@
   $('parseBtn').addEventListener('click', () => {
     try {
       state = parseConfigGs($('importText').value);
-      $('importStatus').textContent = 'Config parsed successfully.';
+      $('importStatus').textContent = 'Config loaded successfully.';
       renderAll();
     } catch (err) {
-      $('importStatus').textContent = `Parse failed: ${err.message}`;
+      $('importStatus').textContent = `Load failed: ${err.message}`;
     }
   });
 
@@ -639,7 +639,7 @@
   $('copyBtn').addEventListener('click', async () => {
     const txt = $('exportText').value;
     if (!txt) {
-      $('exportStatus').textContent = 'Generate Config.gs before copying.';
+      $('exportStatus').textContent = 'Generate output before copying.';
       return;
     }
     try {
