@@ -78,6 +78,17 @@
 
   const $ = (id) => document.getElementById(id);
   const tabs = document.querySelectorAll('.tab');
+  const TAB_EXPLAINERS = {
+    global: 'Settings that apply to everything',
+    metrics: 'Metrics are individual pieces of data being logged',
+    blocks: 'Blocks are individual criteria that prevent access to an app or website'
+  };
+
+  function setTabExplainer(tabName) {
+    const explainer = $('tabExplainer');
+    if (!explainer) return;
+    explainer.textContent = TAB_EXPLAINERS[tabName] || '';
+  }
 
   tabs.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -86,6 +97,7 @@
       btn.classList.add('active');
       btn.setAttribute('aria-selected', 'true');
       $(`tab-${btn.dataset.tab}`).classList.add('active');
+      setTabExplainer(btn.dataset.tab);
     });
   });
 
@@ -220,16 +232,16 @@
     basicGrid.className = 'grid';
     field(basicGrid, 'Spreadsheet ID', makeInput({ value: state.scriptProperties.spreadsheetId, onChange: v => state.scriptProperties.spreadsheetId = v, required: true }), HELP.spreadsheetId);
     field(basicGrid, 'Tracking Sheet Name', makeInput({ value: state.trackingSheetName, onChange: v => state.trackingSheetName = v, required: true }), HELP.trackingSheetName);
-    field(basicGrid, 'Write to Notion', makeCheck(state.writeToNotion, v => state.writeToNotion = v), HELP.writeToNotion);
     field(basicGrid, 'Daily Points Metric ID', makeInput({ value: state.dailyPointsID, onChange: v => state.dailyPointsID = v }), 'Metric ID row for daily points total.');
     field(basicGrid, 'Cumulative Points Metric ID', makeInput({ value: state.cumulativePointsID, onChange: v => state.cumulativePointsID = v }), 'Metric ID row for all-time points total.');
     field(basicGrid, 'Late Extension Hours', makeInput({ type: 'number', min: 0, value: state.lateExtensionHours, onChange: v => state.lateExtensionHours = v }), 'Hours after midnight still accepted for previous day due-by checks.');
     basic.appendChild(basicGrid);
     root.appendChild(basic);
 
-    const notionSec = toggleSection('Notion Global Settings', 'global-notion', false);
+    const notionSec = toggleSection('Optional Notion Integration Settings', 'global-notion', false);
     const notionGrid = document.createElement('div');
     notionGrid.className = 'grid';
+    field(notionGrid, 'Write to Notion', makeCheck(state.writeToNotion, v => state.writeToNotion = v), HELP.writeToNotion);
     field(notionGrid, 'Database IDs Script Property', makeInput({ value: state.notion.databaseIdsScriptProperty, onChange: v => state.notion.databaseIdsScriptProperty = v }), 'Script property key that stores notion metric database IDs JSON.');
     field(notionGrid, 'Point Block ID Script Property', makeInput({ value: state.notion.pointBlockIdScriptProperty, onChange: v => state.notion.pointBlockIdScriptProperty = v }), 'Script property key for point block ID.');
     field(notionGrid, 'Insight Block ID Script Property', makeInput({ value: state.notion.insightBlockIdScriptProperty, onChange: v => state.notion.insightBlockIdScriptProperty = v }), 'Script property key for insight block ID.');
@@ -651,4 +663,5 @@
   });
 
   renderAll();
+  setTabExplainer('global');
 })();
