@@ -9,13 +9,13 @@
 <body>
   <header>
     <h1>OpenHabits Config Editor</h1>
-    <p>Start from scratch, or paste your existing config to edit it with a simple interface. Then copy the output into <code>Config.gs</code>.</p>
+    <p>Create or edit your OpenHabits config with a simple user interface.</p>
   </header>
 
   <main>
     <section class="panel">
       <h2>1. Get Started</h2>
-      <p>To create a new <code>Config.gs</code>, continue to <strong>Edit Config</strong> below. To edit an existing one, paste your <code>Config.gs</code> contents here and click <strong>Load Existing</strong>.</p>
+      <p>To create a new <code>Config.gs</code>, continue to <strong>Edit Config</strong> below. To edit an existing <code>Config.gs</code>, paste its contents here and click <strong>Load Existing</strong>.</p>
       <textarea id="importText" rows="10" placeholder="Paste full Config.gs code here..."></textarea>
       <div class="row gap">
         <button id="parseBtn">Load Existing</button>
@@ -46,12 +46,13 @@
 
     <section class="panel">
       <h2>3. Export</h2>
+      <p>When finished, click <strong>Generate Output,</strong> then copy and paste it into your <code>Config.gs</code> file.</p>
+      <label for="exportText">Generated Output</label>
+      <textarea id="exportText" rows="14" placeholder="Generated output will appear here..."></textarea>
       <div class="row gap">
         <button id="exportBtn">Generate Output</button>
         <button id="copyBtn" class="secondary">Copy Output</button>
       </div>
-      <label for="exportText">Generated Output</label>
-      <textarea id="exportText" rows="14" placeholder="Generated output will appear here..."></textarea>
       <p>Copy this output into <code>Config.gs</code>.</p>
       <p id="exportStatus" class="status"></p>
     </section>
