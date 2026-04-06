@@ -1404,6 +1404,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   var warnings = [];
   var allFound = true;
   var todayPoints = null;
+  var yesterdayPoints = null;
   var configuredDailyPointsID = null;
   var appConfig = lockoutsV2_resolveAppConfig_(context);
 
@@ -1414,30 +1415,26 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   }
 
   if (configuredDailyPointsID) {
-    var fallbackTrackingSheet = getTrackingSheet_();
-    var dailyPointsSheetCandidates = [];
-
-    if (trackingSheet) {
-      dailyPointsSheetCandidates.push(trackingSheet);
-    }
-    if (sheet1 && sheet1 !== trackingSheet) {
-      dailyPointsSheetCandidates.push(sheet1);
-    }
-    if (fallbackTrackingSheet && fallbackTrackingSheet !== trackingSheet && fallbackTrackingSheet !== sheet1) {
-      dailyPointsSheetCandidates.push(fallbackTrackingSheet);
-    }
-
-    for (var s = 0; s < dailyPointsSheetCandidates.length; s++) {
-      var candidateSheet = dailyPointsSheetCandidates[s];
-      var dailyPointsLookup = findRowByMetricId_(configuredDailyPointsID, candidateSheet);
-      if (dailyPointsLookup && dailyPointsLookup.row) {
-        todayPoints = candidateSheet.getRange(dailyPointsLookup.row, todayCol).getValue();
-        break;
-      }
-    }
+    todayPoints = lockoutsV2_readDailyPointsByColumn_(
+      configuredDailyPointsID,
+      todayCol,
+      trackingSheet
+    );
 
     if (todayPoints === null) {
       warnings.push('Unable to resolve todayPoints for dailyPointsID "' + configuredDailyPointsID + '" at column ' + todayCol + '.');
+    }
+
+    var yesterdayCol = todayCol - 1;
+    if (yesterdayCol >= dataColumn) {
+      yesterdayPoints = lockoutsV2_readDailyPointsByColumn_(
+        configuredDailyPointsID,
+        yesterdayCol,
+        trackingSheet
+      );
+      if (yesterdayPoints === null) {
+        warnings.push('Unable to resolve yesterdayPoints for dailyPointsID "' + configuredDailyPointsID + '" at column ' + yesterdayCol + '.');
+      }
     }
   }
 
@@ -1463,6 +1460,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
       dueState: entry.dueState,
       points: entry.points,
       todayPoints: todayPoints,
+      yesterdayPoints: yesterdayPoints,
       currMultiplier: entry.currMultiplier,
       error: entry.error || null,
       warnings: entry.warnings || []
@@ -1502,6 +1500,35 @@ function lockoutsV2_resolveAppConfig_(ctx) {
   }
 
   return getAppConfig();
+}
+
+function lockoutsV2_readDailyPointsByColumn_(dailyPointsMetricID, col, trackingSheet) {
+  if (!dailyPointsMetricID || !col) {
+    return null;
+  }
+
+  var fallbackTrackingSheet = getTrackingSheet_();
+  var dailyPointsSheetCandidates = [];
+
+  if (trackingSheet) {
+    dailyPointsSheetCandidates.push(trackingSheet);
+  }
+  if (sheet1 && sheet1 !== trackingSheet) {
+    dailyPointsSheetCandidates.push(sheet1);
+  }
+  if (fallbackTrackingSheet && fallbackTrackingSheet !== trackingSheet && fallbackTrackingSheet !== sheet1) {
+    dailyPointsSheetCandidates.push(fallbackTrackingSheet);
+  }
+
+  for (var s = 0; s < dailyPointsSheetCandidates.length; s++) {
+    var candidateSheet = dailyPointsSheetCandidates[s];
+    var dailyPointsLookup = findRowByMetricId_(dailyPointsMetricID, candidateSheet);
+    if (dailyPointsLookup && dailyPointsLookup.row) {
+      return candidateSheet.getRange(dailyPointsLookup.row, col).getValue();
+    }
+  }
+
+  return null;
 }
 
 function lockoutsV2_roundToOneDecimal_(value) {
