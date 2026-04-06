@@ -1412,7 +1412,8 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
       now: now,
       nowISO: nowISO,
       todayCol: todayCol,
-      dataColumn: dataColumn
+      dataColumn: dataColumn,
+      useYesterdayStreakForIncompleteToday: true
     });
 
     metricsByID.push({
@@ -1463,6 +1464,7 @@ function lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerV
   var todayCol = Number(opts.todayCol) || 0;
   var dataColumn = Number(opts.dataColumn) || (dataStartColumn || 3);
   var extensionHours = lateExtensionHours !== undefined ? lateExtensionHours : lateExtension;
+  var useYesterdayStreakForIncompleteToday = opts.useYesterdayStreakForIncompleteToday === true;
   var settingLookup = getMetricSettingById(metricID);
   var setting = settingLookup && settingLookup.setting ? settingLookup.setting : null;
 
@@ -1496,7 +1498,9 @@ function lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerV
 
   return {
     displayName: setting.displayName || null,
-    streak: streakParts.currentStreak,
+    streak: useYesterdayStreakForIncompleteToday
+      ? streakParts.streakAsOfYesterdayUnlessCompletedToday
+      : streakParts.currentStreak,
     dueState: dueState,
     points: points,
     currMultiplier: currMultiplier
@@ -1533,13 +1537,16 @@ function lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayI
   var currentStreak = historicalStreak;
   var todayDate = lockoutsV2_parseHeaderDate_(headers[index]);
   var todayScheduled = todayDate && isScheduledDateForStreak_(todayDate, scheduleDays, useScheduleFilter, extensionHours);
+  var todayCompleted = false;
   if (todayScheduled) {
-    currentStreak = isCompletedCellValue_(values[index]) ? historicalStreak + 1 : 0;
+    todayCompleted = isCompletedCellValue_(values[index]);
+    currentStreak = todayCompleted ? historicalStreak + 1 : 0;
   }
 
   return {
     currentStreak: parseStrictNumber_(currentStreak),
-    streakBeforeLog: parseStrictNumber_(historicalStreak)
+    streakBeforeLog: parseStrictNumber_(historicalStreak),
+    streakAsOfYesterdayUnlessCompletedToday: parseStrictNumber_(todayCompleted ? currentStreak : historicalStreak)
   };
 }
 
