@@ -1397,6 +1397,9 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
 
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var dataColumn = dataStartColumn || 3;
+  var width = Math.max(1, todayCol - dataColumn + 1);
+  var headerValues = trackingSheet.getRange(1, dataColumn, 1, width).getValues()[0];
   var metricsByID = [];
   var warnings = [];
   var allFound = true;
@@ -1404,14 +1407,24 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   for (var i = 0; i < metricIDs.length; i++) {
     var metricID = metricIDs[i];
     var lookup = findRowByMetricId_(metricID, trackingSheet);
-    var cell = lookup && lookup.row ? trackingSheet.getRange(lookup.row, todayCol) : null;
-    var entry = lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, nowISO);
+    var rowValues = lookup && lookup.row ? trackingSheet.getRange(lookup.row, dataColumn, 1, width).getValues()[0] : null;
+    var entry = lockoutsV2_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, headerValues, {
+      now: now,
+      nowISO: nowISO,
+      todayCol: todayCol,
+      dataColumn: dataColumn
+    });
 
     metricsByID.push({
       metricID: metricID,
       found: !!entry.found,
       value: entry.found ? entry.value : null,
       displayValue: entry.found ? entry.displayValue : '',
+      displayName: entry.displayName,
+      streak: entry.streak,
+      dueState: entry.dueState,
+      points: entry.points,
+      currMultiplier: entry.currMultiplier,
       error: entry.error || null,
       warnings: entry.warnings || []
     });
@@ -1433,6 +1446,143 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     todayCol: todayCol,
     metricsByID: metricsByID,
     warnings: warnings
+  };
+}
+
+function lockoutsV2_roundToOneDecimal_(value) {
+  var numeric = Number(value);
+  if (!isFinite(numeric)) {
+    return null;
+  }
+  return Math.round(numeric * 10) / 10;
+}
+
+function lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerValues, options) {
+  var opts = options || {};
+  var now = opts.now instanceof Date ? opts.now : new Date();
+  var todayCol = Number(opts.todayCol) || 0;
+  var dataColumn = Number(opts.dataColumn) || (dataStartColumn || 3);
+  var extensionHours = lateExtensionHours !== undefined ? lateExtensionHours : lateExtension;
+  var settingLookup = getMetricSettingById(metricID);
+  var setting = settingLookup && settingLookup.setting ? settingLookup.setting : null;
+
+  if (!setting) {
+    return {
+      displayName: null,
+      streak: null,
+      dueState: null,
+      points: null,
+      currMultiplier: null
+    };
+  }
+
+  var todayIndex = Math.max(0, todayCol - dataColumn);
+  var streakParts = lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayIndex, setting, extensionHours);
+  var currMultiplier = lockoutsV2_roundToOneDecimal_(getMultiplier_(metricID, streakParts.streakBeforeLog));
+
+  var dueState = null;
+  var dueLookup = getDueByTimeForCurrentEffectiveDay_(setting.dates, now, extensionHours);
+  if (dueLookup && dueLookup.dueDateTime instanceof Date && !isNaN(dueLookup.dueDateTime.getTime())) {
+    dueState = Math.round((now.getTime() - dueLookup.dueDateTime.getTime()) / 60000);
+  }
+
+  var points = null;
+  var pointsConfig = setting.points || null;
+  var basePoints = pointsConfig ? parseStrictNumber_(pointsConfig.value) : null;
+  if (basePoints !== null) {
+    var multiplier = currMultiplier === null ? 1 : currMultiplier;
+    points = lockoutsV2_roundToOneDecimal_(basePoints * multiplier);
+  }
+
+  return {
+    displayName: setting.displayName || null,
+    streak: streakParts.currentStreak,
+    dueState: dueState,
+    points: points,
+    currMultiplier: currMultiplier
+  };
+}
+
+function lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayIndex, setting, extensionHours) {
+  var values = Array.isArray(rowValues) ? rowValues : [];
+  var headers = Array.isArray(headerValues) ? headerValues : [];
+  var index = Math.min(todayIndex, values.length - 1, headers.length - 1);
+  var scheduleDays = normalizeScheduledDays_(setting && setting.dates);
+  var useScheduleFilter = scheduleDays.length > 0;
+  var historicalStreak = 0;
+  var expectedPreviousDate = null;
+
+  for (var col = index - 1; col >= 0; col--) {
+    var columnDate = lockoutsV2_parseHeaderDate_(headers[col]);
+    if (!columnDate || !isScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours)) {
+      continue;
+    }
+
+    if (expectedPreviousDate && !isSameCalendarDay_(columnDate, expectedPreviousDate)) {
+      break;
+    }
+
+    if (!isCompletedCellValue_(values[col])) {
+      break;
+    }
+
+    historicalStreak += 1;
+    expectedPreviousDate = getPreviousScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours);
+  }
+
+  var currentStreak = historicalStreak;
+  var todayDate = lockoutsV2_parseHeaderDate_(headers[index]);
+  var todayScheduled = todayDate && isScheduledDateForStreak_(todayDate, scheduleDays, useScheduleFilter, extensionHours);
+  if (todayScheduled) {
+    currentStreak = isCompletedCellValue_(values[index]) ? historicalStreak + 1 : 0;
+  }
+
+  return {
+    currentStreak: parseStrictNumber_(currentStreak),
+    streakBeforeLog: parseStrictNumber_(historicalStreak)
+  };
+}
+
+function lockoutsV2_parseHeaderDate_(headerValue) {
+  var dateValue = headerValue instanceof Date ? headerValue : new Date(headerValue);
+  return (dateValue instanceof Date && !isNaN(dateValue.getTime())) ? dateValue : null;
+}
+
+function lockoutsV2_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, headerValues, options) {
+  if (!lookup || !lookup.row) {
+    return {
+      found: false,
+      value: null,
+      displayValue: '',
+      displayName: null,
+      streak: null,
+      dueState: null,
+      points: null,
+      currMultiplier: null,
+      error: lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID),
+      warnings: lookup && lookup.warnings ? lookup.warnings : []
+    };
+  }
+
+  var opts = options || {};
+  var dataColumn = Number(opts.dataColumn) || (dataStartColumn || 3);
+  var todayCol = Number(opts.todayCol) || dataColumn;
+  var todayIndex = Math.max(0, todayCol - dataColumn);
+  var value = Array.isArray(rowValues) && todayIndex < rowValues.length ? rowValues[todayIndex] : null;
+  var settingLookup = getMetricSettingById(metricID);
+  var metricType = settingLookup && settingLookup.setting ? (settingLookup.setting.type || settingLookup.setting.unitType || null) : null;
+  var promptFields = lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerValues, opts);
+
+  return {
+    found: true,
+    value: lockoutsV2_normalizeMetricValueForCache_(metricType, value),
+    displayValue: value === null || value === undefined ? '' : String(value),
+    displayName: promptFields.displayName,
+    streak: promptFields.streak,
+    dueState: promptFields.dueState,
+    points: promptFields.points,
+    currMultiplier: promptFields.currMultiplier,
+    warnings: lookup.warnings || []
   };
 }
 
@@ -1700,25 +1850,6 @@ function lockoutsV2_extractMetricStateMetricIDs_(rawData) {
 function lockoutsV2_extractMetricStateMetricID_(rawData) {
   var metricIDs = lockoutsV2_extractMetricStateMetricIDs_(rawData);
   return metricIDs.length > 0 ? metricIDs[0] : null;
-}
-
-function lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, nowISO) {
-  if (!lookup || !lookup.row) {
-    return {
-      found: false,
-      value: null,
-      displayValue: '',
-      error: lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID),
-      warnings: lookup && lookup.warnings ? lookup.warnings : []
-    };
-  }
-
-  return {
-    found: true,
-    value: cell.getValue(),
-    displayValue: cell.getDisplayValue(),
-    warnings: lookup.warnings || []
-  };
 }
 
 function lockoutsV2_pickMetricValuesByIDs_(metricsByID, metricIDs) {
