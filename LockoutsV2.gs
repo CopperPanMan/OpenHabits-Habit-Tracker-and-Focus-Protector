@@ -1403,6 +1403,14 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   var metricsByID = [];
   var warnings = [];
   var allFound = true;
+  var todayPoints = null;
+
+  if (typeof dailyPointsID === 'string' && dailyPointsID.trim()) {
+    var dailyPointsLookup = findRowByMetricId_(dailyPointsID, trackingSheet);
+    if (dailyPointsLookup && dailyPointsLookup.row) {
+      todayPoints = trackingSheet.getRange(dailyPointsLookup.row, todayCol).getValue();
+    }
+  }
 
   for (var i = 0; i < metricIDs.length; i++) {
     var metricID = metricIDs[i];
@@ -1425,6 +1433,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
       streak: entry.streak,
       dueState: entry.dueState,
       points: entry.points,
+      todayPoints: todayPoints,
       currMultiplier: entry.currMultiplier,
       error: entry.error || null,
       warnings: entry.warnings || []
