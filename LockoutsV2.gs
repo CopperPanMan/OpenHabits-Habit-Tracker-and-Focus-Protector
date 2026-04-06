@@ -1404,9 +1404,19 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   var warnings = [];
   var allFound = true;
   var todayPoints = null;
+  var configuredDailyPointsID = null;
 
   if (typeof dailyPointsID === 'string' && dailyPointsID.trim()) {
-    var dailyPointsLookup = findRowByMetricId_(dailyPointsID, trackingSheet);
+    configuredDailyPointsID = dailyPointsID.trim();
+  } else {
+    var appConfig = context.config || getAppConfig();
+    if (appConfig && typeof appConfig.dailyPointsID === 'string' && appConfig.dailyPointsID.trim()) {
+      configuredDailyPointsID = appConfig.dailyPointsID.trim();
+    }
+  }
+
+  if (configuredDailyPointsID) {
+    var dailyPointsLookup = findRowByMetricId_(configuredDailyPointsID, trackingSheet);
     if (dailyPointsLookup && dailyPointsLookup.row) {
       todayPoints = trackingSheet.getRange(dailyPointsLookup.row, todayCol).getValue();
     }
