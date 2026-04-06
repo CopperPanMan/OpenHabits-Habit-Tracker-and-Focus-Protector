@@ -1406,12 +1406,22 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     var lookup = findRowByMetricId_(metricID, trackingSheet);
     var cell = lookup && lookup.row ? trackingSheet.getRange(lookup.row, todayCol) : null;
     var entry = lockoutsV2_buildMetricStateEntryFromLookup_(metricID, lookup, cell, nowISO);
+    var enriched = lockoutsV2_buildMetricPromptFields_(metricID, {
+      now: now,
+      todayCol: todayCol,
+      trackingSheet: trackingSheet
+    });
 
     metricsByID.push({
       metricID: metricID,
       found: !!entry.found,
       value: entry.found ? entry.value : null,
       displayValue: entry.found ? entry.displayValue : '',
+      displayName: enriched.displayName,
+      streak: enriched.streak,
+      dueState: enriched.dueState,
+      points: enriched.points,
+      currMultiplier: enriched.currMultiplier,
       error: entry.error || null,
       warnings: entry.warnings || []
     });
@@ -1433,6 +1443,60 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     todayCol: todayCol,
     metricsByID: metricsByID,
     warnings: warnings
+  };
+}
+
+function lockoutsV2_roundToOneDecimal_(value) {
+  var numeric = Number(value);
+  if (!isFinite(numeric)) {
+    return null;
+  }
+  return Math.round(numeric * 10) / 10;
+}
+
+function lockoutsV2_buildMetricPromptFields_(metricID, options) {
+  var opts = options || {};
+  var trackingSheet = opts.trackingSheet || sheet1 || getTrackingSheet_();
+  var todayCol = Number(opts.todayCol) || getCurrentTrackingDayColumn_(trackingSheet);
+  var now = opts.now instanceof Date ? opts.now : new Date();
+  var extensionHours = lateExtensionHours !== undefined ? lateExtensionHours : lateExtension;
+  var settingLookup = getMetricSettingById(metricID);
+  var setting = settingLookup && settingLookup.setting ? settingLookup.setting : null;
+
+  if (!setting) {
+    return {
+      displayName: null,
+      streak: null,
+      dueState: null,
+      points: null,
+      currMultiplier: null
+    };
+  }
+
+  var streak = calculateStreak_(metricID, todayCol, extensionHours, trackingSheet);
+  var streakBeforeLog = calculateStreakBeforeLog_(metricID, todayCol, extensionHours, trackingSheet);
+  var currMultiplier = lockoutsV2_roundToOneDecimal_(getMultiplier_(metricID, streakBeforeLog));
+
+  var dueState = null;
+  var dueLookup = getDueByTimeForCurrentEffectiveDay_(setting.dates, now, extensionHours);
+  if (dueLookup && dueLookup.dueDateTime instanceof Date && !isNaN(dueLookup.dueDateTime.getTime())) {
+    dueState = Math.round((now.getTime() - dueLookup.dueDateTime.getTime()) / 60000);
+  }
+
+  var points = null;
+  var pointsConfig = setting.points || null;
+  var basePoints = pointsConfig ? parseStrictNumber_(pointsConfig.value) : null;
+  if (basePoints !== null) {
+    var multiplier = currMultiplier === null ? 1 : currMultiplier;
+    points = lockoutsV2_roundToOneDecimal_(basePoints * multiplier);
+  }
+
+  return {
+    displayName: setting.displayName || null,
+    streak: parseStrictNumber_(streak),
+    dueState: dueState,
+    points: points,
+    currMultiplier: currMultiplier
   };
 }
 
