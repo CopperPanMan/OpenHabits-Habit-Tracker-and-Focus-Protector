@@ -1403,6 +1403,45 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   var metricsByID = [];
   var warnings = [];
   var allFound = true;
+  var todayPoints = null;
+  var configuredDailyPointsID = null;
+
+  if (typeof dailyPointsID === 'string' && dailyPointsID.trim()) {
+    configuredDailyPointsID = dailyPointsID.trim();
+  } else {
+    var appConfig = context.config || getAppConfig();
+    if (appConfig && typeof appConfig.dailyPointsID === 'string' && appConfig.dailyPointsID.trim()) {
+      configuredDailyPointsID = appConfig.dailyPointsID.trim();
+    }
+  }
+
+  if (configuredDailyPointsID) {
+    var fallbackTrackingSheet = getTrackingSheet_();
+    var dailyPointsSheetCandidates = [];
+
+    if (trackingSheet) {
+      dailyPointsSheetCandidates.push(trackingSheet);
+    }
+    if (sheet1 && sheet1 !== trackingSheet) {
+      dailyPointsSheetCandidates.push(sheet1);
+    }
+    if (fallbackTrackingSheet && fallbackTrackingSheet !== trackingSheet && fallbackTrackingSheet !== sheet1) {
+      dailyPointsSheetCandidates.push(fallbackTrackingSheet);
+    }
+
+    for (var s = 0; s < dailyPointsSheetCandidates.length; s++) {
+      var candidateSheet = dailyPointsSheetCandidates[s];
+      var dailyPointsLookup = findRowByMetricId_(configuredDailyPointsID, candidateSheet);
+      if (dailyPointsLookup && dailyPointsLookup.row) {
+        todayPoints = candidateSheet.getRange(dailyPointsLookup.row, todayCol).getValue();
+        break;
+      }
+    }
+
+    if (todayPoints === null) {
+      warnings.push('Unable to resolve todayPoints for dailyPointsID "' + configuredDailyPointsID + '" at column ' + todayCol + '.');
+    }
+  }
 
   for (var i = 0; i < metricIDs.length; i++) {
     var metricID = metricIDs[i];
@@ -1425,6 +1464,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
       streak: entry.streak,
       dueState: entry.dueState,
       points: entry.points,
+      todayPoints: todayPoints,
       currMultiplier: entry.currMultiplier,
       error: entry.error || null,
       warnings: entry.warnings || []
