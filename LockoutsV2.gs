@@ -1405,14 +1405,12 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   var allFound = true;
   var todayPoints = null;
   var configuredDailyPointsID = null;
+  var appConfig = lockoutsV2_resolveAppConfig_(context);
 
   if (typeof dailyPointsID === 'string' && dailyPointsID.trim()) {
     configuredDailyPointsID = dailyPointsID.trim();
-  } else {
-    var appConfig = context.config || getAppConfig();
-    if (appConfig && typeof appConfig.dailyPointsID === 'string' && appConfig.dailyPointsID.trim()) {
-      configuredDailyPointsID = appConfig.dailyPointsID.trim();
-    }
+  } else if (appConfig && typeof appConfig.dailyPointsID === 'string' && appConfig.dailyPointsID.trim()) {
+    configuredDailyPointsID = appConfig.dailyPointsID.trim();
   }
 
   if (configuredDailyPointsID) {
@@ -1488,6 +1486,22 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     metricsByID: metricsByID,
     warnings: warnings
   };
+}
+
+function lockoutsV2_resolveAppConfig_(ctx) {
+  var context = ctx || {};
+  if (context.appConfig && typeof context.appConfig === 'object') {
+    return context.appConfig;
+  }
+
+  if (context.config &&
+      typeof context.config === 'object' &&
+      typeof context.config.dailyPointsID === 'string' &&
+      context.config.dailyPointsID.trim()) {
+    return context.config;
+  }
+
+  return getAppConfig();
 }
 
 function lockoutsV2_roundToOneDecimal_(value) {
