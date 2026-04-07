@@ -55,6 +55,9 @@
         - `positive_push_notification` (shared with Habits V2)
         - `current_metric_status` (shared with Habits V2)
         - **`app_closer`** (Lockouts V2: the lockout decision endpoint)
+- **Lockouts.gs**
+    - Contains the Lockouts evaluation module used by `app_closer`.
+    - Implements preset resolution, block evaluation, and response formatting.
 - **config.gs**
     - Holds all configuration as a dictionary/JSON-like structure (Apps Script `var config = {...}` pattern).
     - Holds:

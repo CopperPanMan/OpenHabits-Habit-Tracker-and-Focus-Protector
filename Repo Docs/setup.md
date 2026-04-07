@@ -48,7 +48,7 @@ Developer Stuff -> here are the "keys" you can call and what they do, if you wou
 
 1. Create/copy your Google Sheet so you control the data.
 2. Open **Extensions → Apps Script**.
-3. Copy this repository's script files (`Main.gs`, `Config.gs`, `LockoutsV2.gs`) into your Apps Script project.
+3. Copy this repository's script files (`Main.gs`, `Config.gs`, `Lockouts.gs`) into your Apps Script project.
 4. Set the Apps Script timezone to your local timezone (**Project Settings → Script properties / timezone**).
 
 > Why timezone matters: day rollover logic, schedule windows, and lockout windows all depend on script-local time.

@@ -366,7 +366,7 @@
     insightSec.appendChild(compareToggle);
     root.appendChild(insightSec);
 
-    const lockouts = toggleSection('LockoutsV2 Globals', 'global-lockouts');
+    const lockouts = toggleSection('Lockouts Globals', 'global-lockouts');
     const lockGrid = document.createElement('div');
     lockGrid.className = 'grid';
     field(lockGrid, 'Cumulative Screentime Metric ID', makeInput({ value: state.lockoutsV2.globals.cumulativeScreentimeID, onChange: v => state.lockoutsV2.globals.cumulativeScreentimeID = v }), 'Metric ID used for global cumulative screentime.');
