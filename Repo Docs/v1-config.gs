@@ -33,7 +33,7 @@ function getAppConfig() {
       labelColumn: 2,
       dataStartColumn: 3
     },
-    lockoutsV2: {
+    lockouts: {
       globals: {
         cumulativeScreentimeID: null,
         barLength: 20,
@@ -946,7 +946,7 @@ function getAppConfig() {
     },
     noMetricKeys: [
       "app_closer",
-      "app_closer_v2",
+      "app_closer",
       "is_nfc_completed",
       "positive_push_notification",
       "habit_dashboard",
@@ -956,10 +956,10 @@ function getAppConfig() {
   };
 }
 
-function getLockoutsV2Config_() {
+function getLockoutsConfig_() {
   var config = getAppConfig();
-  if (config && config.lockoutsV2) {
-    return config.lockoutsV2;
+  if (config && config.lockouts) {
+    return config.lockouts;
   }
 
   return {

@@ -30,7 +30,7 @@ const UNLOCK_WINDOWS = {
   }
 };
 
-const SERVER_DECISION_KEYS = ['app_closer_v2'];
+const SERVER_DECISION_KEYS = ['app_closer'];
 const ACTIVE_SESSION_KEYS = ['activeScreenTimeSession', 'sessionCandidateToken'];
 
 chrome.runtime.onInstalled.addListener(async () => {

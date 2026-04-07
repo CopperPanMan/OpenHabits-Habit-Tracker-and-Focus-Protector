@@ -1,6 +1,6 @@
-# Lockouts V2 server contract
+# Lockouts server contract
 
-This document captures the finalized server contract for Lockouts V2.
+This document captures the finalized server contract for Lockouts.
 
 ## Endpoint
 
@@ -14,7 +14,7 @@ Content-Type: application/json
 OpenHabits-Secret: your_random_secret_string
 
 {
-  "key": "app_closer_v2",
+  "key": "app_closer",
   "secret": "your_random_secret_string",
   "data": null
 }
@@ -22,7 +22,7 @@ OpenHabits-Secret: your_random_secret_string
 
 > Apps Script does not expose custom request headers to `doPost(e)`, so authentication must provide `secret` (or `openHabitsSecret`) in the JSON body or in the web-app URL query params even if the client also sends the `OpenHabits-Secret` header.
 
-### `key="app_closer_v2"`
+### `key="app_closer"`
 
 - Optional request `data`:
   - If `data` is a string, treat as preset override.

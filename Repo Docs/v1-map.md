@@ -9,7 +9,7 @@ This repository now routes web-app traffic through `doPost(e)` in `Main.gs`.
 
 ## Key dispatch pattern
 - POST bodies are parsed once, validated against `OPENHABITS_SECRET`, and then routed by `key`.
-- Habits V2 keys and Lockouts V2 keys still use the existing helper functions after request validation.
+- Habits V2 keys and Lockouts keys still use the existing helper functions after request validation.
 
 ## Security
 - Store the shared secret in Script Properties as `OPENHABITS_SECRET`.

@@ -54,7 +54,7 @@
         averageSpan: 7
       },
       metricSettings: [],
-      lockoutsV2: {
+      lockouts: {
         globals: { cumulativeScreentimeID: 'cumulative_app_opened', barLength: 20, presetCalendarName: 'App Lockout Settings' },
         blocks: []
       }
@@ -366,12 +366,12 @@
     insightSec.appendChild(compareToggle);
     root.appendChild(insightSec);
 
-    const lockouts = toggleSection('LockoutsV2 Globals', 'global-lockouts');
+    const lockouts = toggleSection('Lockouts Globals', 'global-lockouts');
     const lockGrid = document.createElement('div');
     lockGrid.className = 'grid';
-    field(lockGrid, 'Cumulative Screentime Metric ID', makeInput({ value: state.lockoutsV2.globals.cumulativeScreentimeID, onChange: v => state.lockoutsV2.globals.cumulativeScreentimeID = v }), 'Metric ID used for global cumulative screentime.');
-    field(lockGrid, 'Bar Length', makeInput({ type: 'number', min: 1, value: state.lockoutsV2.globals.barLength, onChange: v => state.lockoutsV2.globals.barLength = v }), 'Character length used for on-block screentime bar token.');
-    field(lockGrid, 'Preset Calendar Name', makeInput({ value: state.lockoutsV2.globals.presetCalendarName, onChange: v => state.lockoutsV2.globals.presetCalendarName = v }), 'Calendar name used to detect active lockout preset.');
+    field(lockGrid, 'Cumulative Screentime Metric ID', makeInput({ value: state.lockouts.globals.cumulativeScreentimeID, onChange: v => state.lockouts.globals.cumulativeScreentimeID = v }), 'Metric ID used for global cumulative screentime.');
+    field(lockGrid, 'Bar Length', makeInput({ type: 'number', min: 1, value: state.lockouts.globals.barLength, onChange: v => state.lockouts.globals.barLength = v }), 'Character length used for on-block screentime bar token.');
+    field(lockGrid, 'Preset Calendar Name', makeInput({ value: state.lockouts.globals.presetCalendarName, onChange: v => state.lockouts.globals.presetCalendarName = v }), 'Calendar name used to detect active lockout preset.');
     lockouts.appendChild(lockGrid);
     root.appendChild(lockouts);
   }
@@ -491,9 +491,9 @@
     title.textContent = `${block.id || 'Unnamed Block'} (Block ${i + 1})`;
     const ctr = document.createElement('div');
     ctr.className = 'controls';
-    ctr.append(button('↑', 'secondary', () => move(state.lockoutsV2.blocks, i, -1)));
-    ctr.append(button('↓', 'secondary', () => move(state.lockoutsV2.blocks, i, 1)));
-    ctr.append(button('Delete', 'danger', () => { state.lockoutsV2.blocks.splice(i, 1); renderAll(); }));
+    ctr.append(button('↑', 'secondary', () => move(state.lockouts.blocks, i, -1)));
+    ctr.append(button('↓', 'secondary', () => move(state.lockouts.blocks, i, 1)));
+    ctr.append(button('Delete', 'danger', () => { state.lockouts.blocks.splice(i, 1); renderAll(); }));
     head.append(title, ctr);
     card.appendChild(head);
 
@@ -580,8 +580,8 @@
   function renderBlocks() {
     const root = $('tab-blocks');
     root.innerHTML = '';
-    state.lockoutsV2.blocks.forEach((b, i) => root.appendChild(renderBlock(b, i)));
-    root.append(button('Add Block', '', () => { state.lockoutsV2.blocks.push(newBlock()); renderAll(); }));
+    state.lockouts.blocks.forEach((b, i) => root.appendChild(renderBlock(b, i)));
+    root.append(button('Add Block', '', () => { state.lockouts.blocks.push(newBlock()); renderAll(); }));
   }
 
   function ensureShape(raw) {
@@ -592,10 +592,10 @@
       scriptProperties: { ...base.scriptProperties, ...(raw.scriptProperties || {}) },
       sheetConfig: { ...base.sheetConfig, ...(raw.sheetConfig || {}) },
       habitsV2Insights: { ...base.habitsV2Insights, ...(raw.habitsV2Insights || {}) },
-      lockoutsV2: {
-        ...base.lockoutsV2,
-        ...(raw.lockoutsV2 || {}),
-        globals: { ...base.lockoutsV2.globals, ...((raw.lockoutsV2 && raw.lockoutsV2.globals) || {}) }
+      lockouts: {
+        ...base.lockouts,
+        ...(raw.lockouts || {}),
+        globals: { ...base.lockouts.globals, ...((raw.lockouts && raw.lockouts.globals) || {}) }
       },
       notion: {
         ...base.notion,
@@ -627,7 +627,7 @@
       applyMetricTypeDefaults(normalized);
       return normalized;
     });
-    merged.lockoutsV2.blocks = ((merged.lockoutsV2 && merged.lockoutsV2.blocks) || []).map((b) => ({ ...newBlock(), ...b, times: { ...newBlock().times, ...(b.times || {}) }, typeSpecific: { ...newBlock().typeSpecific, ...(b.typeSpecific || {}), duration: { ...newBlock().typeSpecific.duration, ...((b.typeSpecific && b.typeSpecific.duration) || {}), rationing: { ...newBlock().typeSpecific.duration.rationing, ...(((b.typeSpecific || {}).duration || {}).rationing || {}) } }, firstXMinutes: { ...newBlock().typeSpecific.firstXMinutes, ...((b.typeSpecific && b.typeSpecific.firstXMinutes) || {}) } }, onBlock: { ...newBlock().onBlock, ...(b.onBlock || {}) } }));
+    merged.lockouts.blocks = ((merged.lockouts && merged.lockouts.blocks) || []).map((b) => ({ ...newBlock(), ...b, times: { ...newBlock().times, ...(b.times || {}) }, typeSpecific: { ...newBlock().typeSpecific, ...(b.typeSpecific || {}), duration: { ...newBlock().typeSpecific.duration, ...((b.typeSpecific && b.typeSpecific.duration) || {}), rationing: { ...newBlock().typeSpecific.duration.rationing, ...(((b.typeSpecific || {}).duration || {}).rationing || {}) } }, firstXMinutes: { ...newBlock().typeSpecific.firstXMinutes, ...((b.typeSpecific && b.typeSpecific.firstXMinutes) || {}) } }, onBlock: { ...newBlock().onBlock, ...(b.onBlock || {}) } }));
     return merged;
   }
 
@@ -653,7 +653,7 @@
         if (typeof d[2] !== 'number' || typeof d[3] !== 'number') errors.push(`Metric ${i + 1}, date ${di + 1}: start/end must be numbers.`);
       });
     });
-    state.lockoutsV2.blocks.forEach((b, i) => {
+    state.lockouts.blocks.forEach((b, i) => {
       if (!b.id) errors.push(`Block ${i + 1}: Block ID is required.`);
       if (!/^\d{2}:\d{2}$/.test(b.times.beg) || !/^\d{2}:\d{2}$/.test(b.times.end)) errors.push(`Block ${i + 1}: begin/end time must be HH:MM.`);
     });

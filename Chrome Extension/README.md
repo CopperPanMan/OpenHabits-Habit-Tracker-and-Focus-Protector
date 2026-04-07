@@ -7,7 +7,7 @@
   - Illegal unlock: first click starts a configurable timer (default 30s), second click (between timer completion and 5m) grants 10m unlock and logs `illegal_unlock`.
   - Legitimate unlock: first click starts a configurable timer (default 60s), second click (between timer completion and 5m) grants 20m unlock and logs `legitimate_unlock`.
 - Creates `unlockedUntil` state on first run (using extension storage).
-- Optionally queries a Lockouts server before blocking via JSON `POST` requests to `app_closer_v2`.
+- Optionally queries a Lockouts server before blocking via JSON `POST` requests to `app_closer`.
 - Supports optional screentime start/stop metric logging with configurable metric IDs and POST key name (default: `record_metric_iOS`).
 - Uses a stable active-session rule before starting screentime logging: the tab must still be active, focused, non-idle, and server-allowed when the decision returns.
 - Sends an `OpenHabits-Secret` header and also includes the same secret in the JSON body so Apps Script can validate it.

@@ -48,7 +48,7 @@ Developer Stuff -> here are the "keys" you can call and what they do, if you wou
 
 1. Create/copy your Google Sheet so you control the data.
 2. Open **Extensions → Apps Script**.
-3. Copy this repository's script files (`Main.gs`, `Config.gs`, `LockoutsV2.gs`) into your Apps Script project.
+3. Copy this repository's script files (`Main.gs`, `Config.gs`, `Lockouts.gs`) into your Apps Script project.
 4. Set the Apps Script timezone to your local timezone (**Project Settings → Script properties / timezone**).
 
 > Why timezone matters: day rollover logic, schedule windows, and lockout windows all depend on script-local time.
@@ -110,15 +110,15 @@ Optional but recommended:
 
 If you use `pointsID` or `streaksID`, create those IDs as rows in `Tracking Data` too.
 
-## 5) Configure Lockouts V2 (`lockoutsV2`)
+## 5) Configure Lockouts (`lockouts`)
 
 In `Config.gs`, configure:
 
-- `lockoutsV2.globals`
+- `lockouts.globals`
   - `cumulativeScreentimeID`: metric ID row used by duration blocks.
   - `barLength`: size of visual bar in lockout messages.
   - `presetCalendarName`: optional calendar for automatic preset selection.
-- `lockoutsV2.blocks`: ordered array of lock rules (first matching blocking rule wins).
+- `lockouts.blocks`: ordered array of lock rules (first matching blocking rule wins).
 
 Block types supported in V2:
 
@@ -178,7 +178,7 @@ Primary V2 keys:
 - `record_metric_notion`
 - `positive_push_notification`
 - `current_metric_status`
-- `app_closer_v2` (Lockouts V2)
+- `app_closer` (Lockouts)
 
 ## 9) Smoke-test each path
 
@@ -188,13 +188,13 @@ Run these from Shortcuts, curl, Postman, or another HTTP client that can send JS
 2. **Sync that metric to Notion (Habits V2):** call `update_metric_notion` with the same payload format used for `record_metric_iOS`.
 3. **Read status:** call `current_metric_status` and verify returned text for your metric.
 4. **Push prompt:** call `positive_push_notification` and verify a sensible response.
-5. **Lockout evaluation:** call `app_closer_v2` and confirm JSON with `status` in `allowed|blocked|error`.
+5. **Lockout evaluation:** call `app_closer` and confirm JSON with `status` in `allowed|blocked|error`.
 
 If lockouts are not behaving as expected:
 
-- check `lockoutsV2.blocks` order,
+- check `lockouts.blocks` order,
 - validate each block's `times` and IDs,
-- check returned `debug.errors` in the `app_closer_v2` response.
+- check returned `debug.errors` in the `app_closer` response.
 
 ## 10) Rollout strategy (recommended)
 
@@ -209,7 +209,7 @@ If lockouts are not behaving as expected:
 
 - **"Metric not found" behavior:** ensure metric ID exists exactly in column A.
 - **Writes landing in wrong day column:** re-check timezone + `lateExtensionHours`.
-- **Lockouts never trigger:** confirm you are calling `app_closer_v2`, not legacy `app_closer`.
+- **Lockouts never trigger:** confirm you are calling `app_closer`, not legacy `app_closer`.
 - **Calendar preset not applying:** verify `presetCalendarName` and that event titles exactly match configured preset names.
 
 ## Minimal go-live checklist
@@ -217,7 +217,7 @@ If lockouts are not behaving as expected:
 - [ ] `Tracking Data` exists with correct header shape.
 - [ ] Required ID rows exist (`dailyPointsID`, `cumulativePointsID`, plus any metric-derived IDs).
 - [ ] `metricSettings` populated with real metrics.
-- [ ] `lockoutsV2.globals` and `lockoutsV2.blocks` configured.
+- [ ] `lockouts.globals` and `lockouts.blocks` configured.
 - [ ] Script properties set (`spreadsheetId`, `OPENHABITS_SECRET`, plus Notion properties if needed).
 - [ ] Web app deployed and URL wired into Shortcuts.
 - [ ] Smoke tests pass for all V2 keys you use.

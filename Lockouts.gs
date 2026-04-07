@@ -1,18 +1,18 @@
 /**
- * Lockouts V2 module.
+ * Lockouts module.
  *
- * This file contains read-only evaluation helpers for `key="app_closer_v2"`.
+ * This file contains read-only evaluation helpers for `key="app_closer"`.
  * Existing V1 app_closer behavior is intentionally untouched.
  */
 
 /**
- * Handler for the Lockouts V2 app_closer flow.
+ * Handler for the Lockouts app_closer flow.
  *
- * @param {*} payload Lockouts V2 payload (preset override, app info, etc.)
+ * @param {*} payload Lockouts payload (preset override, app info, etc.)
  * @param {*} ctx Execution context object for shared services/helpers.
- * @return {!Object} Lockouts V2 response-shaped JSON object.
+ * @return {!Object} Lockouts response-shaped JSON object.
  */
-function lockoutsV2_handleAppCloser_(payload, ctx) {
+function lockouts_handleAppCloser_(payload, ctx) {
   var context = ctx || {};
   var debugErrors = [];
   var now = context.now instanceof Date ? context.now : new Date();
@@ -34,8 +34,8 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
     }
   };
 
-  var config = context.config || getLockoutsV2Config_();
-  var configValidation = lockoutsV2_validateConfig_(config);
+  var config = context.config || getLockoutsConfig_();
+  var configValidation = lockouts_validateConfig_(config);
   if (!configValidation.isValid) {
     response.status = 'error';
     debugErrors = debugErrors.concat(configValidation.errors);
@@ -43,7 +43,7 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
     return response;
   }
 
-  var presetResolution = lockoutsV2_resolvePreset_(payload, {
+  var presetResolution = lockouts_resolvePreset_(payload, {
     now: now,
     config: config,
     calendarLookup: context.calendarLookup
@@ -51,7 +51,7 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
   debugErrors = debugErrors.concat(presetResolution.errors);
   response.debug.preset = presetResolution.preset;
 
-  var evalResult = lockoutsV2_evaluateBlocks_(
+  var evalResult = lockouts_evaluateBlocks_(
     now,
     presetResolution.preset,
     config.blocks,
@@ -66,7 +66,7 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
   }
 
   if (evalResult.status === 'blocked' && evalResult.winningBlock) {
-    var blockedPayload = lockoutsV2_buildBlockedUi_(now, evalResult.winningBlock, evalResult.uiComputedFields, config, context);
+    var blockedPayload = lockouts_buildBlockedUi_(now, evalResult.winningBlock, evalResult.uiComputedFields, config, context);
     response.status = 'blocked';
     response.block = blockedPayload.block;
     response.ui = blockedPayload.ui;
@@ -77,7 +77,7 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
   }
 
   response.status = 'allowed';
-  response.ui = lockoutsV2_buildAllowedUi_(now, presetResolution.preset, config, context, debugErrors);
+  response.ui = lockouts_buildAllowedUi_(now, presetResolution.preset, config, context, debugErrors);
   response.debug.errors = debugErrors;
   return {
     status: response.status,
@@ -89,17 +89,17 @@ function lockoutsV2_handleAppCloser_(payload, ctx) {
 }
 
 /**
- * Preset resolver for Lockouts V2.
+ * Preset resolver for Lockouts.
  *
- * @param {*} payload Lockouts V2 payload.
+ * @param {*} payload Lockouts payload.
  * @param {*} ctx Execution context object.
  * @return {{preset: (string|null), source: string, errors: !Array<string>}}
  */
-function lockoutsV2_resolvePreset_(payload, ctx) {
+function lockouts_resolvePreset_(payload, ctx) {
   var context = ctx || {};
   var config = context.config || {};
   var errors = [];
-  var overridePreset = lockoutsV2_parsePresetOverride_(payload && payload.data);
+  var overridePreset = lockouts_parsePresetOverride_(payload && payload.data);
 
   if (overridePreset) {
     return {
@@ -118,7 +118,7 @@ function lockoutsV2_resolvePreset_(payload, ctx) {
     };
   }
 
-  var calendarResult = lockoutsV2_lookupCalendarPreset_(calendarName, context.now, config, context.calendarLookup);
+  var calendarResult = lockouts_lookupCalendarPreset_(calendarName, context.now, config, context.calendarLookup);
   errors = errors.concat(calendarResult.errors || []);
   return {
     preset: calendarResult.preset,
@@ -127,12 +127,12 @@ function lockoutsV2_resolvePreset_(payload, ctx) {
   };
 }
 
-function lockoutsV2_parsePresetOverride_(rawData) {
+function lockouts_parsePresetOverride_(rawData) {
   if (rawData == null) {
     return null;
   }
 
-  var presetFromData = lockoutsV2_extractPresetFromData_(rawData);
+  var presetFromData = lockouts_extractPresetFromData_(rawData);
   if (typeof presetFromData !== 'string') {
     return null;
   }
@@ -145,7 +145,7 @@ function lockoutsV2_parsePresetOverride_(rawData) {
   return trimmed || null;
 }
 
-function lockoutsV2_extractPresetFromData_(rawData) {
+function lockouts_extractPresetFromData_(rawData) {
   if (rawData == null) {
     return null;
   }
@@ -156,10 +156,10 @@ function lockoutsV2_extractPresetFromData_(rawData) {
       return null;
     }
 
-    if (lockoutsV2_isLikelyJsonPayload_(trimmedRaw)) {
+    if (lockouts_isLikelyJsonPayload_(trimmedRaw)) {
       try {
         var parsedRaw = JSON.parse(trimmedRaw);
-        return lockoutsV2_extractPresetFromParsedPayload_(parsedRaw);
+        return lockouts_extractPresetFromParsedPayload_(parsedRaw);
       } catch (error) {
         // Fall back to treating the value as a literal preset string.
       }
@@ -168,10 +168,10 @@ function lockoutsV2_extractPresetFromData_(rawData) {
     return trimmedRaw;
   }
 
-  return lockoutsV2_extractPresetFromParsedPayload_(rawData);
+  return lockouts_extractPresetFromParsedPayload_(rawData);
 }
 
-function lockoutsV2_extractPresetFromParsedPayload_(payload) {
+function lockouts_extractPresetFromParsedPayload_(payload) {
   if (typeof payload === 'string') {
     return payload;
   }
@@ -191,7 +191,7 @@ function lockoutsV2_extractPresetFromParsedPayload_(payload) {
   return null;
 }
 
-function lockoutsV2_isLikelyJsonPayload_(rawString) {
+function lockouts_isLikelyJsonPayload_(rawString) {
   if (typeof rawString !== 'string' || !rawString) {
     return false;
   }
@@ -208,13 +208,13 @@ function lockoutsV2_isLikelyJsonPayload_(rawString) {
     (firstChar === '[' && lastChar === ']');
 }
 
-function lockoutsV2_lookupCalendarPreset_(calendarName, now, config, overrideLookupFn) {
+function lockouts_lookupCalendarPreset_(calendarName, now, config, overrideLookupFn) {
   var errors = [];
-  var presetNames = lockoutsV2_getPresetNamesFromBlocks_(config && config.blocks);
+  var presetNames = lockouts_getPresetNamesFromBlocks_(config && config.blocks);
   var resolvedPreset = null;
 
   try {
-    var lookupFn = typeof overrideLookupFn === 'function' ? overrideLookupFn : lockoutsV2_defaultCalendarLookup_;
+    var lookupFn = typeof overrideLookupFn === 'function' ? overrideLookupFn : lockouts_defaultCalendarLookup_;
     var matches = lookupFn(calendarName, now, presetNames) || [];
     if (matches.length > 1) {
       errors.push('Multiple preset calendar events matched; using first: ' + matches.join(', '));
@@ -232,7 +232,7 @@ function lockoutsV2_lookupCalendarPreset_(calendarName, now, config, overrideLoo
   };
 }
 
-function lockoutsV2_defaultCalendarLookup_(calendarName, now, presetNames) {
+function lockouts_defaultCalendarLookup_(calendarName, now, presetNames) {
   var calendars = CalendarApp.getCalendarsByName(String(calendarName));
   if (!calendars || calendars.length === 0) {
     return [];
@@ -256,7 +256,7 @@ function lockoutsV2_defaultCalendarLookup_(calendarName, now, presetNames) {
   return matches;
 }
 
-function lockoutsV2_getPresetNamesFromBlocks_(blocks) {
+function lockouts_getPresetNamesFromBlocks_(blocks) {
   var list = [];
   var seen = {};
   var effectiveBlocks = Array.isArray(blocks) ? blocks : [];
@@ -278,14 +278,14 @@ function lockoutsV2_getPresetNamesFromBlocks_(blocks) {
 }
 
 /**
- * Placeholder for Lockouts V2 time window checks.
+ * Placeholder for Lockouts time window checks.
  *
  * @param {!Date} now Current instant.
  * @param {{beg: string, end: string}} times Local time bounds (HH:MM).
  * @param {string} tz IANA/Apps Script timezone string.
  * @return {boolean} True when now is inside the configured window.
  */
-function lockoutsV2_isNowInTimesWindow_(now, times, tz) {
+function lockouts_isNowInTimesWindow_(now, times, tz) {
   if (!(now instanceof Date) || isNaN(now.getTime())) {
     return false;
   }
@@ -293,8 +293,8 @@ function lockoutsV2_isNowInTimesWindow_(now, times, tz) {
     return false;
   }
 
-  var windowStartMinutes = lockoutsV2_parseHHMMToMinutes_(times.beg);
-  var windowEndMinutes = lockoutsV2_parseHHMMToMinutes_(times.end);
+  var windowStartMinutes = lockouts_parseHHMMToMinutes_(times.beg);
+  var windowEndMinutes = lockouts_parseHHMMToMinutes_(times.end);
   if (windowStartMinutes == null || windowEndMinutes == null) {
     return false;
   }
@@ -324,7 +324,7 @@ function lockoutsV2_isNowInTimesWindow_(now, times, tz) {
  * @param {*} hhmm HH:MM formatted string.
  * @return {(number|null)} Minutes since midnight, or null for invalid input.
  */
-function lockoutsV2_parseHHMMToMinutes_(hhmm) {
+function lockouts_parseHHMMToMinutes_(hhmm) {
   if (typeof hhmm !== 'string') {
     return null;
   }
@@ -341,7 +341,7 @@ function lockoutsV2_parseHHMMToMinutes_(hhmm) {
  * Debug helper for representative time-window cases.
  * Logs pass/fail results for quick manual verification.
  */
-function lockoutsV2__debugTimesTests_() {
+function lockouts__debugTimesTests_() {
   var tz = Session.getScriptTimeZone();
   var now = new Date();
   var year = Number(Utilities.formatDate(now, tz, 'yyyy'));
@@ -390,7 +390,7 @@ function lockoutsV2__debugTimesTests_() {
   var passed = 0;
   for (var i = 0; i < testCases.length; i++) {
     var testCase = testCases[i];
-    var parsedNowMinutes = lockoutsV2_parseHHMMToMinutes_(testCase.nowHHMM);
+    var parsedNowMinutes = lockouts_parseHHMMToMinutes_(testCase.nowHHMM);
     if (parsedNowMinutes == null) {
       console.log('FAIL | invalid test case nowHHMM=' + testCase.nowHHMM);
       continue;
@@ -405,7 +405,7 @@ function lockoutsV2__debugTimesTests_() {
       0,
       0
     );
-    var actual = lockoutsV2_isNowInTimesWindow_(testNow, testCase.times, tz);
+    var actual = lockouts_isNowInTimesWindow_(testNow, testCase.times, tz);
     var ok = actual === testCase.expected;
 
     if (ok) {
@@ -418,16 +418,16 @@ function lockoutsV2__debugTimesTests_() {
       testCase.expected + ' | actual=' + actual);
   }
 
-  console.log('lockoutsV2__debugTimesTests_: ' + passed + '/' + testCases.length + ' passed.');
+  console.log('lockouts__debugTimesTests_: ' + passed + '/' + testCases.length + ' passed.');
 }
 
 /**
- * Validates a Lockouts V2 block config object.
+ * Validates a Lockouts block config object.
  *
- * @param {!Object} block Lockouts V2 block configuration object.
+ * @param {!Object} block Lockouts block configuration object.
  * @return {{isValid: boolean, errors: !Array<string>}}
  */
-function lockoutsV2_validateBlock_(block) {
+function lockouts_validateBlock_(block) {
   var errors = [];
   var allowedTypes = {
     duration_block: true,
@@ -453,10 +453,10 @@ function lockoutsV2_validateBlock_(block) {
   if (!block.times || typeof block.times !== 'object') {
     errors.push('Missing required field: times.');
   } else {
-    if (lockoutsV2_parseHHMMToMinutes_(block.times.beg) == null) {
+    if (lockouts_parseHHMMToMinutes_(block.times.beg) == null) {
       errors.push('Invalid required field: times.beg (HH:MM).');
     }
-    if (lockoutsV2_parseHHMMToMinutes_(block.times.end) == null) {
+    if (lockouts_parseHHMMToMinutes_(block.times.end) == null) {
       errors.push('Invalid required field: times.end (HH:MM).');
     }
   }
@@ -527,7 +527,7 @@ function lockoutsV2_validateBlock_(block) {
 }
 
 /**
- * Evaluates Lockouts V2 blocks and returns first matching block.
+ * Evaluates Lockouts blocks and returns first matching block.
  *
  * @param {!Date} now Current time.
  * @param {(string|null)} preset Resolved preset, null means no preset filtering.
@@ -535,7 +535,7 @@ function lockoutsV2_validateBlock_(block) {
  * @param {!Object=} ctx Context overrides for reads/timezone.
  * @return {{status:string,winningBlock:(Object|null),uiComputedFields:Object,debugErrors:!Array<string>}}
  */
-function lockoutsV2_evaluateBlocks_(now, preset, blocks, ctx) {
+function lockouts_evaluateBlocks_(now, preset, blocks, ctx) {
   var context = ctx || {};
   var effectiveNow = now instanceof Date ? now : new Date(now);
   var effectiveBlocks = Array.isArray(blocks) ? blocks : [];
@@ -548,7 +548,7 @@ function lockoutsV2_evaluateBlocks_(now, preset, blocks, ctx) {
       status: 'error',
       winningBlock: null,
       uiComputedFields: {},
-      debugErrors: ['Invalid now value passed to lockoutsV2_evaluateBlocks_.']
+      debugErrors: ['Invalid now value passed to lockouts_evaluateBlocks_.']
     };
   }
 
@@ -562,18 +562,18 @@ function lockoutsV2_evaluateBlocks_(now, preset, blocks, ctx) {
       }
     }
 
-    var validation = lockoutsV2_validateBlock_(block);
+    var validation = lockouts_validateBlock_(block);
     if (!validation.isValid) {
       debugErrors.push('Block ' + blockId + ' invalid: ' + validation.errors.join(' | '));
       continue;
     }
 
-    if (!lockoutsV2_isNowInTimesWindow_(effectiveNow, block.times, tz)) {
+    if (!lockouts_isNowInTimesWindow_(effectiveNow, block.times, tz)) {
       continue;
     }
 
     if (block.type === 'task_block') {
-      var taskEval = lockoutsV2_evaluateTaskBlock_(block, context);
+      var taskEval = lockouts_evaluateTaskBlock_(block, context);
       debugErrors = debugErrors.concat(taskEval.errors);
       if (taskEval.shouldBlock) {
         uiComputedFields = taskEval.uiComputedFields;
@@ -588,7 +588,7 @@ function lockoutsV2_evaluateBlocks_(now, preset, blocks, ctx) {
     }
 
     if (block.type === 'duration_block') {
-      var durationEval = lockoutsV2_evaluateDurationBlock_(effectiveNow, block, context, tz);
+      var durationEval = lockouts_evaluateDurationBlock_(effectiveNow, block, context, tz);
       debugErrors = debugErrors.concat(durationEval.errors);
       if (durationEval.shouldBlock) {
         uiComputedFields = durationEval.uiComputedFields;
@@ -603,7 +603,7 @@ function lockoutsV2_evaluateBlocks_(now, preset, blocks, ctx) {
     }
 
     if (block.type === 'firstXMinutesAfterTimestamp_block') {
-      var firstXEval = lockoutsV2_evaluateFirstXAfterTimestampBlock_(effectiveNow, block, context);
+      var firstXEval = lockouts_evaluateFirstXAfterTimestampBlock_(effectiveNow, block, context);
       debugErrors = debugErrors.concat(firstXEval.errors);
       if (firstXEval.shouldBlock) {
         uiComputedFields = firstXEval.uiComputedFields;
@@ -626,7 +626,7 @@ function lockoutsV2_evaluateBlocks_(now, preset, blocks, ctx) {
   };
 }
 
-function lockoutsV2_evaluateTaskBlock_(block, ctx) {
+function lockouts_evaluateTaskBlock_(block, ctx) {
   var metricIDs = block.typeSpecific.task_block_IDs;
   var incompleteMetricIDs = [];
   var errors = [];
@@ -637,7 +637,7 @@ function lockoutsV2_evaluateTaskBlock_(block, ctx) {
       continue;
     }
 
-    var cellValue = lockoutsV2_readTodayValueByMetricID_(metricID, ctx);
+    var cellValue = lockouts_readTodayValueByMetricID_(metricID, ctx);
     if (!cellValue.found) {
       errors.push('task_block metric not found: ' + metricID);
       incompleteMetricIDs.push(metricID);
@@ -658,9 +658,9 @@ function lockoutsV2_evaluateTaskBlock_(block, ctx) {
   };
 }
 
-function lockoutsV2_evaluateDurationBlock_(now, block, ctx, tz) {
+function lockouts_evaluateDurationBlock_(now, block, ctx, tz) {
   var durationCfg = block.typeSpecific.duration;
-  var usedMinutes = lockoutsV2_readDurationMinutesByMetricID_(durationCfg.screenTimeID, ctx);
+  var usedMinutes = lockouts_readDurationMinutesByMetricID_(durationCfg.screenTimeID, ctx);
   var errors = [];
 
   if (usedMinutes == null) {
@@ -678,8 +678,8 @@ function lockoutsV2_evaluateDurationBlock_(now, block, ctx, tz) {
   var allowedNowMinutes = maxMinutes;
 
   if (rationingOn) {
-    var bounds = lockoutsV2_getWindowBoundsForNow_(now, block.times, tz);
-    allowedNowMinutes = lockoutsV2_computeAllowedSoFar_(
+    var bounds = lockouts_getWindowBoundsForNow_(now, block.times, tz);
+    allowedNowMinutes = lockouts_computeAllowedSoFar_(
       now,
       bounds.windowStart,
       bounds.windowEnd,
@@ -692,9 +692,9 @@ function lockoutsV2_evaluateDurationBlock_(now, block, ctx, tz) {
     usedMinutes: usedMinutes,
     maxMinutes: maxMinutes,
     allowedNowMinutes: allowedNowMinutes,
-    usedHuman: lockoutsV2_humanizeMinutes_(usedMinutes),
-    maxHuman: lockoutsV2_humanizeMinutes_(maxMinutes),
-    allowedNowHuman: lockoutsV2_humanizeMinutes_(allowedNowMinutes),
+    usedHuman: lockouts_humanizeMinutes_(usedMinutes),
+    maxHuman: lockouts_humanizeMinutes_(maxMinutes),
+    allowedNowHuman: lockouts_humanizeMinutes_(allowedNowMinutes),
     rationingOn: rationingOn
   };
 
@@ -705,9 +705,9 @@ function lockoutsV2_evaluateDurationBlock_(now, block, ctx, tz) {
   };
 }
 
-function lockoutsV2_evaluateFirstXAfterTimestampBlock_(now, block, ctx) {
+function lockouts_evaluateFirstXAfterTimestampBlock_(now, block, ctx) {
   var config = block.typeSpecific.firstXMinutes;
-  var timestampLookup = lockoutsV2_readTodayValueByMetricID_(config.timestampID, ctx);
+  var timestampLookup = lockouts_readTodayValueByMetricID_(config.timestampID, ctx);
   if (!timestampLookup.found || timestampLookup.value === '' || timestampLookup.value === null) {
     return {
       shouldBlock: false,
@@ -738,7 +738,7 @@ function lockoutsV2_evaluateFirstXAfterTimestampBlock_(now, block, ctx) {
   };
 }
 
-function lockoutsV2_readTodayValueByMetricID_(metricID, ctx) {
+function lockouts_readTodayValueByMetricID_(metricID, ctx) {
   var context = ctx || {};
   var sourceMap = context.todayValuesByMetricID;
   if (sourceMap && Object.prototype.hasOwnProperty.call(sourceMap, metricID)) {
@@ -764,14 +764,14 @@ function lockoutsV2_readTodayValueByMetricID_(metricID, ctx) {
   };
 }
 
-function lockoutsV2_getWindowBoundsForNow_(now, times, tz) {
+function lockouts_getWindowBoundsForNow_(now, times, tz) {
   var effectiveTz = tz || Session.getScriptTimeZone();
   var year = Number(Utilities.formatDate(now, effectiveTz, 'yyyy'));
   var month = Number(Utilities.formatDate(now, effectiveTz, 'M')) - 1;
   var day = Number(Utilities.formatDate(now, effectiveTz, 'd'));
   var nowMinutes = Number(Utilities.formatDate(now, effectiveTz, 'H')) * 60 + Number(Utilities.formatDate(now, effectiveTz, 'm'));
-  var begMinutes = lockoutsV2_parseHHMMToMinutes_(times.beg);
-  var endMinutes = lockoutsV2_parseHHMMToMinutes_(times.end);
+  var begMinutes = lockouts_parseHHMMToMinutes_(times.beg);
+  var endMinutes = lockouts_parseHHMMToMinutes_(times.end);
 
   var dayMs = 24 * 60 * 60 * 1000;
   var start = new Date(year, month, day, Math.floor(begMinutes / 60), begMinutes % 60, 0, 0);
@@ -796,7 +796,7 @@ function lockoutsV2_getWindowBoundsForNow_(now, times, tz) {
 /**
  * Debug helper for block evaluation using in-memory metric values.
  */
-function lockoutsV2__debugEvalTests_() {
+function lockouts__debugEvalTests_() {
   var now = new Date('2026-01-01T09:30:00Z');
   var blocks = [
     {
@@ -845,8 +845,8 @@ function lockoutsV2__debugEvalTests_() {
     }
   };
 
-  var resultWorkday = lockoutsV2_evaluateBlocks_(now, 'workday', blocks, ctx);
-  var resultNoPreset = lockoutsV2_evaluateBlocks_(now, null, blocks, ctx);
+  var resultWorkday = lockouts_evaluateBlocks_(now, 'workday', blocks, ctx);
+  var resultNoPreset = lockouts_evaluateBlocks_(now, null, blocks, ctx);
 
   console.log('workday result => ' + JSON.stringify(resultWorkday));
   console.log('no-preset result => ' + JSON.stringify(resultNoPreset));
@@ -864,12 +864,12 @@ function lockoutsV2__debugEvalTests_() {
  * @param {!Object=} ctx Optional execution context overrides.
  * @return {(number|null)} Parsed minutes, or null when lookup/parsing fails.
  */
-function lockoutsV2_readDurationMinutesByMetricID_(metricID, ctx) {
+function lockouts_readDurationMinutesByMetricID_(metricID, ctx) {
   var context = ctx || {};
   var map = context.todayValuesByMetricID;
 
   if (map && Object.prototype.hasOwnProperty.call(map, metricID)) {
-    return lockoutsV2_parseDurationCellToMinutes_(map[metricID]);
+    return lockouts_parseDurationCellToMinutes_(map[metricID]);
   }
 
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
@@ -883,10 +883,10 @@ function lockoutsV2_readDurationMinutesByMetricID_(metricID, ctx) {
   var durationCell = trackingSheet.getRange(rowLookup.row, todayCol);
   var displayValue = durationCell.getDisplayValue();
   var fallbackValue = durationCell.getValue();
-  var parsedMinutes = lockoutsV2_parseDurationCellToMinutes_(displayValue);
+  var parsedMinutes = lockouts_parseDurationCellToMinutes_(displayValue);
 
   if (parsedMinutes == null) {
-    parsedMinutes = lockoutsV2_parseDurationCellToMinutes_(fallbackValue);
+    parsedMinutes = lockouts_parseDurationCellToMinutes_(fallbackValue);
   }
 
   return parsedMinutes;
@@ -898,7 +898,7 @@ function lockoutsV2_readDurationMinutesByMetricID_(metricID, ctx) {
  * @param {*} value Raw/display duration cell value.
  * @return {(number|null)}
  */
-function lockoutsV2_parseDurationCellToMinutes_(value) {
+function lockouts_parseDurationCellToMinutes_(value) {
   if (value === '' || value === null || value === undefined) {
     return 0;
   }
@@ -911,10 +911,10 @@ function lockoutsV2_parseDurationCellToMinutes_(value) {
 
     var hhmmssMatch = /^\d{1,3}:[0-5]\d:[0-5]\d$/.exec(trimmed);
     if (hhmmssMatch) {
-      return lockoutsV2_parseHHMMSSMinutesSafe_(trimmed);
+      return lockouts_parseHHMMSSMinutesSafe_(trimmed);
     }
 
-    return lockoutsV2_parseHHMMSSMinutesSafe_(trimmed);
+    return lockouts_parseHHMMSSMinutesSafe_(trimmed);
   }
 
   if (typeof value === 'number' && isFinite(value)) {
@@ -931,7 +931,7 @@ function lockoutsV2_parseDurationCellToMinutes_(value) {
  * @param {string} value Duration-like text.
  * @return {(number|null)}
  */
-function lockoutsV2_parseHHMMSSMinutesSafe_(value) {
+function lockouts_parseHHMMSSMinutesSafe_(value) {
   var match = /^(\d{1,3}):([0-5]\d):([0-5]\d)$/.exec(String(value || '').trim());
   if (!match) {
     return null;
@@ -953,7 +953,7 @@ function lockoutsV2_parseHHMMSSMinutesSafe_(value) {
  * @param {{begMinutes:number, endMinutes:number}=} rationing Ration settings.
  * @return {number}
  */
-function lockoutsV2_computeAllowedSoFar_(now, windowStart, windowEnd, maxMinutes, rationing) {
+function lockouts_computeAllowedSoFar_(now, windowStart, windowEnd, maxMinutes, rationing) {
   var maxCap = Math.max(0, Number(maxMinutes) || 0);
   var begMinutes = Number(rationing && rationing.begMinutes);
   var endMinutes = Number(rationing && rationing.endMinutes);
@@ -999,7 +999,7 @@ function lockoutsV2_computeAllowedSoFar_(now, windowStart, windowEnd, maxMinutes
  * @param {{usedMinutes:number,maxMinutes:number,allowedNowMinutes:number,barLength:number,showMarker:boolean}} input
  * @return {string}
  */
-function lockoutsV2_renderBar_(input) {
+function lockouts_renderBar_(input) {
   var options = input || {};
   var barLength = Math.max(1, Math.floor(Number(options.barLength) || 20));
   var usedMinutes = Math.max(0, Number(options.usedMinutes) || 0);
@@ -1030,7 +1030,7 @@ function lockoutsV2_renderBar_(input) {
  * @param {number} mins
  * @return {string}
  */
-function lockoutsV2_humanizeMinutes_(mins) {
+function lockouts_humanizeMinutes_(mins) {
   var rounded = Math.max(0, Math.round(Number(mins) || 0));
   if (rounded < 60) {
     return rounded + 'm';
@@ -1041,22 +1041,22 @@ function lockoutsV2_humanizeMinutes_(mins) {
   return minutes === 0 ? (hours + 'h') : (hours + 'h ' + minutes + 'm');
 }
 
-function lockoutsV2_validateConfig_(config) {
+function lockouts_validateConfig_(config) {
   var errors = [];
   if (!config || typeof config !== 'object') {
     return {
       isValid: false,
-      errors: ['Missing Lockouts V2 config object.']
+      errors: ['Missing Lockouts config object.']
     };
   }
 
   if (!Array.isArray(config.blocks)) {
-    errors.push('Lockouts V2 config.blocks must be an array.');
+    errors.push('Lockouts config.blocks must be an array.');
   }
 
   var globals = config.globals || {};
   if (!isFinite(Number(globals.barLength))) {
-    errors.push('Lockouts V2 globals.barLength must be numeric.');
+    errors.push('Lockouts globals.barLength must be numeric.');
   }
 
   return {
@@ -1065,7 +1065,7 @@ function lockoutsV2_validateConfig_(config) {
   };
 }
 
-function lockoutsV2_buildBlockedUi_(now, block, uiComputedFields, config, ctx) {
+function lockouts_buildBlockedUi_(now, block, uiComputedFields, config, ctx) {
   var blockOn = block.onBlock || {};
   var globals = (config && config.globals) || {};
   var barLength = Number(globals.barLength) || 20;
@@ -1074,12 +1074,12 @@ function lockoutsV2_buildBlockedUi_(now, block, uiComputedFields, config, ctx) {
     showMessage: true,
     message: ''
   };
-  var tokenMap = lockoutsV2_buildTokenMap_(now, block, computed, barLength, ctx);
+  var tokenMap = lockouts_buildTokenMap_(now, block, computed, barLength, ctx);
   var messageTemplate = typeof blockOn.message === 'string' ? blockOn.message : '';
-  var finalMessage = lockoutsV2_tokenSubstitute_(messageTemplate, tokenMap);
+  var finalMessage = lockouts_tokenSubstitute_(messageTemplate, tokenMap);
 
   ui.message = finalMessage;
-  lockoutsV2_mergeUiFields_(ui, tokenMap);
+  lockouts_mergeUiFields_(ui, tokenMap);
 
   return {
     block: {
@@ -1096,21 +1096,21 @@ function lockoutsV2_buildBlockedUi_(now, block, uiComputedFields, config, ctx) {
   };
 }
 
-function lockoutsV2_buildAllowedUi_(now, resolvedPreset, config, ctx, debugErrors) {
+function lockouts_buildAllowedUi_(now, resolvedPreset, config, ctx, debugErrors) {
   var globals = (config && config.globals) || {};
   var barLength = Number(globals.barLength) || 20;
   var blocks = Array.isArray(config && config.blocks) ? config.blocks : [];
   var tz = ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone();
 
-  var durationCtx = lockoutsV2_findFirstApplicableDurationContext_(now, resolvedPreset, blocks, ctx, tz);
+  var durationCtx = lockouts_findFirstApplicableDurationContext_(now, resolvedPreset, blocks, ctx, tz);
   if (durationCtx) {
-    var durationTokenMap = lockoutsV2_buildTokenMap_(now, durationCtx.block, durationCtx.uiComputedFields, barLength, ctx);
+    var durationTokenMap = lockouts_buildTokenMap_(now, durationCtx.block, durationCtx.uiComputedFields, barLength, ctx);
     var remainingMinutes = Math.max(0, Number(durationTokenMap.maxMinutes || 0) - Number(durationTokenMap.usedMinutes || 0));
     return {
       showMessage: true,
       message: String(durationTokenMap.screenTimeBar || '') + '\n' +
         String(durationTokenMap.usedHuman || '0m') + ' used, ' +
-        lockoutsV2_humanizeMinutes_(remainingMinutes) + ' remaining',
+        lockouts_humanizeMinutes_(remainingMinutes) + ' remaining',
       usedMinutes: durationTokenMap.usedMinutes,
       maxMinutes: durationTokenMap.maxMinutes,
       allowedNowMinutes: durationTokenMap.allowedNowMinutes,
@@ -1121,12 +1121,12 @@ function lockoutsV2_buildAllowedUi_(now, resolvedPreset, config, ctx, debugError
 
   var cumulativeMetricID = globals.cumulativeScreentimeID;
   if (cumulativeMetricID) {
-    var usedMinutes = lockoutsV2_readDurationMinutesByMetricID_(cumulativeMetricID, ctx);
+    var usedMinutes = lockouts_readDurationMinutesByMetricID_(cumulativeMetricID, ctx);
     if (usedMinutes == null) {
       debugErrors.push('cumulativeScreentimeID metric missing/invalid: ' + cumulativeMetricID);
     } else {
       var capped = Math.max(0, Math.min(24 * 60, usedMinutes));
-      var screenTimeBar = lockoutsV2_renderBar_({
+      var screenTimeBar = lockouts_renderBar_({
         usedMinutes: capped,
         maxMinutes: 24 * 60,
         allowedNowMinutes: 24 * 60,
@@ -1135,7 +1135,7 @@ function lockoutsV2_buildAllowedUi_(now, resolvedPreset, config, ctx, debugError
       });
       return {
         showMessage: true,
-        message: screenTimeBar + '\n' + lockoutsV2_humanizeMinutes_(usedMinutes) + ' used',
+        message: screenTimeBar + '\n' + lockouts_humanizeMinutes_(usedMinutes) + ' used',
         usedMinutes: usedMinutes,
         maxMinutes: 24 * 60,
         allowedNowMinutes: 24 * 60,
@@ -1150,7 +1150,7 @@ function lockoutsV2_buildAllowedUi_(now, resolvedPreset, config, ctx, debugError
   };
 }
 
-function lockoutsV2_findFirstApplicableDurationContext_(now, resolvedPreset, blocks, ctx, tz) {
+function lockouts_findFirstApplicableDurationContext_(now, resolvedPreset, blocks, ctx, tz) {
   var effectiveBlocks = Array.isArray(blocks) ? blocks : [];
   for (var i = 0; i < effectiveBlocks.length; i++) {
     var block = effectiveBlocks[i];
@@ -1164,16 +1164,16 @@ function lockoutsV2_findFirstApplicableDurationContext_(now, resolvedPreset, blo
       }
     }
 
-    var validation = lockoutsV2_validateBlock_(block);
+    var validation = lockouts_validateBlock_(block);
     if (!validation.isValid) {
       continue;
     }
 
-    if (!lockoutsV2_isNowInTimesWindow_(now, block.times, tz)) {
+    if (!lockouts_isNowInTimesWindow_(now, block.times, tz)) {
       continue;
     }
 
-    var durationEval = lockoutsV2_evaluateDurationBlock_(now, block, ctx || {}, tz);
+    var durationEval = lockouts_evaluateDurationBlock_(now, block, ctx || {}, tz);
     if (durationEval.errors && durationEval.errors.length > 0) {
       continue;
     }
@@ -1187,7 +1187,7 @@ function lockoutsV2_findFirstApplicableDurationContext_(now, resolvedPreset, blo
   return null;
 }
 
-function lockoutsV2_buildTokenMap_(now, block, uiComputedFields, barLength, ctx) {
+function lockouts_buildTokenMap_(now, block, uiComputedFields, barLength, ctx) {
   var computed = uiComputedFields || {};
   var tokenMap = {
     usedMinutes: computed.usedMinutes,
@@ -1205,8 +1205,8 @@ function lockoutsV2_buildTokenMap_(now, block, uiComputedFields, barLength, ctx)
 
   if (computed.usedMinutes != null && computed.maxMinutes != null) {
     tokenMap.remainingMinutes = Math.max(0, Number(computed.maxMinutes) - Number(computed.usedMinutes));
-    tokenMap.remainingHuman = lockoutsV2_humanizeMinutes_(tokenMap.remainingMinutes);
-    tokenMap.screenTimeBar = lockoutsV2_renderBar_({
+    tokenMap.remainingHuman = lockouts_humanizeMinutes_(tokenMap.remainingMinutes);
+    tokenMap.screenTimeBar = lockouts_renderBar_({
       usedMinutes: computed.usedMinutes,
       maxMinutes: computed.maxMinutes,
       allowedNowMinutes: computed.allowedNowMinutes,
@@ -1221,7 +1221,7 @@ function lockoutsV2_buildTokenMap_(now, block, uiComputedFields, barLength, ctx)
     tokenMap.endTimeISO = cutoffDate.toISOString();
     tokenMap.endTime = Utilities.formatDate(cutoffDate, tz, 'h:mm a');
   } else if (block && block.type === 'duration_block' && block.times) {
-    var bounds = lockoutsV2_getWindowBoundsForNow_(now, block.times, ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone());
+    var bounds = lockouts_getWindowBoundsForNow_(now, block.times, ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone());
     tokenMap.endTimeISO = bounds.windowEnd.toISOString();
     tokenMap.endTime = Utilities.formatDate(bounds.windowEnd, ctx && ctx.tz ? ctx.tz : Session.getScriptTimeZone(), 'h:mm a');
   }
@@ -1230,7 +1230,7 @@ function lockoutsV2_buildTokenMap_(now, block, uiComputedFields, barLength, ctx)
   return tokenMap;
 }
 
-function lockoutsV2_mergeUiFields_(ui, tokenMap) {
+function lockouts_mergeUiFields_(ui, tokenMap) {
   if (tokenMap.usedMinutes != null) {
     ui.usedMinutes = tokenMap.usedMinutes;
   }
@@ -1251,7 +1251,7 @@ function lockoutsV2_mergeUiFields_(ui, tokenMap) {
 /**
  * Debug helper for deterministic rationing/math outputs.
  */
-function lockoutsV2__debugRationingTests_() {
+function lockouts__debugRationingTests_() {
   var tests = [
     {
       name: '25% through window with 0→120 ramp',
@@ -1285,7 +1285,7 @@ function lockoutsV2__debugRationingTests_() {
   var passed = 0;
   for (var i = 0; i < tests.length; i++) {
     var t = tests[i];
-    var actual = lockoutsV2_computeAllowedSoFar_(t.now, t.windowStart, t.windowEnd, t.maxMinutes, t.rationing);
+    var actual = lockouts_computeAllowedSoFar_(t.now, t.windowStart, t.windowEnd, t.maxMinutes, t.rationing);
     var ok = Math.abs(actual - t.expected) < 1e-9;
     if (ok) {
       passed++;
@@ -1294,15 +1294,15 @@ function lockoutsV2__debugRationingTests_() {
     console.log((ok ? 'PASS' : 'FAIL') + ' | ' + t.name + ' | expected=' + t.expected + ' | actual=' + actual);
   }
 
-  console.log('renderBar sample | ' + lockoutsV2_renderBar_({
+  console.log('renderBar sample | ' + lockouts_renderBar_({
     usedMinutes: 27,
     maxMinutes: 120,
     allowedNowMinutes: 48,
     barLength: 20,
     showMarker: true
   }));
-  console.log('humanize sample | 27 => ' + lockoutsV2_humanizeMinutes_(27) + ' | 72 => ' + lockoutsV2_humanizeMinutes_(72));
-  console.log('lockoutsV2__debugRationingTests_: ' + passed + '/' + tests.length + ' passed.');
+  console.log('humanize sample | 27 => ' + lockouts_humanizeMinutes_(27) + ' | 72 => ' + lockouts_humanizeMinutes_(72));
+  console.log('lockouts__debugRationingTests_: ' + passed + '/' + tests.length + ' passed.');
 }
 
 /**
@@ -1312,7 +1312,7 @@ function lockoutsV2__debugRationingTests_() {
  * @param {!Object<string, *>} tokenMap Mapping of token names to replacement values.
  * @return {string}
  */
-function lockoutsV2_tokenSubstitute_(template, tokenMap) {
+function lockouts_tokenSubstitute_(template, tokenMap) {
   if (template == null) {
     return '';
   }
@@ -1332,21 +1332,21 @@ function lockoutsV2_tokenSubstitute_(template, tokenMap) {
 }
 
 /**
- * Returns a Lockouts V2 config + metric-state snapshot for local caches.
+ * Returns a Lockouts config + metric-state snapshot for local caches.
  *
  * This is a read-only endpoint and does not write to Sheets.
  */
-function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
+function lockouts_handleConfigSnapshot_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
-  var config = context.config || getAppConfig().lockoutsV2;
-  var habitsMetricTypesByID = lockoutsV2_buildHabitsMetricTypesByID_();
-  var habitsMetricIDs = lockoutsV2_collectHabitMetricIDs_(habitsMetricTypesByID);
+  var config = context.config || getAppConfig().lockouts;
+  var habitsMetricTypesByID = lockouts_buildHabitsMetricTypesByID_();
+  var habitsMetricIDs = lockouts_collectHabitMetricIDs_(habitsMetricTypesByID);
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
-  var discoveredMetricIDs = lockoutsV2_collectConfigMetricIDs_(config);
-  var allMetricIDs = lockoutsV2_mergeMetricIDArrays_(discoveredMetricIDs.allMetricIDs, habitsMetricIDs);
-  var metricStateByID = lockoutsV2_readMetricStateMapByID_(allMetricIDs, {
+  var discoveredMetricIDs = lockouts_collectConfigMetricIDs_(config);
+  var allMetricIDs = lockouts_mergeMetricIDArrays_(discoveredMetricIDs.allMetricIDs, habitsMetricIDs);
+  var metricStateByID = lockouts_readMetricStateMapByID_(allMetricIDs, {
     trackingSheet: trackingSheet,
     todayCol: todayCol,
     now: now,
@@ -1364,10 +1364,10 @@ function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
     configLastUpdated: now.toISOString(),
     metricState: {
       allByID: metricStateByID,
-      taskBlockByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.taskBlockIDs),
-      timestampByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.timestampIDs),
-      durationByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.durationIDs),
-      globalsByID: lockoutsV2_pickMapByIDs_(metricStateByID, discoveredMetricIDs.globalMetricIDs)
+      taskBlockByID: lockouts_pickMapByIDs_(metricStateByID, discoveredMetricIDs.taskBlockIDs),
+      timestampByID: lockouts_pickMapByIDs_(metricStateByID, discoveredMetricIDs.timestampIDs),
+      durationByID: lockouts_pickMapByIDs_(metricStateByID, discoveredMetricIDs.durationIDs),
+      globalsByID: lockouts_pickMapByIDs_(metricStateByID, discoveredMetricIDs.globalMetricIDs)
     },
     metricIDGroups: discoveredMetricIDs,
     warnings: []
@@ -1381,11 +1381,11 @@ function lockoutsV2_handleConfigSnapshot_(payload, ctx) {
  *   - data: "metricID"
  *   - data: { metricID: "metricID" }
  */
-function lockoutsV2_handleMetricState_(payload, ctx) {
+function lockouts_handleMetricState_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();
   var nowISO = now.toISOString();
-  var metricIDs = lockoutsV2_extractMetricStateMetricIDs_(payload && payload.data);
+  var metricIDs = lockouts_extractMetricStateMetricIDs_(payload && payload.data);
 
   if (metricIDs.length === 0) {
     return {
@@ -1406,7 +1406,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   var todayPoints = null;
   var yesterdayPoints = null;
   var configuredDailyPointsID = null;
-  var appConfig = lockoutsV2_resolveAppConfig_(context);
+  var appConfig = lockouts_resolveAppConfig_(context);
 
   if (typeof dailyPointsID === 'string' && dailyPointsID.trim()) {
     configuredDailyPointsID = dailyPointsID.trim();
@@ -1415,7 +1415,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   }
 
   if (configuredDailyPointsID) {
-    todayPoints = lockoutsV2_readDailyPointsByColumn_(
+    todayPoints = lockouts_readDailyPointsByColumn_(
       configuredDailyPointsID,
       todayCol,
       trackingSheet
@@ -1427,7 +1427,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
 
     var yesterdayCol = todayCol - 1;
     if (yesterdayCol >= dataColumn) {
-      yesterdayPoints = lockoutsV2_readDailyPointsByColumn_(
+      yesterdayPoints = lockouts_readDailyPointsByColumn_(
         configuredDailyPointsID,
         yesterdayCol,
         trackingSheet
@@ -1442,7 +1442,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
     var metricID = metricIDs[i];
     var lookup = findRowByMetricId_(metricID, trackingSheet);
     var rowValues = lookup && lookup.row ? trackingSheet.getRange(lookup.row, dataColumn, 1, width).getValues()[0] : null;
-    var entry = lockoutsV2_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, headerValues, {
+    var entry = lockouts_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, headerValues, {
       now: now,
       nowISO: nowISO,
       todayCol: todayCol,
@@ -1486,7 +1486,7 @@ function lockoutsV2_handleMetricState_(payload, ctx) {
   };
 }
 
-function lockoutsV2_resolveAppConfig_(ctx) {
+function lockouts_resolveAppConfig_(ctx) {
   var context = ctx || {};
   if (context.appConfig && typeof context.appConfig === 'object') {
     return context.appConfig;
@@ -1502,7 +1502,7 @@ function lockoutsV2_resolveAppConfig_(ctx) {
   return getAppConfig();
 }
 
-function lockoutsV2_readDailyPointsByColumn_(dailyPointsMetricID, col, trackingSheet) {
+function lockouts_readDailyPointsByColumn_(dailyPointsMetricID, col, trackingSheet) {
   if (!dailyPointsMetricID || !col) {
     return null;
   }
@@ -1531,7 +1531,7 @@ function lockoutsV2_readDailyPointsByColumn_(dailyPointsMetricID, col, trackingS
   return null;
 }
 
-function lockoutsV2_roundToOneDecimal_(value) {
+function lockouts_roundToOneDecimal_(value) {
   var numeric = Number(value);
   if (!isFinite(numeric)) {
     return null;
@@ -1539,7 +1539,7 @@ function lockoutsV2_roundToOneDecimal_(value) {
   return Math.round(numeric * 10) / 10;
 }
 
-function lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerValues, options) {
+function lockouts_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerValues, options) {
   var opts = options || {};
   var now = opts.now instanceof Date ? opts.now : new Date();
   var todayCol = Number(opts.todayCol) || 0;
@@ -1560,8 +1560,8 @@ function lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerV
   }
 
   var todayIndex = Math.max(0, todayCol - dataColumn);
-  var streakParts = lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayIndex, setting, extensionHours);
-  var currMultiplier = lockoutsV2_roundToOneDecimal_(getMultiplier_(metricID, streakParts.streakBeforeLog));
+  var streakParts = lockouts_calculateStreakPartsFromRow_(rowValues, headerValues, todayIndex, setting, extensionHours);
+  var currMultiplier = lockouts_roundToOneDecimal_(getMultiplier_(metricID, streakParts.streakBeforeLog));
 
   var dueState = null;
   var dueLookup = getDueByTimeForCurrentEffectiveDay_(setting.dates, now, extensionHours);
@@ -1574,7 +1574,7 @@ function lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerV
   var basePoints = pointsConfig ? parseStrictNumber_(pointsConfig.value) : null;
   if (basePoints !== null) {
     var multiplier = currMultiplier === null ? 1 : currMultiplier;
-    points = lockoutsV2_roundToOneDecimal_(basePoints * multiplier);
+    points = lockouts_roundToOneDecimal_(basePoints * multiplier);
   }
 
   return {
@@ -1588,7 +1588,7 @@ function lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerV
   };
 }
 
-function lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayIndex, setting, extensionHours) {
+function lockouts_calculateStreakPartsFromRow_(rowValues, headerValues, todayIndex, setting, extensionHours) {
   var values = Array.isArray(rowValues) ? rowValues : [];
   var headers = Array.isArray(headerValues) ? headerValues : [];
   var index = Math.min(todayIndex, values.length - 1, headers.length - 1);
@@ -1598,7 +1598,7 @@ function lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayI
   var expectedPreviousDate = null;
 
   for (var col = index - 1; col >= 0; col--) {
-    var columnDate = lockoutsV2_parseHeaderDate_(headers[col]);
+    var columnDate = lockouts_parseHeaderDate_(headers[col]);
     if (!columnDate || !isScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours)) {
       continue;
     }
@@ -1616,7 +1616,7 @@ function lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayI
   }
 
   var currentStreak = historicalStreak;
-  var todayDate = lockoutsV2_parseHeaderDate_(headers[index]);
+  var todayDate = lockouts_parseHeaderDate_(headers[index]);
   var todayScheduled = todayDate && isScheduledDateForStreak_(todayDate, scheduleDays, useScheduleFilter, extensionHours);
   var todayCompleted = false;
   if (todayScheduled) {
@@ -1631,12 +1631,12 @@ function lockoutsV2_calculateStreakPartsFromRow_(rowValues, headerValues, todayI
   };
 }
 
-function lockoutsV2_parseHeaderDate_(headerValue) {
+function lockouts_parseHeaderDate_(headerValue) {
   var dateValue = headerValue instanceof Date ? headerValue : new Date(headerValue);
   return (dateValue instanceof Date && !isNaN(dateValue.getTime())) ? dateValue : null;
 }
 
-function lockoutsV2_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, headerValues, options) {
+function lockouts_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, headerValues, options) {
   if (!lookup || !lookup.row) {
     return {
       found: false,
@@ -1659,11 +1659,11 @@ function lockoutsV2_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, h
   var value = Array.isArray(rowValues) && todayIndex < rowValues.length ? rowValues[todayIndex] : null;
   var settingLookup = getMetricSettingById(metricID);
   var metricType = settingLookup && settingLookup.setting ? (settingLookup.setting.type || settingLookup.setting.unitType || null) : null;
-  var promptFields = lockoutsV2_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerValues, opts);
+  var promptFields = lockouts_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerValues, opts);
 
   return {
     found: true,
-    value: lockoutsV2_normalizeMetricValueForCache_(metricType, value),
+    value: lockouts_normalizeMetricValueForCache_(metricType, value),
     displayValue: value === null || value === undefined ? '' : String(value),
     displayName: promptFields.displayName,
     streak: promptFields.streak,
@@ -1674,7 +1674,7 @@ function lockoutsV2_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, h
   };
 }
 
-function lockoutsV2_collectConfigMetricIDs_(config) {
+function lockouts_collectConfigMetricIDs_(config) {
   var blocks = config && Array.isArray(config.blocks) ? config.blocks : [];
   var globals = config && config.globals ? config.globals : {};
   var seen = {};
@@ -1731,7 +1731,7 @@ function lockoutsV2_collectConfigMetricIDs_(config) {
   };
 }
 
-function lockoutsV2_readMetricStateMapByID_(metricIDs, ctx) {
+function lockouts_readMetricStateMapByID_(metricIDs, ctx) {
   var context = ctx || {};
   var trackingSheet = context.trackingSheet || context.sheet || sheet1 || getTrackingSheet_();
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
@@ -1758,7 +1758,7 @@ function lockoutsV2_readMetricStateMapByID_(metricIDs, ctx) {
     var metricType = metricTypesByID[metricID] || null;
     output[metricID] = {
       found: true,
-      value: lockoutsV2_normalizeMetricValueForCache_(metricType, rawValue),
+      value: lockouts_normalizeMetricValueForCache_(metricType, rawValue),
       rawValue: rawValue,
       displayValue: cell.getDisplayValue(),
       lastUpdated: updatedAtISO,
@@ -1769,7 +1769,7 @@ function lockoutsV2_readMetricStateMapByID_(metricIDs, ctx) {
   return output;
 }
 
-function lockoutsV2_collectHabitMetricIDs_(metricTypesByID) {
+function lockouts_collectHabitMetricIDs_(metricTypesByID) {
   var out = [];
   var map = metricTypesByID || {};
   for (var metricID in map) {
@@ -1781,7 +1781,7 @@ function lockoutsV2_collectHabitMetricIDs_(metricTypesByID) {
   return out;
 }
 
-function lockoutsV2_buildHabitsMetricTypesByID_() {
+function lockouts_buildHabitsMetricTypesByID_() {
   var config = getAppConfig();
   var settings = config && Array.isArray(config.metricSettings) ? config.metricSettings : [];
   var out = {};
@@ -1801,7 +1801,7 @@ function lockoutsV2_buildHabitsMetricTypesByID_() {
   return out;
 }
 
-function lockoutsV2_mergeMetricIDArrays_(primary, secondary) {
+function lockouts_mergeMetricIDArrays_(primary, secondary) {
   var out = [];
   var seen = {};
 
@@ -1822,7 +1822,7 @@ function lockoutsV2_mergeMetricIDArrays_(primary, secondary) {
   return out;
 }
 
-function lockoutsV2_normalizeMetricValueForCache_(metricType, value) {
+function lockouts_normalizeMetricValueForCache_(metricType, value) {
   var type = typeof metricType === 'string' ? metricType : '';
   if (value === '' || value === null || value === undefined) {
     return value;
@@ -1849,7 +1849,7 @@ function lockoutsV2_normalizeMetricValueForCache_(metricType, value) {
   return value;
 }
 
-function lockoutsV2_pickMapByIDs_(source, ids) {
+function lockouts_pickMapByIDs_(source, ids) {
   var out = {};
   var sourceMap = source || {};
   var arr = Array.isArray(ids) ? ids : [];
@@ -1864,7 +1864,7 @@ function lockoutsV2_pickMapByIDs_(source, ids) {
   return out;
 }
 
-function lockoutsV2_extractMetricStateMetricIDs_(rawData) {
+function lockouts_extractMetricStateMetricIDs_(rawData) {
   var output = [];
   var seen = {};
 
@@ -1891,7 +1891,7 @@ function lockoutsV2_extractMetricStateMetricIDs_(rawData) {
         return;
       }
 
-      if (lockoutsV2_isLikelyJsonPayload_(trimmed)) {
+      if (lockouts_isLikelyJsonPayload_(trimmed)) {
         try {
           walk(JSON.parse(trimmed));
           return;
@@ -1935,12 +1935,12 @@ function lockoutsV2_extractMetricStateMetricIDs_(rawData) {
   return output;
 }
 
-function lockoutsV2_extractMetricStateMetricID_(rawData) {
-  var metricIDs = lockoutsV2_extractMetricStateMetricIDs_(rawData);
+function lockouts_extractMetricStateMetricID_(rawData) {
+  var metricIDs = lockouts_extractMetricStateMetricIDs_(rawData);
   return metricIDs.length > 0 ? metricIDs[0] : null;
 }
 
-function lockoutsV2_pickMetricValuesByIDs_(metricsByID, metricIDs) {
+function lockouts_pickMetricValuesByIDs_(metricsByID, metricIDs) {
   var out = {};
   var ids = Array.isArray(metricIDs) ? metricIDs : [];
   var source = metricsByID || {};
