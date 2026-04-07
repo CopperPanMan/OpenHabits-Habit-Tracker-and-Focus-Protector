@@ -454,7 +454,7 @@ function handleApiRequest_(request) {
       metricsByID: parsedHabitsV2Data.results
     }));
   }
-  if (key === "app_closer") {
+  if (isAppCloserKey_(key)) {
     var lockoutsTrackingSheet = getTrackingSheet_();
     var lockoutsTodayCol = getCurrentTrackingDayColumn_(lockoutsTrackingSheet);
     return respondJson_(lockouts_handleAppCloser_({
@@ -529,6 +529,11 @@ function isHabitsV2Key_(requestKey) {
     requestKey === "record_metric_notion" ||
     requestKey === "positive_push_notification" ||
     requestKey === "current_metric_status";
+}
+
+function isAppCloserKey_(requestKey) {
+  return requestKey === "app_closer" ||
+    requestKey === "app_closer_v2";
 }
 
 function parseHabitsV2Data_(rawData) {
