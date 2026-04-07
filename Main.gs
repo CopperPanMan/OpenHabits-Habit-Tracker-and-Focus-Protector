@@ -39,7 +39,7 @@
   
 */
 
-// Establishing global variables used by Habits V2 / Lockouts V2.
+// Establishing global variables used by Habits V2 / Lockouts.
 var key;
 var spreadsheetID;
 var sheet1;
@@ -454,10 +454,10 @@ function handleApiRequest_(request) {
       metricsByID: parsedHabitsV2Data.results
     }));
   }
-  if (key === "app_closer_v2") {
+  if (key === "app_closer") {
     var lockoutsTrackingSheet = getTrackingSheet_();
     var lockoutsTodayCol = getCurrentTrackingDayColumn_(lockoutsTrackingSheet);
-    return respondJson_(lockoutsV2_handleAppCloser_({
+    return respondJson_(lockouts_handleAppCloser_({
       data: request.dataRaw
     }, {
       now: currentTimeStamp,
@@ -465,28 +465,28 @@ function handleApiRequest_(request) {
       todayCol: lockoutsTodayCol,
       activeCol: lockoutsTodayCol,
       tz: Session.getScriptTimeZone(),
-      config: getAppConfig().lockoutsV2
+      config: getAppConfig().lockouts
     }));
   }
 
   if (key === 'config_snapshot') {
-    return respondJson_(lockoutsV2_handleConfigSnapshot_({
+    return respondJson_(lockouts_handleConfigSnapshot_({
       data: request.dataRaw
     }, {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
-      config: getAppConfig().lockoutsV2,
+      config: getAppConfig().lockouts,
       tz: Session.getScriptTimeZone()
     }));
   }
 
   if (key === 'metric_state') {
-    return respondJson_(lockoutsV2_handleMetricState_({
+    return respondJson_(lockouts_handleMetricState_({
       data: request.dataRaw
     }, {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
-      config: getAppConfig().lockoutsV2,
+      config: getAppConfig().lockouts,
       tz: Session.getScriptTimeZone()
     }));
   }

@@ -2,7 +2,7 @@
 
 ### 0) Purpose and scope
 
-- **Lockouts V2** is a **Google Apps Script Web App** (logic) + **Google Sheets** (data source) + **client(s)** (iOS Shortcuts, Chrome extension) system that:
+- **Lockouts** is a **Google Apps Script Web App** (logic) + **Google Sheets** (data source) + **client(s)** (iOS Shortcuts, Chrome extension) system that:
     - Determines whether “bad apps” should be **allowed** or **blocked** at the moment an app is opened.
     - Returns **UI messaging** (allowed/block messages + optional progress bar) and an optional **client shortcut hint**.
     - Integrates with **Habits V2** by reading habit/task completion + screentime metrics from the shared Sheet schema, and by relying on shared endpoints (e.g., `current_metric_status`) and shared metric IDs.
@@ -38,7 +38,7 @@
 - The system assumes there is a canonical method (shared with Habits V2) to:
     - Identify the correct “today” date column.
     - Create/advance a new day column (if applicable).
-- Lockouts V2 will **only read** from the current “today” column (and from any needed recent columns if the existing shared helpers do that internally).
+- Lockouts will **only read** from the current “today” column (and from any needed recent columns if the existing shared helpers do that internally).
 
 ---
 
@@ -54,7 +54,7 @@
         - `record_metric_notion` (shared with Habits V2)
         - `positive_push_notification` (shared with Habits V2)
         - `current_metric_status` (shared with Habits V2)
-        - **`app_closer`** (Lockouts V2: the lockout decision endpoint)
+        - **`app_closer`** (Lockouts: the lockout decision endpoint)
 - **config.gs**
     - Holds all configuration as a dictionary/JSON-like structure (Apps Script `var config = {...}` pattern).
     - Holds:
@@ -92,7 +92,7 @@ Example output: `[true, false]`
 
 ---
 
-### 3.2 `app_closer` (Lockouts V2 primary)
+### 3.2 `app_closer` (Lockouts primary)
 
 This is the endpoint called by clients when an app is opened.
 
@@ -455,7 +455,7 @@ Server returns JSON shaped like:
 
 Your provided pseudocode stands as the reference for iOS behavior. The only server-relevant expectations are:
 
-- Client calls `app_closer_v2` via JSON POST unless it is inside an “unlockedUntil” session.
+- Client calls `app_closer` via JSON POST unless it is inside an “unlockedUntil” session.
 - Client uses server `status` and `ui.message` to decide closing + notification.
 - Client enforces illegal/legitimate unlock timers and writes to Habits V2 separately.
 
@@ -463,7 +463,7 @@ Your provided pseudocode stands as the reference for iOS behavior. The only serv
 
 ## 14) Local cache + portable evaluator (Lockouts Cache V1)
 
-To support faster on-device lockout decisions, Lockouts V2 also exposes read-only snapshot keys and a portable JS evaluator.
+To support faster on-device lockout decisions, Lockouts also exposes read-only snapshot keys and a portable JS evaluator.
 
 ### 14.1 New keys
 
@@ -479,7 +479,7 @@ To support faster on-device lockout decisions, Lockouts V2 also exposes read-onl
   - `generatedAtISO`
   - `timezone`
   - `todayCol`
-  - `config` (full lockoutsV2 config)
+  - `config` (full lockouts config)
   - `metricState` split into:
     - `allByID`
     - `taskBlockByID`
@@ -541,5 +541,5 @@ Recommended shape:
 
 - Daily shortcut (`Update Lockout Cache`) calls `config_snapshot` and rewrites the whole cache.
 - Fast incremental shortcut (`Update Cached Metric`) calls `metric_state` for one metric and updates that metric’s cache entry.
-- Portable evaluator reads `lockoutCache.json` and performs lockout decisions locally using the same block order, token substitution, and JSON output shape as `app_closer_v2`.
+- Portable evaluator reads `lockoutCache.json` and performs lockout decisions locally using the same block order, token substitution, and JSON output shape as `app_closer`.
 - For preset selection on-device, the portable evaluator resolves presets from calendar events on calendar name `App Lockout Settings` for events that occur today (instead of relying on `data` preset input).

@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: blue; icon-glyph: magic;
 /*
- * Pure-input Lockouts V2 evaluator for Scriptable.
+ * Pure-input Lockouts evaluator for Scriptable.
  *
  * Rules:
  * - Uses ONLY the input passed in
@@ -607,16 +607,16 @@ function validateConfig(config) {
   const errors = [];
 
   if (!config || typeof config !== 'object') {
-    return { isValid: false, errors: ['Missing Lockouts V2 config object.'] };
+    return { isValid: false, errors: ['Missing Lockouts config object.'] };
   }
 
   if (!Array.isArray(config.blocks)) {
-    errors.push('Lockouts V2 config.blocks must be an array.');
+    errors.push('Lockouts config.blocks must be an array.');
   }
 
   const globals = config.globals || {};
   if (!isFinite(Number(globals.barLength))) {
-    errors.push('Lockouts V2 globals.barLength must be numeric.');
+    errors.push('Lockouts globals.barLength must be numeric.');
   }
 
   return { isValid: errors.length === 0, errors };

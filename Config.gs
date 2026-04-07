@@ -69,8 +69,8 @@ function getAppConfig() {
     metricSettings: [],
 
 
-    // Lockouts V2 settings
-    lockoutsV2: {
+    // Lockouts settings
+    lockouts: {
       globals: {
         cumulativeScreentimeID: null,
         barLength: 20,
