@@ -238,7 +238,9 @@ Records one or more metrics and returns quickly without running Notion sync.
 - `due_by`:
     - Input value ignored.
     - If on-time: write current timestamp.
-    - If late: write nothing and award no points.
+    - If late:
+        - `recordType: "overwrite"`: clear today cell and recompute today points as 0 (including daily/cumulative delta updates).
+        - `recordType: "keep_first"` or `recordType: "add"`: write nothing and award no points.
 - `start_timer` / `stop_timer`:
     - Input value ignored.
     - They do not write to their own `metricID` row; see Timer section.
@@ -364,7 +366,8 @@ Let `basePoints = metric.points.value`.
 - `timestamp` / on-time `due_by`:
     - Points = `basePoints * multiplier`
 - late `due_by`:
-    - Write nothing; points = 0
+    - `overwrite`: clear the metric cell, set points-today for that metric to 0, and apply negative points delta if needed.
+    - `keep_first` / `add`: write nothing; points = 0
 
 ## 10.3 Points by recordType
 
@@ -595,7 +598,7 @@ If configured in Script Properties:
 - unknown metricID
 - wrong type value
 - missing required fields for a type (e.g., timer IDs missing)
-- due_by logged late (treated as a handled condition: no write, no points; may be warning rather than error)
+- due_by logged late (treated as a handled condition: `overwrite` clears completion/points; non-overwrite does no write/no points; may be warning rather than error)
 
 ## 17.2 Where errors go
 
