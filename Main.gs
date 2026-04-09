@@ -2169,13 +2169,17 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
   var addedDuration = secondsToDurationString_(elapsedSeconds);
   var totalDuration = secondsToDurationString_(totalDurationSeconds);
   var pointsDelta = calculateTimerPointsDelta_(setting, elapsedSeconds, multiplier);
+  var metricPointsToday = pointsDelta;
+  if (recordType === 'add') {
+    metricPointsToday = calculateTimerPointsTotal_(setting, totalDurationSeconds, multiplier);
+  }
   var messageTemplate = timerSettings.stopTimerMessage || 'Added +{addedTimeLong}! ({addedTimeDec})\nNew Score: {totalTimeLong}';
   var timerMessage = replaceTimerMessageTokens_(messageTemplate, elapsedSeconds, totalDurationSeconds);
   if (timerSettings.muteOutput === true) {
     timerMessage = '';
   }
 
-  writeMetricPointsRow_(setting, pointsDelta, activeColInput, trackingSheet, warnings, optionalAccessor);
+  writeMetricPointsRow_(setting, metricPointsToday, activeColInput, trackingSheet, warnings, optionalAccessor);
 
   return {
     handled: true,
@@ -2190,7 +2194,7 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
     },
     complete: true,
     pointsDelta: pointsDelta,
-    metricPointsToday: pointsDelta,
+    metricPointsToday: metricPointsToday,
     message: timerMessage,
     muteOutput: timerSettings.muteOutput === true
   };
@@ -2213,6 +2217,26 @@ function calculateTimerPointsDelta_(setting, elapsedSeconds, multiplier) {
   }
 
   var roundedMinutes = Math.round(Number(elapsedSeconds || 0) / 60);
+  return basePoints * roundedMinutes * resolvedMultiplier;
+}
+
+function calculateTimerPointsTotal_(setting, totalDurationSeconds, multiplier) {
+  var pointsConfig = setting && setting.points ? setting.points : null;
+  if (!pointsConfig) {
+    return 0;
+  }
+
+  var basePoints = parseStrictNumber_(pointsConfig.value);
+  if (basePoints === null) {
+    return 0;
+  }
+
+  var resolvedMultiplier = parseStrictNumber_(multiplier);
+  if (resolvedMultiplier === null) {
+    resolvedMultiplier = 1;
+  }
+
+  var roundedMinutes = Math.round(Number(totalDurationSeconds || 0) / 60);
   return basePoints * roundedMinutes * resolvedMultiplier;
 }
 
