@@ -990,6 +990,27 @@ function recordMetricBySource_(rawData, options) {
     }
 
     if (dueByGate.isLate) {
+      if (metricType === "due_by" && recordType === "overwrite") {
+        var lateOverwriteResult = handleLateDueByOverwrite_(setting, row, activeCol, trackingSheet, writeToSheet, warnings, activeColAccessor);
+        resultEntry.status = lateOverwriteResult.status;
+        resultEntry.value = lateOverwriteResult.value;
+        resultEntry.complete = false;
+        resultEntry.pointsDelta = lateOverwriteResult.pointsDelta;
+        resultEntry.metricPointsToday = lateOverwriteResult.metricPointsToday;
+
+        if (setting.streaks && setting.streaks.streaksID) {
+          var lateOverwriteStreakValue = calculateStreak_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet, activeColAccessor);
+          if (writeToSheet) {
+            writeStreakToSheet_(setting.streaks.streaksID, lateOverwriteStreakValue, activeCol, trackingSheet, activeColAccessor);
+          }
+          resultEntry.streak = lateOverwriteStreakValue;
+        }
+
+        totalPointsDelta += lateOverwriteResult.pointsDelta;
+        results.push(resultEntry);
+        continue;
+      }
+
       resultEntry.status = "late_no_write";
       resultEntry.complete = false;
       resultEntry.pointsDelta = 0;
@@ -2885,6 +2906,24 @@ function evaluateDueByWriteGate_(setting, now, extensionHours) {
 
   // Correct: compare absolute timestamps (handles midnight + extension properly)
   return { isLate: now.getTime() > dueByLookup.dueDateTime.getTime() };
+}
+
+function handleLateDueByOverwrite_(setting, row, activeColInput, trackingSheet, writeToSheet, warnings, optionalAccessor) {
+  var previousMetricPointsToday = getMetricPointsRowValue_(setting, activeColInput, trackingSheet, warnings, optionalAccessor);
+  var metricPointsToday = 0;
+  var metricPointsDelta = metricPointsToday - previousMetricPointsToday;
+
+  if (writeToSheet) {
+    optionalAccessor.set(row, "");
+    writeMetricPointsRow_(setting, metricPointsToday, activeColInput, trackingSheet, warnings, optionalAccessor);
+  }
+
+  return {
+    status: "late_overwritten",
+    value: "",
+    pointsDelta: metricPointsDelta,
+    metricPointsToday: metricPointsToday
+  };
 }
 
 function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
