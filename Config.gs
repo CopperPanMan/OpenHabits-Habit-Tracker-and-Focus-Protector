@@ -73,8 +73,11 @@ function getAppConfig() {
     lockouts: {
       globals: {
         cumulativeScreentimeID: null,
+        timeOpenedID: 'timeOpenedID',
         barLength: 20,
-        presetCalendarName: ''
+        presetCalendarName: '',
+        defaultBlockTimezoneMode: 'fixed',
+        cacheTimezoneMode: 'script'
       },
       blocks: []
     }
