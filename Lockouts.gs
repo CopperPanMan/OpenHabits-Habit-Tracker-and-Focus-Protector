@@ -1346,19 +1346,51 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
   var todayCol = Number(context.todayCol) || Number(context.activeCol) || getCurrentTrackingDayColumn_(trackingSheet);
   var discoveredMetricIDs = lockouts_collectConfigMetricIDs_(config);
   var allMetricIDs = lockouts_mergeMetricIDArrays_(discoveredMetricIDs.allMetricIDs, habitsMetricIDs);
+  var warnings = [];
+  var resolvedTz = lockouts_resolveSnapshotTimezone_(
+    context.clientTz || context.requestTimezone || '',
+    config,
+    warnings
+  );
   var metricStateByID = lockouts_readMetricStateMapByID_(allMetricIDs, {
     trackingSheet: trackingSheet,
     todayCol: todayCol,
     now: now,
     metricTypesByID: habitsMetricTypesByID
   });
+  var virtualDay = {
+    enabled: false,
+    timezone: '',
+    timezoneSource: resolvedTz.source,
+    dayKey: '',
+    sourceCols: []
+  };
+
+  if (resolvedTz.virtualEnabled && discoveredMetricIDs.taskBlockIDs.length > 0) {
+    virtualDay = lockouts_buildVirtualTaskState_(discoveredMetricIDs.taskBlockIDs, {
+      trackingSheet: trackingSheet,
+      todayCol: todayCol,
+      now: now,
+      clientTimezone: resolvedTz.clientTimezone,
+      timezoneSource: resolvedTz.source,
+      lateExtensionHours: lateExtensionHours !== undefined ? lateExtensionHours : lateExtension,
+      warnings: warnings
+    });
+
+    for (var virtualMetricID in virtualDay.metricStateByID) {
+      if (Object.prototype.hasOwnProperty.call(virtualDay.metricStateByID, virtualMetricID)) {
+        metricStateByID[virtualMetricID] = virtualDay.metricStateByID[virtualMetricID];
+      }
+    }
+    delete virtualDay.metricStateByID;
+  }
 
   return {
     ok: true,
     schemaVersion: 'lockouts_cache_v1',
     generatedAtISO: now.toISOString(),
     lastUpdated: now.toISOString(),
-    timezone: context.tz || Session.getScriptTimeZone(),
+    timezone: resolvedTz.serverTimezone,
     todayCol: todayCol,
     config: config,
     configLastUpdated: now.toISOString(),
@@ -1370,7 +1402,8 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
       globalsByID: lockouts_pickMapByIDs_(metricStateByID, discoveredMetricIDs.globalMetricIDs)
     },
     metricIDGroups: discoveredMetricIDs,
-    warnings: []
+    virtualDay: virtualDay,
+    warnings: warnings
   };
 }
 
@@ -1381,6 +1414,164 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
  *   - data: "metricID"
  *   - data: { metricID: "metricID" }
  */
+
+function lockouts_isValidTimezone_(tz) {
+  if (typeof tz !== 'string' || !tz.trim()) {
+    return false;
+  }
+
+  try {
+    Utilities.formatDate(new Date(), tz.trim(), 'yyyy-MM-dd HH:mm');
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function lockouts_resolveSnapshotTimezone_(requestTimezone, config, warnings) {
+  var globals = config && config.globals ? config.globals : {};
+  var mode = globals.cacheTimezoneMode || 'script';
+  var scriptTz = Session.getScriptTimeZone();
+  var warningList = warnings || [];
+
+  if (mode !== 'client') {
+    return {
+      serverTimezone: scriptTz,
+      clientTimezone: '',
+      virtualEnabled: false,
+      source: 'script'
+    };
+  }
+
+  if (lockouts_isValidTimezone_(requestTimezone)) {
+    return {
+      serverTimezone: scriptTz,
+      clientTimezone: String(requestTimezone).trim(),
+      virtualEnabled: true,
+      source: 'client'
+    };
+  }
+
+  if (requestTimezone) {
+    warningList.push('Invalid request timezone ignored: ' + String(requestTimezone));
+  }
+
+  return {
+    serverTimezone: scriptTz,
+    clientTimezone: '',
+    virtualEnabled: false,
+    source: requestTimezone ? 'script_fallback_invalid_client_timezone' : 'script_fallback_missing_client_timezone'
+  };
+}
+
+function lockouts_getAdjacentDateColumns_(trackingSheet, todayCol) {
+  var sheet = trackingSheet || getTrackingSheet_();
+  var minCol = dataStartColumn || 3;
+  var maxCol = sheet.getLastColumn();
+  var candidates = [Number(todayCol) - 1, Number(todayCol), Number(todayCol) + 1];
+  var out = [];
+
+  for (var i = 0; i < candidates.length; i++) {
+    var col = candidates[i];
+    if (col >= minCol && col <= maxCol && out.indexOf(col) === -1) {
+      out.push(col);
+    }
+  }
+
+  return out;
+}
+
+function lockouts_getEffectiveDayKeyForTimezone_(dateObj, extensionHours, timezone) {
+  var tz = lockouts_isValidTimezone_(timezone) ? String(timezone).trim() : Session.getScriptTimeZone();
+  var hours = Math.max(0, Number(extensionHours) || 0);
+  var base = dateObj instanceof Date ? dateObj : new Date();
+  var shifted = new Date(base.getTime() - hours * 60 * 60 * 1000);
+  return Utilities.formatDate(shifted, tz, 'yyyy-MM-dd');
+}
+
+function lockouts_buildVirtualTaskState_(taskBlockIDs, ctx) {
+  var context = ctx || {};
+  var warnings = context.warnings || [];
+  var trackingSheet = context.trackingSheet || getTrackingSheet_();
+  var now = context.now instanceof Date ? context.now : new Date();
+  var sourceCols = lockouts_getAdjacentDateColumns_(trackingSheet, context.todayCol);
+  var metricStateByID = {};
+  var ids = Array.isArray(taskBlockIDs) ? taskBlockIDs : [];
+
+  if (sourceCols.length === 0) {
+    warnings.push('Virtual task cache requested but no adjacent source columns were available.');
+  }
+
+  for (var i = 0; i < ids.length; i++) {
+    var metricID = ids[i];
+    metricStateByID[metricID] = lockouts_readVirtualTaskValue_(metricID, {
+      trackingSheet: trackingSheet,
+      sourceCols: sourceCols,
+      now: now,
+      warnings: warnings
+    });
+  }
+
+  return {
+    enabled: true,
+    timezone: context.clientTimezone || '',
+    timezoneSource: context.timezoneSource || 'client',
+    dayKey: lockouts_getEffectiveDayKeyForTimezone_(now, context.lateExtensionHours, context.clientTimezone),
+    sourceCols: sourceCols,
+    metricStateByID: metricStateByID
+  };
+}
+
+function lockouts_readVirtualTaskValue_(metricID, ctx) {
+  var context = ctx || {};
+  var trackingSheet = context.trackingSheet || getTrackingSheet_();
+  var warnings = context.warnings || [];
+  var sourceCols = Array.isArray(context.sourceCols) ? context.sourceCols : [];
+  var nowISO = context.now instanceof Date ? context.now.toISOString() : new Date().toISOString();
+  var lookup = findRowByMetricId_(metricID, trackingSheet);
+
+  if (!lookup || !lookup.row) {
+    var error = lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID);
+    warnings.push(error);
+    return {
+      found: false,
+      value: null,
+      rawValue: null,
+      displayValue: '',
+      lastUpdated: nowISO,
+      virtual: true,
+      sourceCols: sourceCols,
+      error: error
+    };
+  }
+
+  var selectedRaw = '';
+  var selectedDisplay = '';
+  var hasCompletion = false;
+
+  for (var i = 0; i < sourceCols.length; i++) {
+    var cell = trackingSheet.getRange(lookup.row, sourceCols[i]);
+    var rawValue = cell.getValue();
+    if (isCompletedCellValue_(rawValue)) {
+      selectedRaw = rawValue;
+      selectedDisplay = cell.getDisplayValue();
+      hasCompletion = true;
+    }
+  }
+
+  var value = hasCompletion ? selectedRaw : '';
+  return {
+    found: true,
+    value: value,
+    rawValue: value,
+    displayValue: hasCompletion ? selectedDisplay : '',
+    lastUpdated: nowISO,
+    virtual: true,
+    sourceCols: sourceCols,
+    warnings: lookup.warnings || []
+  };
+}
+
 function lockouts_handleMetricState_(payload, ctx) {
   var context = ctx || {};
   var now = context.now instanceof Date ? context.now : new Date();

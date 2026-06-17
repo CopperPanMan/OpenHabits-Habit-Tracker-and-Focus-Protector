@@ -564,12 +564,24 @@ function getServerDecisionKeys() {
   return SERVER_DECISION_KEYS;
 }
 
+function getClientTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch (error) {
+    return '';
+  }
+}
+
 async function postServerJson(cfg, key, data) {
   const payload = {
     key,
     data,
     secret: cfg.lockoutsSecret || ''
   };
+
+  if (SERVER_DECISION_KEYS.indexOf(key) !== -1) {
+    payload.timezone = getClientTimezone();
+  }
 
   const headers = {
     'Content-Type': 'application/json'

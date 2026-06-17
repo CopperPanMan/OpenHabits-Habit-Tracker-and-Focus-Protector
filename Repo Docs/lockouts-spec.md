@@ -543,3 +543,37 @@ Recommended shape:
 - Fast incremental shortcut (`Update Cached Metric`) calls `metric_state` for one metric and updates that metric’s cache entry.
 - Portable evaluator reads `lockoutCache.json` and performs lockout decisions locally using the same block order, token substitution, and JSON output shape as `app_closer`.
 - For preset selection on-device, the portable evaluator resolves presets from calendar events on calendar name `App Lockout Settings` for events that occur today (instead of relying on `data` preset input).
+
+## Lockouts V2 timezone modes
+
+### `timezoneMode`
+
+`timezoneMode` is an optional per-block field:
+
+- `fixed`: block windows are interpreted in `cache.timezone`, the server/script timezone.
+- `floating`: block windows are interpreted in the device-local timezone.
+- Default: `fixed`.
+
+Block-level `timezoneMode` overrides `lockoutsV2.globals.defaultBlockTimezoneMode`. If both are omitted, fixed/server-timezone behavior is used for backward compatibility.
+
+### `defaultBlockTimezoneMode`
+
+`lockoutsV2.globals.defaultBlockTimezoneMode` may be set to `fixed` or `floating`. It controls blocks that do not specify their own `timezoneMode` and defaults to `fixed`.
+
+### `cacheTimezoneMode`
+
+`lockoutsV2.globals.cacheTimezoneMode` controls `config_snapshot` task-block cache reads:
+
+- `script`: read task-block state from the script-timezone current physical sheet column.
+- `client`: when a valid request timezone is supplied, build virtual task-block completion state from the current and adjacent existing physical sheet columns.
+- Default: `script`.
+
+The virtual task-state mode preserves the `lockouts_cache_v1` shape and does not mutate the sheet. `cache.timezone` remains the server/script timezone. Client timezone metadata, when used, appears separately as `virtualDay.timezone`. Non-task metrics such as duration, number, timestamp, and global metrics remain single-column reads.
+
+Shortcuts may pass the device timezone when refreshing the cache, for example:
+
+```txt
+?key="config_snapshot"&timezone=Pacific/Honolulu
+```
+
+Omitting this parameter remains valid and preserves script-timezone behavior.
