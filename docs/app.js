@@ -244,7 +244,7 @@
 
   function newMetric() {
     return {
-      metricID: '', type: 'number', displayName: '', recordType: 'overwrite',
+      metricID: '', type: 'number', displayName: '', recordType: 'overwrite', timezoneMode: 'floating',
       dates: [],
       streaks: { unit: 'days', streaksID: '' },
       points: { value: 0, multiplierDays: 5, maxMultiplier: 1, pointsID: '' },
@@ -403,6 +403,7 @@
     field(g, 'Metric ID', makeInput({ value: metric.metricID, onChange: v => metric.metricID = v, required: true }), 'Unique ID used for tracking row lookups.');
     field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => metric.displayName = v, required: true }), 'Friendly name shown to users.');
     field(g, 'Type', makeSelect(['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'], metric.type, v => { metric.type = v; applyMetricTypeDefaults(metric); renderAll(); }), HELP.metricType);
+    field(g, 'Timezone Mode', makeSelect(['floating', 'fixed'], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Floating follows the current device/local time for metric schedules and due-by checks. Fixed uses Apps Script/server timezone.');
     field(g, 'Record Type', makeSelect(['overwrite', 'keep_first', 'add'], metric.recordType, v => metric.recordType = v), 'How writes merge with existing same-day values.');
     field(g, 'Write to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Enable this metric for Notion sync fields.');
     card.appendChild(g);
@@ -653,6 +654,7 @@
     state.metricSettings.forEach((m, i) => {
       if (!m.metricID) errors.push(`Metric ${i + 1}: Metric ID is required.`);
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
+      if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) errors.push(`Metric ${i + 1}: timezoneMode must be fixed or floating.`);
       m.dates.forEach((d, di) => {
         if (!DAYS.includes(d[0])) errors.push(`Metric ${i + 1}, date ${di + 1}: invalid day.`);
         const hasDueBy = String(d[1] || '').trim() !== '';
