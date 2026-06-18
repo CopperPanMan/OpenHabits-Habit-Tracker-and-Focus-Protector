@@ -3047,7 +3047,12 @@ function logDueByGateDebug_(context) {
 }
 
 function evaluateDueByWriteGate_(setting, now, extensionHours) {
-  var dueByLookup = getDueByTimeForCurrentEffectiveDay_(setting.dates, now, extensionHours);
+  var dueByLookup = getDueByTimeForCurrentEffectiveDay_(
+    setting.dates,
+    now,
+    extensionHours,
+    resolveMetricTimezoneContext_(setting)
+  );
 
   if (dueByLookup.warning) {
     return { isLate: false, warning: dueByLookup.warning };

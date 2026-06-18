@@ -863,10 +863,10 @@ function renderBar(input) {
 
   const chars = [];
   for (let i = 0; i < len; i++) {
-    chars.push(i < fillCount ? '▓' : '░');
+    chars.push(i < fillCount ? '■' : '□');
   }
 
-  if (showMarker) chars[markerPos] = '·';
+  if (showMarker) chars[markerPos] = '|';
   return chars.join('');
 }
 
