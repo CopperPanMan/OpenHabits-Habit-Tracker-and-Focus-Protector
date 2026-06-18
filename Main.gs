@@ -56,6 +56,8 @@ var trackingSheetName;
 var writeToNotion;
 var dailyPointsID;
 var cumulativePointsID;
+var requestTimezone = '';
+var requestClientNow = '';
 
 function parseRequestBody_(e) {
   var postData = e && e.postData ? e.postData : null;
@@ -111,6 +113,8 @@ function parseRequest_(e) {
     key: keyParam,
     dataRaw: parsedBody.data === undefined ? null : JSON.stringify(parsedBody.data),
     secret: extractRequestSecret_(parsedBody, e),
+    timezone: extractRequestTimezone_(parsedBody, e),
+    clientNow: extractRequestClientNow_(parsedBody, e),
     rawBody: parsedBody
   };
 }
@@ -135,6 +139,8 @@ function parseNotionPostRequest_(e) {
     key: 'record_metric_notion',
     dataRaw: JSON.stringify([[metricID]]),
     secret: extractRequestSecret_(parsedBody, e),
+    timezone: extractRequestTimezone_(parsedBody, e),
+    clientNow: extractRequestClientNow_(parsedBody, e),
     rawBody: parsedBody
   };
 }
@@ -146,6 +152,28 @@ function extractRequestKey_(body, e) {
   }
 
   return extractOptionalEventParameter_(e, ['key']);
+}
+
+
+function extractRequestTimezone_(body, e) {
+  if (body && typeof body === 'object' && typeof body.timezone === 'string') {
+    return body.timezone.trim();
+  }
+
+  return extractOptionalEventParameter_(e, ['timezone']);
+}
+
+
+function extractRequestClientNow_(body, e) {
+  if (body && typeof body === 'object' && typeof body.clientNow === 'string') {
+    return body.clientNow.trim();
+  }
+
+  if (body && typeof body === 'object' && typeof body.clientNowRFC2822 === 'string') {
+    return body.clientNowRFC2822.trim();
+  }
+
+  return extractOptionalEventParameter_(e, ['clientNow', 'clientNowRFC2822']);
 }
 
 function extractRequestSecret_(body, e) {
@@ -417,6 +445,8 @@ function createColumnAccessor_(sheet, columnNumber) {
 function handleApiRequest_(request) {
   currentTimeStamp = new Date();
   key = request.key;
+  requestTimezone = request.timezone || '';
+  requestClientNow = request.clientNow || '';
   if (isHabitsV2Key_(key)) {
     loadSettings(key);
     activeCol = ensureTodayColumn_(sheet1, currentTimeStamp);
@@ -465,6 +495,8 @@ function handleApiRequest_(request) {
       todayCol: lockoutsTodayCol,
       activeCol: lockoutsTodayCol,
       tz: Session.getScriptTimeZone(),
+      clientTz: request.timezone,
+      clientNow: request.clientNow,
       config: getAppConfig().lockouts
     }));
   }
@@ -476,7 +508,9 @@ function handleApiRequest_(request) {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
       config: getAppConfig().lockouts,
-      tz: Session.getScriptTimeZone()
+      tz: Session.getScriptTimeZone(),
+      clientTz: request.timezone,
+      clientNow: request.clientNow
     }));
   }
 
@@ -487,7 +521,9 @@ function handleApiRequest_(request) {
       now: currentTimeStamp,
       trackingSheet: getTrackingSheet_(),
       config: getAppConfig().lockouts,
-      tz: Session.getScriptTimeZone()
+      tz: Session.getScriptTimeZone(),
+      clientTz: request.timezone,
+      clientNow: request.clientNow
     }));
   }
 
@@ -640,6 +676,139 @@ function recordMetricNotion_(rawData) {
   });
 }
 
+
+function isValidTimezoneName_(tz) {
+  if (typeof tz !== 'string' || !tz.trim()) {
+    return false;
+  }
+
+  try {
+    Utilities.formatDate(new Date(), tz.trim(), 'yyyy-MM-dd HH:mm');
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function parseClientNowOffsetMinutes_(clientNow) {
+  if (typeof clientNow !== 'string' || !clientNow.trim()) {
+    return null;
+  }
+
+  var match = /(?:^|\s)([+-])(\d{2})(?::?(\d{2}))\s*$/.exec(clientNow.trim());
+  if (!match) {
+    return null;
+  }
+
+  var hours = Number(match[2]);
+  var minutes = Number(match[3] || '0');
+  if (!isFinite(hours) || !isFinite(minutes) || hours > 23 || minutes > 59) {
+    return null;
+  }
+
+  var total = hours * 60 + minutes;
+  return match[1] === '-' ? -total : total;
+}
+
+function resolveMetricTimezoneContext_(metric) {
+  var mode = metric && metric.timezoneMode;
+  if (mode !== 'fixed' && mode !== 'floating') {
+    mode = 'floating';
+  }
+
+  var scriptTimezone = Session.getScriptTimeZone();
+  if (mode === 'fixed') {
+    return {
+      mode: 'fixed',
+      source: 'script',
+      timezone: scriptTimezone,
+      offsetMinutes: null
+    };
+  }
+
+  if (isValidTimezoneName_(requestTimezone)) {
+    return {
+      mode: 'floating',
+      source: 'client_timezone',
+      timezone: String(requestTimezone).trim(),
+      offsetMinutes: null
+    };
+  }
+
+  var offsetMinutes = parseClientNowOffsetMinutes_(requestClientNow);
+  if (offsetMinutes !== null) {
+    return {
+      mode: 'floating',
+      source: 'client_now_offset',
+      timezone: '',
+      offsetMinutes: offsetMinutes
+    };
+  }
+
+  return {
+    mode: 'floating',
+    source: 'script_fallback_missing_client_time',
+    timezone: scriptTimezone,
+    offsetMinutes: null
+  };
+}
+
+function formatDateForTimezoneContext_(dateObj, timezoneContext, pattern) {
+  var context = timezoneContext || {};
+  var date = dateObj instanceof Date ? dateObj : new Date(dateObj);
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    date = new Date();
+  }
+
+  if (context.offsetMinutes !== null && context.offsetMinutes !== undefined && isFinite(Number(context.offsetMinutes))) {
+    var shifted = new Date(date.getTime() + Number(context.offsetMinutes) * 60 * 1000);
+    return Utilities.formatDate(shifted, 'GMT', pattern);
+  }
+
+  return Utilities.formatDate(date, context.timezone || Session.getScriptTimeZone(), pattern);
+}
+
+
+function buildWallClockDateForTimezoneContext_(dateInTargetDay, hours, minutes, timezoneContext) {
+  var context = timezoneContext || {};
+  var offsetMinutes = context.offsetMinutes;
+  var hasOffset = offsetMinutes !== null && offsetMinutes !== undefined && isFinite(Number(offsetMinutes));
+  var hasTimezone = !hasOffset && isValidTimezoneName_(context.timezone || '');
+
+  if (hasOffset || hasTimezone) {
+    var year = Number(formatDateForTimezoneContext_(dateInTargetDay, context, 'yyyy'));
+    var month = Number(formatDateForTimezoneContext_(dateInTargetDay, context, 'M'));
+    var day = Number(formatDateForTimezoneContext_(dateInTargetDay, context, 'd'));
+    var utcWallClock = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+
+    if (hasTimezone) {
+      var zoneOffsetText = Utilities.formatDate(new Date(utcWallClock), context.timezone, 'Z');
+      offsetMinutes = parseClientNowOffsetMinutes_(zoneOffsetText);
+    }
+
+    if (offsetMinutes !== null && offsetMinutes !== undefined && isFinite(Number(offsetMinutes))) {
+      return new Date(utcWallClock - Number(offsetMinutes) * 60 * 1000);
+    }
+  }
+
+  return new Date(
+    dateInTargetDay.getFullYear(),
+    dateInTargetDay.getMonth(),
+    dateInTargetDay.getDate(),
+    hours,
+    minutes,
+    0,
+    0
+  );
+}
+
+function getTimezoneContextHourDecimal_(now, timezoneContext) {
+  var hour = Number(formatDateForTimezoneContext_(now, timezoneContext, 'H'));
+  var minute = Number(formatDateForTimezoneContext_(now, timezoneContext, 'm'));
+  var second = Number(formatDateForTimezoneContext_(now, timezoneContext, 's'));
+  return hour + minute / 60 + second / 3600;
+}
+
 function positivePushNotificationV2_() {
   var config = getAppConfig();
   var settings = Array.isArray(config.metricSettings) ? config.metricSettings : [];
@@ -656,7 +825,7 @@ function positivePushNotificationV2_() {
       continue;
     }
 
-    if (!isMetricEligibleForPPNNow_(metric, now, extensionHours)) {
+    if (!isMetricEligibleForPPNNow_(metric, now, extensionHours, resolveMetricTimezoneContext_(metric))) {
       continue;
     }
 
@@ -746,12 +915,12 @@ function currentMetricStatusV2_(rawData) {
   return JSON.stringify(statuses);
 }
 
-function isMetricEligibleForPPNNow_(metric, now, extensionHours) {
+function isMetricEligibleForPPNNow_(metric, now, extensionHours, timezoneContext) {
   if (!metric || !Array.isArray(metric.dates) || metric.dates.length === 0) {
     return true;
   }
 
-  var effectiveDay = getEffectiveWeekdayName_(now, extensionHours);
+  var effectiveDay = getEffectiveWeekdayName_(now, extensionHours, timezoneContext);
   var hasDayEntries = false;
 
   for (var i = 0; i < metric.dates.length; i++) {
@@ -779,7 +948,7 @@ function isMetricEligibleForPPNNow_(metric, now, extensionHours) {
       return true;
     }
 
-    return isCurrentHourWithinAnyRange_(now, hourRanges);
+    return isCurrentHourWithinAnyRange_(now, hourRanges, timezoneContext);
   }
 
   return !hasDayEntries;
@@ -823,9 +992,9 @@ function parsePpnHourRanges_(dateEntry) {
   return [[legacyStart, legacyEnd]];
 }
 
-function isCurrentHourWithinAnyRange_(now, ranges) {
+function isCurrentHourWithinAnyRange_(now, ranges, timezoneContext) {
   for (var i = 0; i < ranges.length; i++) {
-    if (isCurrentHourWithinRange_(now, ranges[i][0], ranges[i][1])) {
+    if (isCurrentHourWithinRange_(now, ranges[i][0], ranges[i][1], timezoneContext)) {
       return true;
     }
   }
@@ -833,10 +1002,10 @@ function isCurrentHourWithinAnyRange_(now, ranges) {
   return false;
 }
 
-function getEffectiveWeekdayName_(now, extensionHours) {
+function getEffectiveWeekdayName_(now, extensionHours, timezoneContext) {
   var extensionMs = normalizeExtensionMs_(extensionHours);
   var effectiveNow = new Date(now.getTime() - extensionMs);
-  return Utilities.formatDate(effectiveNow, Session.getScriptTimeZone(), 'EEEE').toLowerCase();
+  return formatDateForTimezoneContext_(effectiveNow, timezoneContext, 'EEEE').toLowerCase();
 }
 
 function parseOptionalHour_(value) {
@@ -852,8 +1021,8 @@ function parseOptionalHour_(value) {
   return numeric;
 }
 
-function isCurrentHourWithinRange_(now, startHour, endHour) {
-  var hourDecimal = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+function isCurrentHourWithinRange_(now, startHour, endHour, timezoneContext) {
+  var hourDecimal = getTimezoneContextHourDecimal_(now, timezoneContext);
 
   if (startHour <= endHour) {
     return hourDecimal >= startHour && hourDecimal <= endHour;
@@ -2926,7 +3095,7 @@ function handleLateDueByOverwrite_(setting, row, activeColInput, trackingSheet, 
   };
 }
 
-function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
+function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours, timezoneContext) {
   if (!Array.isArray(datesConfig) || datesConfig.length === 0) {
     return { dueDateTime: null };
   }
@@ -2935,12 +3104,11 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
 
   // Effective day is used ONLY to choose which day config applies
   var effectiveNow = new Date(now.getTime() - extensionMs);
-  var timezone = Session.getScriptTimeZone();
-  var effectiveDayName = Utilities.formatDate(effectiveNow, timezone, 'EEEE').toLowerCase();
+  var effectiveDayName = formatDateForTimezoneContext_(effectiveNow, timezoneContext, 'EEEE').toLowerCase();
 
-  // For debugging (optional): actual now minutes in script TZ
-  var nowHour = Number(Utilities.formatDate(now, timezone, 'H'));
-  var nowMinute = Number(Utilities.formatDate(now, timezone, 'm'));
+  // For debugging (optional): actual now minutes in resolved TZ
+  var nowHour = Number(formatDateForTimezoneContext_(now, timezoneContext, 'H'));
+  var nowMinute = Number(formatDateForTimezoneContext_(now, timezoneContext, 'm'));
   var nowMinutes = nowHour * 60 + nowMinute;
 
   var seenDays = {};
@@ -2973,14 +3141,11 @@ function getDueByTimeForCurrentEffectiveDay_(datesConfig, now, extensionHours) {
 
     // IMPORTANT: dueDateTime is on the EFFECTIVE DAY's date, at the configured time.
     // DO NOT add extensionMs here.
-    var dueDateTime = new Date(
-      effectiveNow.getFullYear(),
-      effectiveNow.getMonth(),
-      effectiveNow.getDate(),
+    var dueDateTime = buildWallClockDateForTimezoneContext_(
+      effectiveNow,
       parsedDueByTime.hours,
       parsedDueByTime.minutes,
-      0,
-      0
+      timezoneContext
     );
 
     return {

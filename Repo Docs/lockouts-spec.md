@@ -543,3 +543,47 @@ Recommended shape:
 - Fast incremental shortcut (`Update Cached Metric`) calls `metric_state` for one metric and updates that metric’s cache entry.
 - Portable evaluator reads `lockoutCache.json` and performs lockout decisions locally using the same block order, token substitution, and JSON output shape as `app_closer`.
 - For preset selection on-device, the portable evaluator resolves presets from calendar events on calendar name `App Lockout Settings` for events that occur today (instead of relying on `data` preset input).
+
+## Lockouts V2 timezone modes
+
+### `timezoneMode`
+
+`timezoneMode` is an optional per-block field:
+
+- `fixed`: block windows are interpreted in `cache.timezone`, the server/script timezone.
+- `floating`: block windows are interpreted in the device-local timezone.
+- Default: `floating`.
+
+Block-level `timezoneMode` overrides `lockoutsV2.globals.defaultBlockTimezoneMode`. If both are omitted, floating/device-local behavior is used for the best travel-friendly default.
+
+### `defaultBlockTimezoneMode`
+
+`lockoutsV2.globals.defaultBlockTimezoneMode` may be set to `fixed` or `floating`. It controls blocks that do not specify their own `timezoneMode` and defaults to `floating`.
+
+### `cacheTimezoneMode`
+
+`lockoutsV2.globals.cacheTimezoneMode` controls `config_snapshot` task-block cache reads:
+
+- `script`: read task-block state from the script-timezone current physical sheet column.
+- `client`: when a valid request timezone or RFC 2822 `clientNow` offset is supplied, build virtual task-block completion state from the current and adjacent existing physical sheet columns.
+- Default: `client`.
+
+The virtual task-state mode preserves the `lockouts_cache_v1` shape and does not mutate the sheet. `cache.timezone` remains the server/script timezone. Client timezone metadata, when used, appears separately as `virtualDay.timezone`. Non-task metrics such as duration, number, timestamp, and global metrics remain single-column reads.
+
+Shortcuts may pass the device timezone or an RFC 2822 `clientNow` value when refreshing the cache, for example:
+
+```txt
+?key="config_snapshot"&timezone=Pacific/Honolulu
+?key="config_snapshot"&clientNow=Thu,%2018%20Jun%202026%2008:15:00%20-0400
+```
+
+Omitting this parameter remains valid and preserves script-timezone behavior.
+
+### Metric `timezoneMode`
+
+Metrics may also include `timezoneMode: 'floating' | 'fixed'`.
+
+- `floating`: metric schedule, due-by, current-status prompt fields, and positive-push evaluation use the client/device local time when client timezone metadata is available. This is the default for launch configs.
+- `fixed`: metric schedule and due-by evaluation use the Apps Script/server timezone.
+
+Metric timezone mode does not change physical sheet column writes in this phase; writes remain on the existing script-timezone column model.
