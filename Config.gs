@@ -76,8 +76,8 @@ function getAppConfig() {
         timeOpenedID: 'timeOpenedID',
         barLength: 20,
         presetCalendarName: '',
-        defaultBlockTimezoneMode: 'floating',
-        cacheTimezoneMode: 'client'
+        defaultBlockTimezoneMode: 'fixed',
+        cacheTimezoneMode: 'script'
       },
       blocks: []
     }
