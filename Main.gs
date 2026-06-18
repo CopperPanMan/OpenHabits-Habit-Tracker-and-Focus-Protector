@@ -114,7 +114,6 @@ function parseRequest_(e) {
     dataRaw: parsedBody.data === undefined ? null : JSON.stringify(parsedBody.data),
     secret: extractRequestSecret_(parsedBody, e),
     timezone: extractRequestTimezone_(parsedBody, e),
-    clientNow: extractRequestClientNow_(parsedBody, e),
     rawBody: parsedBody
   };
 }
@@ -161,19 +160,6 @@ function extractRequestTimezone_(body, e) {
   }
 
   return extractOptionalEventParameter_(e, ['timezone']);
-}
-
-
-function extractRequestClientNow_(body, e) {
-  if (body && typeof body === 'object' && typeof body.clientNow === 'string') {
-    return body.clientNow.trim();
-  }
-
-  if (body && typeof body === 'object' && typeof body.clientNowRFC2822 === 'string') {
-    return body.clientNowRFC2822.trim();
-  }
-
-  return extractOptionalEventParameter_(e, ['clientNow', 'clientNowRFC2822']);
 }
 
 function extractRequestSecret_(body, e) {
@@ -496,7 +482,6 @@ function handleApiRequest_(request) {
       activeCol: lockoutsTodayCol,
       tz: Session.getScriptTimeZone(),
       clientTz: request.timezone,
-      clientNow: request.clientNow,
       config: getAppConfig().lockouts
     }));
   }
@@ -509,8 +494,7 @@ function handleApiRequest_(request) {
       trackingSheet: getTrackingSheet_(),
       config: getAppConfig().lockouts,
       tz: Session.getScriptTimeZone(),
-      clientTz: request.timezone,
-      clientNow: request.clientNow
+      clientTz: request.timezone
     }));
   }
 

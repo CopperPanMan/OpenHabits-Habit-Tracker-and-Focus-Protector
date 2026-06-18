@@ -55,7 +55,7 @@
       },
       metricSettings: [],
       lockouts: {
-        globals: { cumulativeScreentimeID: 'cumulative_app_opened', timeOpenedID: 'timeOpenedID', barLength: 20, presetCalendarName: 'App Lockout Settings', defaultBlockTimezoneMode: 'floating', cacheTimezoneMode: 'client' },
+        globals: { cumulativeScreentimeID: 'cumulative_app_opened', timeOpenedID: 'timeOpenedID', barLength: 20, presetCalendarName: 'App Lockout Settings', defaultBlockTimezoneMode: 'fixed', cacheTimezoneMode: 'script' },
         blocks: []
       }
     };
@@ -76,8 +76,8 @@
     ifTimer: 'Timer-only settings used when metric type is start_timer or stop_timer.',
     blockType: 'Determines which typeSpecific section is used for this block.',
     blockTimezoneMode: 'fixed keeps this block tied to the Apps Script/cache timezone. floating follows the current device/browser wall clock while traveling.',
-    defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. floating follows the device/browser local wall clock.',
-    cacheTimezoneMode: 'client lets config_snapshot use a valid request timezone to build virtual task-block state from adjacent existing sheet columns.',
+    defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. fixed is backward-compatible; floating follows the device/browser local wall clock.',
+    cacheTimezoneMode: 'script preserves legacy config_snapshot task-state reads. client lets config_snapshot use a valid request timezone to build virtual task-block state from adjacent existing sheet columns.',
     dateRule: 'Per-day rule: due-by time and allowed tracking hours.',
     presets: 'Preset names that must be active for this block to apply.'
   };
@@ -268,7 +268,7 @@
     return {
       id: '',
       type: 'duration_block',
-      timezoneMode: 'floating',
+      timezoneMode: 'fixed',
       presets: [],
       times: { beg: '00:00', end: '00:00' },
       typeSpecific: {
@@ -377,8 +377,8 @@
     field(lockGrid, 'Time Opened Metric ID', makeInput({ value: state.lockouts.globals.timeOpenedID, onChange: v => state.lockouts.globals.timeOpenedID = v }), 'Metric ID used by clients for app-open timestamp tracking.');
     field(lockGrid, 'Bar Length', makeInput({ type: 'number', min: 1, value: state.lockouts.globals.barLength, onChange: v => state.lockouts.globals.barLength = v }), 'Character length used for on-block screentime bar token.');
     field(lockGrid, 'Preset Calendar Name', makeInput({ value: state.lockouts.globals.presetCalendarName, onChange: v => state.lockouts.globals.presetCalendarName = v }), 'Calendar name used to detect active lockout preset.');
-    field(lockGrid, 'Default Block Timezone Mode', makeSelect(['floating', 'fixed'], state.lockouts.globals.defaultBlockTimezoneMode, v => state.lockouts.globals.defaultBlockTimezoneMode = v), HELP.defaultBlockTimezoneMode);
-    field(lockGrid, 'Cache Timezone Mode', makeSelect(['client', 'script'], state.lockouts.globals.cacheTimezoneMode, v => state.lockouts.globals.cacheTimezoneMode = v), HELP.cacheTimezoneMode);
+    field(lockGrid, 'Default Block Timezone Mode', makeSelect(['fixed', 'floating'], state.lockouts.globals.defaultBlockTimezoneMode, v => state.lockouts.globals.defaultBlockTimezoneMode = v), HELP.defaultBlockTimezoneMode);
+    field(lockGrid, 'Cache Timezone Mode', makeSelect(['script', 'client'], state.lockouts.globals.cacheTimezoneMode, v => state.lockouts.globals.cacheTimezoneMode = v), HELP.cacheTimezoneMode);
     lockouts.appendChild(lockGrid);
     root.appendChild(lockouts);
   }
@@ -509,7 +509,7 @@
     g.className = 'grid';
     field(g, 'Block ID', makeInput({ value: block.id, onChange: v => block.id = v }), 'Unique lockout block identifier.');
     field(g, 'Type', makeSelect(['duration_block', 'task_block', 'firstXMinutesAfterTimestamp_block'], block.type, v => { block.type = v; renderAll(); }), HELP.blockType);
-    field(g, 'Timezone Mode', makeSelect(['floating', 'fixed'], block.timezoneMode || 'floating', v => block.timezoneMode = v), HELP.blockTimezoneMode);
+    field(g, 'Timezone Mode', makeSelect(['fixed', 'floating'], block.timezoneMode || 'fixed', v => block.timezoneMode = v), HELP.blockTimezoneMode);
     field(g, 'Begin Time', makeInput({ type: 'time', value: block.times.beg, onChange: v => block.times.beg = v }), 'Block activation start time (24h).');
     field(g, 'End Time', makeInput({ type: 'time', value: block.times.end, onChange: v => block.times.end = v }), 'Block activation end time (24h).');
     card.appendChild(g);

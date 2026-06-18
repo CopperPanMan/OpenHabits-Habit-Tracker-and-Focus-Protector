@@ -322,7 +322,7 @@ function evaluateDurationBlock(now, block, ctx, timezoneMode, fixedTimezone) {
   let allowedNowMinutes = maxMinutes;
 
   if (rationingOn) {
-    const progress = getWindowProgressForNow(now, block.times, timezoneMode || 'floating', fixedTimezone || null);
+    const progress = getWindowProgressForNow(now, block.times, timezoneMode || 'fixed', fixedTimezone || null);
     allowedNowMinutes = computeAllowedSoFarFromProgress(maxMinutes, {
       begMinutes: Number(rationing.begMinutes) || 0,
       endMinutes: Number(rationing.endMinutes) || maxMinutes,
@@ -690,7 +690,7 @@ function validateBlock(block) {
 function getDefaultBlockTimezoneMode(config) {
   const globals = config && config.globals ? config.globals : {};
   const mode = globals.defaultBlockTimezoneMode;
-  return mode === 'floating' || mode === 'fixed' ? mode : 'floating';
+  return mode === 'floating' || mode === 'fixed' ? mode : 'fixed';
 }
 
 function getBlockTimezoneMode(block, config) {
@@ -732,7 +732,7 @@ function getWallClockMinutes(dateObj, timezoneMode, fixedTimezone) {
 
 function isNowInTimesWindow(now, times, options) {
   const opts = options || {};
-  const nowMinutes = getWallClockMinutes(now, opts.timezoneMode || 'floating', opts.fixedTimezone || null);
+  const nowMinutes = getWallClockMinutes(now, opts.timezoneMode || 'fixed', opts.fixedTimezone || null);
   const beg = parseHHMMToMinutes(times && times.beg);
   const end = parseHHMMToMinutes(times && times.end);
 
