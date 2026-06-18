@@ -55,7 +55,7 @@
       },
       metricSettings: [],
       lockouts: {
-        globals: { cumulativeScreentimeID: 'cumulative_app_opened', barLength: 20, presetCalendarName: 'App Lockout Settings' },
+        globals: { cumulativeScreentimeID: 'cumulative_app_opened', timeOpenedID: 'timeOpenedID', barLength: 20, presetCalendarName: 'App Lockout Settings', defaultBlockTimezoneMode: 'floating', cacheTimezoneMode: 'client' },
         blocks: []
       }
     };
@@ -75,6 +75,9 @@
     metricType: 'Determines what a metric records and which extra fields apply. If you want to write text, please choose “number”, and a Record Type of “overwrite” or “keep_first”',
     ifTimer: 'Timer-only settings used when metric type is start_timer or stop_timer.',
     blockType: 'Determines which typeSpecific section is used for this block.',
+    blockTimezoneMode: 'fixed keeps this block tied to the Apps Script/cache timezone. floating follows the current device/browser wall clock while traveling.',
+    defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. floating follows the device/browser local wall clock.',
+    cacheTimezoneMode: 'client lets config_snapshot use a valid request timezone to build virtual task-block state from adjacent existing sheet columns.',
     dateRule: 'Per-day rule: due-by time and allowed tracking hours.',
     presets: 'Preset names that must be active for this block to apply.'
   };
@@ -241,7 +244,7 @@
 
   function newMetric() {
     return {
-      metricID: '', type: 'number', displayName: '', recordType: 'overwrite',
+      metricID: '', type: 'number', displayName: '', recordType: 'overwrite', timezoneMode: 'floating',
       dates: [],
       streaks: { unit: 'days', streaksID: '' },
       points: { value: 0, multiplierDays: 5, maxMultiplier: 1, pointsID: '' },
@@ -265,6 +268,7 @@
     return {
       id: '',
       type: 'duration_block',
+      timezoneMode: 'floating',
       presets: [],
       times: { beg: '00:00', end: '00:00' },
       typeSpecific: {
@@ -370,8 +374,11 @@
     const lockGrid = document.createElement('div');
     lockGrid.className = 'grid';
     field(lockGrid, 'Cumulative Screentime Metric ID', makeInput({ value: state.lockouts.globals.cumulativeScreentimeID, onChange: v => state.lockouts.globals.cumulativeScreentimeID = v }), 'Metric ID used for global cumulative screentime.');
+    field(lockGrid, 'Time Opened Metric ID', makeInput({ value: state.lockouts.globals.timeOpenedID, onChange: v => state.lockouts.globals.timeOpenedID = v }), 'Metric ID used by clients for app-open timestamp tracking.');
     field(lockGrid, 'Bar Length', makeInput({ type: 'number', min: 1, value: state.lockouts.globals.barLength, onChange: v => state.lockouts.globals.barLength = v }), 'Character length used for on-block screentime bar token.');
     field(lockGrid, 'Preset Calendar Name', makeInput({ value: state.lockouts.globals.presetCalendarName, onChange: v => state.lockouts.globals.presetCalendarName = v }), 'Calendar name used to detect active lockout preset.');
+    field(lockGrid, 'Default Block Timezone Mode', makeSelect(['floating', 'fixed'], state.lockouts.globals.defaultBlockTimezoneMode, v => state.lockouts.globals.defaultBlockTimezoneMode = v), HELP.defaultBlockTimezoneMode);
+    field(lockGrid, 'Cache Timezone Mode', makeSelect(['client', 'script'], state.lockouts.globals.cacheTimezoneMode, v => state.lockouts.globals.cacheTimezoneMode = v), HELP.cacheTimezoneMode);
     lockouts.appendChild(lockGrid);
     root.appendChild(lockouts);
   }
@@ -396,6 +403,7 @@
     field(g, 'Metric ID', makeInput({ value: metric.metricID, onChange: v => metric.metricID = v, required: true }), 'Unique ID used for tracking row lookups.');
     field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => metric.displayName = v, required: true }), 'Friendly name shown to users.');
     field(g, 'Type', makeSelect(['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'], metric.type, v => { metric.type = v; applyMetricTypeDefaults(metric); renderAll(); }), HELP.metricType);
+    field(g, 'Timezone Mode', makeSelect(['floating', 'fixed'], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Floating follows the current device/local time for metric schedules and due-by checks. Fixed uses Apps Script/server timezone.');
     field(g, 'Record Type', makeSelect(['overwrite', 'keep_first', 'add'], metric.recordType, v => metric.recordType = v), 'How writes merge with existing same-day values.');
     field(g, 'Write to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Enable this metric for Notion sync fields.');
     card.appendChild(g);
@@ -501,6 +509,7 @@
     g.className = 'grid';
     field(g, 'Block ID', makeInput({ value: block.id, onChange: v => block.id = v }), 'Unique lockout block identifier.');
     field(g, 'Type', makeSelect(['duration_block', 'task_block', 'firstXMinutesAfterTimestamp_block'], block.type, v => { block.type = v; renderAll(); }), HELP.blockType);
+    field(g, 'Timezone Mode', makeSelect(['floating', 'fixed'], block.timezoneMode || 'floating', v => block.timezoneMode = v), HELP.blockTimezoneMode);
     field(g, 'Begin Time', makeInput({ type: 'time', value: block.times.beg, onChange: v => block.times.beg = v }), 'Block activation start time (24h).');
     field(g, 'End Time', makeInput({ type: 'time', value: block.times.end, onChange: v => block.times.end = v }), 'Block activation end time (24h).');
     card.appendChild(g);
@@ -645,6 +654,7 @@
     state.metricSettings.forEach((m, i) => {
       if (!m.metricID) errors.push(`Metric ${i + 1}: Metric ID is required.`);
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
+      if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) errors.push(`Metric ${i + 1}: timezoneMode must be fixed or floating.`);
       m.dates.forEach((d, di) => {
         if (!DAYS.includes(d[0])) errors.push(`Metric ${i + 1}, date ${di + 1}: invalid day.`);
         const hasDueBy = String(d[1] || '').trim() !== '';
@@ -653,8 +663,11 @@
         if (typeof d[2] !== 'number' || typeof d[3] !== 'number') errors.push(`Metric ${i + 1}, date ${di + 1}: start/end must be numbers.`);
       });
     });
+    if (!['fixed', 'floating'].includes(state.lockouts.globals.defaultBlockTimezoneMode)) errors.push('Lockouts defaultBlockTimezoneMode must be fixed or floating.');
+    if (!['script', 'client'].includes(state.lockouts.globals.cacheTimezoneMode)) errors.push('Lockouts cacheTimezoneMode must be script or client.');
     state.lockouts.blocks.forEach((b, i) => {
       if (!b.id) errors.push(`Block ${i + 1}: Block ID is required.`);
+      if (b.timezoneMode && !['fixed', 'floating'].includes(b.timezoneMode)) errors.push(`Block ${i + 1}: timezoneMode must be fixed or floating.`);
       if (!/^\d{2}:\d{2}$/.test(b.times.beg) || !/^\d{2}:\d{2}$/.test(b.times.end)) errors.push(`Block ${i + 1}: begin/end time must be HH:MM.`);
     });
     return errors;

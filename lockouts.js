@@ -128,7 +128,8 @@ async function lockoutsEvaluateNow(input) {
 
   const ctx = {
     now,
-    tz: normalizedInput.timezone || cache.timezone || null,
+    fixedTimezone: cache.timezone || null,
+    clientTimezone: normalizedInput.timezone || (cache.virtualDay && cache.virtualDay.timezone) || null,
     todayValuesByMetricID: mapMetricStateToValues(
       cache && cache.metricState && cache.metricState.allByID
     ),
@@ -171,7 +172,7 @@ async function lockoutsEvaluateNow(input) {
 
   const preset = normalizedInput.presetOverride || null;
 
-  const evalResult = evaluateBlocks(now, preset, config.blocks || [], ctx);
+  const evalResult = evaluateBlocks(now, preset, config.blocks || [], ctx, config);
   response.debug.errors = response.debug.errors.concat(evalResult.debugErrors || []);
 
   if (evalResult.status === 'error') {
@@ -201,7 +202,7 @@ async function lockoutsEvaluateNow(input) {
   return response;
 }
 
-function evaluateBlocks(now, preset, blocks, ctx) {
+function evaluateBlocks(now, preset, blocks, ctx, config) {
   const debugErrors = [];
 
   if (!(now instanceof Date) || isNaN(now.getTime())) {
@@ -230,7 +231,9 @@ function evaluateBlocks(now, preset, blocks, ctx) {
       continue;
     }
 
-    if (!isNowInTimesWindow(now, block.times)) continue;
+    const timezoneMode = getBlockTimezoneMode(block, config);
+    const fixedTimezone = getFixedTimezone(ctx);
+    if (!isNowInTimesWindow(now, block.times, { timezoneMode, fixedTimezone })) continue;
 
     if (block.type === 'task_block') {
       const r = evaluateTaskBlock(block, ctx);
@@ -247,7 +250,7 @@ function evaluateBlocks(now, preset, blocks, ctx) {
     }
 
     if (block.type === 'duration_block') {
-      const r = evaluateDurationBlock(now, block, ctx);
+      const r = evaluateDurationBlock(now, block, ctx, timezoneMode, fixedTimezone);
       if ((r.errors || []).length) debugErrors.push(...r.errors);
       if (r.shouldBlock) {
         return {
@@ -301,7 +304,7 @@ function evaluateTaskBlock(block, ctx) {
   return { shouldBlock: false, uiComputedFields: {}, errors: [] };
 }
 
-function evaluateDurationBlock(now, block, ctx) {
+function evaluateDurationBlock(now, block, ctx, timezoneMode, fixedTimezone) {
   const durationCfg = block.typeSpecific.duration || {};
   const maxMinutes = Math.max(0, Number(durationCfg.maxMinutes) || 0);
   const usedMinutes = readDurationMinutesByMetricID(durationCfg.screenTimeID, ctx);
@@ -319,17 +322,11 @@ function evaluateDurationBlock(now, block, ctx) {
   let allowedNowMinutes = maxMinutes;
 
   if (rationingOn) {
-    const bounds = getWindowBoundsForNow(now, block.times);
-    allowedNowMinutes = computeAllowedSoFar(
-      now,
-      bounds.windowStart,
-      bounds.windowEnd,
-      maxMinutes,
-      {
-        begMinutes: Number(rationing.begMinutes) || 0,
-        endMinutes: Number(rationing.endMinutes) || 0,
-      }
-    );
+    const progress = getWindowProgressForNow(now, block.times, timezoneMode || 'floating', fixedTimezone || null);
+    allowedNowMinutes = computeAllowedSoFarFromProgress(maxMinutes, {
+      begMinutes: Number(rationing.begMinutes) || 0,
+      endMinutes: Number(rationing.endMinutes) || maxMinutes,
+    }, progress);
   }
 
   return {
@@ -412,7 +409,7 @@ function buildAllowedUi(now, resolvedPreset, config, ctx, debugErrors) {
   const barLength = Number(globals.barLength) || 20;
   const blocks = Array.isArray(config && config.blocks) ? config.blocks : [];
 
-  const durationCtx = findFirstApplicableDurationContext(now, resolvedPreset, blocks, ctx);
+  const durationCtx = findFirstApplicableDurationContext(now, resolvedPreset, blocks, ctx, config);
   if (durationCtx) {
     const tokenMap = buildTokenMap(
       now,
@@ -469,7 +466,7 @@ function buildAllowedUi(now, resolvedPreset, config, ctx, debugErrors) {
   return { showMessage: false, message: '' };
 }
 
-function findFirstApplicableDurationContext(now, preset, blocks, ctx) {
+function findFirstApplicableDurationContext(now, preset, blocks, ctx, config) {
   const list = Array.isArray(blocks) ? blocks : [];
 
   for (let i = 0; i < list.length; i++) {
@@ -484,9 +481,11 @@ function findFirstApplicableDurationContext(now, preset, blocks, ctx) {
 
     const validation = validateBlock(block);
     if (!validation.isValid) continue;
-    if (!isNowInTimesWindow(now, block.times)) continue;
+    const timezoneMode = getBlockTimezoneMode(block, config);
+    const fixedTimezone = getFixedTimezone(ctx);
+    if (!isNowInTimesWindow(now, block.times, { timezoneMode, fixedTimezone })) continue;
 
-    const durationEval = evaluateDurationBlock(now, block, ctx);
+    const durationEval = evaluateDurationBlock(now, block, ctx, timezoneMode, fixedTimezone);
     if ((durationEval.errors || []).length > 0) continue;
 
     return { block, uiComputedFields: durationEval.uiComputedFields || {} };
@@ -529,11 +528,15 @@ function buildTokenMap(now, block, computed, barLength, ctx) {
   if (block && block.type === 'firstXMinutesAfterTimestamp_block' && computed.cutoffISO) {
     const cutoff = new Date(computed.cutoffISO);
     tokenMap.endTimeISO = cutoff.toISOString();
-    tokenMap.endTime = formatTime12(cutoff, ctx && ctx.tz);
+    tokenMap.endTime = formatTime12(cutoff, ctx && ctx.fixedTimezone);
   } else if (block && block.type === 'duration_block' && block.times) {
-    const bounds = getWindowBoundsForNow(now, block.times);
-    tokenMap.endTimeISO = bounds.windowEnd.toISOString();
-    tokenMap.endTime = formatTime12(bounds.windowEnd, ctx && ctx.tz);
+    try {
+      const bounds = getWindowBoundsForNow(now, block.times);
+      tokenMap.endTimeISO = bounds.windowEnd.toISOString();
+    } catch (error) {
+      tokenMap.endTimeISO = '';
+    }
+    tokenMap.endTime = formatHHMM12(block.times.end);
   }
 
   return tokenMap;
@@ -649,6 +652,10 @@ function validateBlock(block) {
     errors.push('Block times.end must be valid HH:MM.');
   }
 
+  if (block.timezoneMode != null && block.timezoneMode !== 'fixed' && block.timezoneMode !== 'floating') {
+    errors.push('Block timezoneMode must be fixed or floating when provided.');
+  }
+
   const typeSpecific = block.typeSpecific || {};
 
   if (block.type === 'task_block') {
@@ -680,8 +687,52 @@ function validateBlock(block) {
   return { isValid: errors.length === 0, errors };
 }
 
-function isNowInTimesWindow(now, times) {
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+function getDefaultBlockTimezoneMode(config) {
+  const globals = config && config.globals ? config.globals : {};
+  const mode = globals.defaultBlockTimezoneMode;
+  return mode === 'floating' || mode === 'fixed' ? mode : 'floating';
+}
+
+function getBlockTimezoneMode(block, config) {
+  const mode = block && block.timezoneMode;
+  if (mode === 'floating' || mode === 'fixed') return mode;
+  return getDefaultBlockTimezoneMode(config);
+}
+
+function getFixedTimezone(ctx) {
+  return (ctx && ctx.fixedTimezone) || null;
+}
+
+function getWallClockMinutes(dateObj, timezoneMode, fixedTimezone) {
+  if (timezoneMode === 'floating') {
+    return dateObj.getHours() * 60 + dateObj.getMinutes();
+  }
+
+  if (fixedTimezone && typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: fixedTimezone,
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false,
+      }).formatToParts(dateObj);
+      const map = {};
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].type !== 'literal') map[parts[i].type] = Number(parts[i].value);
+      }
+      const hour = map.hour === 24 ? 0 : map.hour;
+      return hour * 60 + map.minute;
+    } catch (error) {
+      // Fall through to device-local fallback.
+    }
+  }
+
+  return dateObj.getHours() * 60 + dateObj.getMinutes();
+}
+
+function isNowInTimesWindow(now, times, options) {
+  const opts = options || {};
+  const nowMinutes = getWallClockMinutes(now, opts.timezoneMode || 'floating', opts.fixedTimezone || null);
   const beg = parseHHMMToMinutes(times && times.beg);
   const end = parseHHMMToMinutes(times && times.end);
 
@@ -759,6 +810,47 @@ function computeAllowedSoFar(now, windowStart, windowEnd, maxMinutes, rationing)
   return Math.max(0, Math.min(max, ramp));
 }
 
+
+function getWindowProgressForNow(now, times, timezoneMode, fixedTimezone) {
+  const nowMinutes = getWallClockMinutes(now, timezoneMode, fixedTimezone);
+  const beg = parseHHMMToMinutes(times && times.beg);
+  const end = parseHHMMToMinutes(times && times.end);
+
+  if (beg == null || end == null) return null;
+  if (beg === end) return 0;
+
+  let total;
+  let elapsed;
+  if (beg < end) {
+    total = end - beg;
+    elapsed = nowMinutes - beg;
+  } else {
+    total = (24 * 60 - beg) + end;
+    elapsed = nowMinutes >= beg ? nowMinutes - beg : (24 * 60 - beg) + nowMinutes;
+  }
+
+  return Math.max(0, Math.min(1, elapsed / Math.max(1, total)));
+}
+
+function computeAllowedSoFarFromProgress(maxMinutes, rationing, progress) {
+  const max = Math.max(0, Number(maxMinutes) || 0);
+  const beginRamp = Math.max(0, Number(rationing && rationing.begMinutes) || 0);
+  const endRamp = Math.max(0, Number(rationing && rationing.endMinutes) || max);
+  const p = Math.max(0, Math.min(1, Number(progress) || 0));
+  const ramp = beginRamp + (endRamp - beginRamp) * p;
+  return Math.max(0, Math.min(max, ramp));
+}
+
+function formatHHMM12(hhmm) {
+  const mins = parseHHMMToMinutes(hhmm);
+  if (mins == null) return '';
+  const h24 = Math.floor(mins / 60);
+  const mm = mins % 60;
+  const suffix = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(mm).padStart(2, '0')} ${suffix}`;
+}
+
 function renderBar(input) {
   const used = Math.max(0, Number(input.usedMinutes) || 0);
   const max = Math.max(1, Number(input.maxMinutes) || 1);
@@ -771,10 +863,10 @@ function renderBar(input) {
 
   const chars = [];
   for (let i = 0; i < len; i++) {
-    chars.push(i < fillCount ? '▓' : '░');
+    chars.push(i < fillCount ? '■' : '□');
   }
 
-  if (showMarker) chars[markerPos] = '·';
+  if (showMarker) chars[markerPos] = '|';
   return chars.join('');
 }
 
@@ -815,6 +907,9 @@ if (typeof module !== 'undefined') {
     lockoutsEvaluateNow,
     evaluateBlocks,
     buildRuntimeInput_,
+    getWallClockMinutes,
+    isNowInTimesWindow,
+    getWindowProgressForNow,
   };
 }
 
