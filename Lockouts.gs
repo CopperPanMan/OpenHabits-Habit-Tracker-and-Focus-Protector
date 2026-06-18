@@ -1382,6 +1382,7 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
   var warnings = [];
   var resolvedTz = lockouts_resolveSnapshotTimezone_(
     context.clientTz || context.requestTimezone || '',
+    context.clientNow || '',
     config,
     warnings
   );
@@ -1393,10 +1394,13 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
   });
   var virtualDay = {
     enabled: false,
-    timezone: '',
+    timezone: resolvedTz.clientTimezone || '',
     timezoneSource: resolvedTz.source,
     dayKey: '',
-    sourceCols: []
+    sourceCols: [],
+    timezoneOffset: resolvedTz.timezoneOffset || '',
+    timezoneOffsetRFC2822: resolvedTz.timezoneOffsetRFC2822 || '',
+    clientNow: resolvedTz.clientNow || ''
   };
 
   if (resolvedTz.virtualEnabled && discoveredMetricIDs.taskBlockIDs.length > 0) {
@@ -1405,6 +1409,10 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
       todayCol: todayCol,
       now: now,
       clientTimezone: resolvedTz.clientTimezone,
+      clientNow: resolvedTz.clientNow,
+      offsetMinutes: resolvedTz.offsetMinutes,
+      timezoneOffset: resolvedTz.timezoneOffset,
+      timezoneOffsetRFC2822: resolvedTz.timezoneOffsetRFC2822,
       timezoneSource: resolvedTz.source,
       lateExtensionHours: lateExtensionHours !== undefined ? lateExtensionHours : lateExtension,
       warnings: warnings
@@ -1461,9 +1469,36 @@ function lockouts_isValidTimezone_(tz) {
   }
 }
 
-function lockouts_resolveSnapshotTimezone_(requestTimezone, config, warnings) {
+
+function lockouts_parseClientNowOffset_(clientNow) {
+  if (typeof clientNow !== 'string' || !clientNow.trim()) {
+    return null;
+  }
+
+  var match = /(?:^|\s)([+-])(\d{2})(?::?(\d{2}))\s*$/.exec(clientNow.trim());
+  if (!match) {
+    return null;
+  }
+
+  var hours = Number(match[2]);
+  var minutes = Number(match[3] || '0');
+  if (!isFinite(hours) || !isFinite(minutes) || hours > 23 || minutes > 59) {
+    return null;
+  }
+
+  var total = hours * 60 + minutes;
+  var offsetMinutes = match[1] === '-' ? -total : total;
+  var compactOffset = match[1] + match[2] + String(minutes).padStart(2, '0');
+  return {
+    offsetMinutes: offsetMinutes,
+    timezoneOffset: match[1] + match[2] + ':' + String(minutes).padStart(2, '0'),
+    timezoneOffsetRFC2822: compactOffset
+  };
+}
+
+function lockouts_resolveSnapshotTimezone_(requestTimezone, requestClientNow, config, warnings) {
   var globals = config && config.globals ? config.globals : {};
-  var mode = globals.cacheTimezoneMode || 'script';
+  var mode = globals.cacheTimezoneMode || 'client';
   var scriptTz = Session.getScriptTimeZone();
   var warningList = warnings || [];
 
@@ -1471,6 +1506,10 @@ function lockouts_resolveSnapshotTimezone_(requestTimezone, config, warnings) {
     return {
       serverTimezone: scriptTz,
       clientTimezone: '',
+      clientNow: '',
+      offsetMinutes: null,
+      timezoneOffset: '',
+      timezoneOffsetRFC2822: '',
       virtualEnabled: false,
       source: 'script'
     };
@@ -1481,7 +1520,25 @@ function lockouts_resolveSnapshotTimezone_(requestTimezone, config, warnings) {
       serverTimezone: scriptTz,
       clientTimezone: String(requestTimezone).trim(),
       virtualEnabled: true,
+      clientNow: '',
+      offsetMinutes: null,
+      timezoneOffset: '',
+      timezoneOffsetRFC2822: '',
       source: 'client'
+    };
+  }
+
+  var offsetInfo = lockouts_parseClientNowOffset_(requestClientNow);
+  if (offsetInfo) {
+    return {
+      serverTimezone: scriptTz,
+      clientTimezone: '',
+      clientNow: String(requestClientNow).trim(),
+      offsetMinutes: offsetInfo.offsetMinutes,
+      timezoneOffset: offsetInfo.timezoneOffset,
+      timezoneOffsetRFC2822: offsetInfo.timezoneOffsetRFC2822,
+      virtualEnabled: true,
+      source: 'client_now_offset'
     };
   }
 
@@ -1492,6 +1549,10 @@ function lockouts_resolveSnapshotTimezone_(requestTimezone, config, warnings) {
   return {
     serverTimezone: scriptTz,
     clientTimezone: '',
+    clientNow: '',
+    offsetMinutes: null,
+    timezoneOffset: '',
+    timezoneOffsetRFC2822: '',
     virtualEnabled: false,
     source: requestTimezone ? 'script_fallback_invalid_client_timezone' : 'script_fallback_missing_client_timezone'
   };
@@ -1514,11 +1575,17 @@ function lockouts_getAdjacentDateColumns_(trackingSheet, todayCol) {
   return out;
 }
 
-function lockouts_getEffectiveDayKeyForTimezone_(dateObj, extensionHours, timezone) {
-  var tz = lockouts_isValidTimezone_(timezone) ? String(timezone).trim() : Session.getScriptTimeZone();
+function lockouts_getEffectiveDayKeyForTimezone_(dateObj, extensionHours, timezone, offsetMinutes) {
   var hours = Math.max(0, Number(extensionHours) || 0);
   var base = dateObj instanceof Date ? dateObj : new Date();
   var shifted = new Date(base.getTime() - hours * 60 * 60 * 1000);
+
+  if (offsetMinutes !== null && offsetMinutes !== undefined && isFinite(Number(offsetMinutes))) {
+    var offsetShifted = new Date(shifted.getTime() + Number(offsetMinutes) * 60 * 1000);
+    return Utilities.formatDate(offsetShifted, 'GMT', 'yyyy-MM-dd');
+  }
+
+  var tz = lockouts_isValidTimezone_(timezone) ? String(timezone).trim() : Session.getScriptTimeZone();
   return Utilities.formatDate(shifted, tz, 'yyyy-MM-dd');
 }
 
@@ -1548,8 +1615,11 @@ function lockouts_buildVirtualTaskState_(taskBlockIDs, ctx) {
   return {
     enabled: true,
     timezone: context.clientTimezone || '',
+    timezoneOffset: context.timezoneOffset || '',
+    timezoneOffsetRFC2822: context.timezoneOffsetRFC2822 || '',
+    clientNow: context.clientNow || '',
     timezoneSource: context.timezoneSource || 'client',
-    dayKey: lockouts_getEffectiveDayKeyForTimezone_(now, context.lateExtensionHours, context.clientTimezone),
+    dayKey: lockouts_getEffectiveDayKeyForTimezone_(now, context.lateExtensionHours, context.clientTimezone, context.offsetMinutes),
     sourceCols: sourceCols,
     metricStateByID: metricStateByID
   };
