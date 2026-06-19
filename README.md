@@ -1,61 +1,48 @@
-# Read Me
+# OpenHabits
+## What is this?
 
-### OpenHabits is an open source habit tracker and focus protection system built around Apple Shortcuts, Google Sheets, and Google Apps Script. It has two components:
-- **Metric Logger:** a system to easily record habits (or any text or number data) to a Google Sheet "log" from your iPhone, generate streak counts, point totals, and performance insights, and optionally sync data both ways with Notion databases.
-- **App/Website Locker:** a configurable app and website limiting system that uses the data from the user's Metric Logger Google Sheet to restrict usage on iOS and desktop Chrome. Its purpose is to let users take back their attention, with much more flexibility and control than any other paid app on the market. It can block:
-  - until tasks are comleted
-  - during time windows
-  - or usage limits are respected, with optional screentime rationing/cooldowns to prevent binges.
+OpenHabits is an open source habit tracker and focus protection system built around Apple Shortcuts, Google Sheets, and Google Apps Script. It is for people who want more than a checklist app or a simple app blocker: it lets your habit data become the thing that shapes what your phone and computer allow you to do next.
 
-## Example uses
+It has two main parts, and you can use either one without the other:
 
-- “When I finish meditating, I scan a QR code that prompts to input the duration in mm:ss and a review 1-10. It then logs that, and generates and returns a message comparing how today's duration was to this day last week.
-- “I tried to open YouTube but I hadn't planned my work tasks. It blocked me and redirected to my work app.
-- “Show me what habit is due next by polling `positive_push_notification` and surfacing the response in a widget/shortcut.”
+- **Metric Logger** — log habits, tasks, durations, timestamps, ratings, and other personal metrics into a Google Sheet from iPhone Shortcuts. OpenHabits can calculate streaks, points, and insight messages, and can optionally sync habit status back to Notion.
+- **App/Website Locker** — block or allow distracting apps and websites based on time windows, completed tasks, cooldowns, screen time budgets, and presets. It can run on iOS through Shortcuts automations and on desktop Chrome through the included extension.
 
-### OpenHabits was created to let users take back control over their lives and attention, and own it themselves. You can set it up [here](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/blob/main/Repo%20Docs/setup.md).
+## What Can This Do?
 
+- **Turn a QR code or NFC tag into a habit logger**
+  Scan a code after meditating, working out, reading, cleaning, or practicing. OpenHabits can ask for a duration, score, or note, write it to your Sheet, and return a message like how today compares with last week.
 
+- **Make distracting apps depend on the life you said you wanted**
+  If YouTube, Instagram, Reddit, or another app opens before your required tasks are done, OpenHabits can immediately redirect you, show what is missing, and tell you what would unlock the app.
 
----
+- **Use screen time as a budget instead of a vague intention**
+  Let yourself use a distracting app for a certain amount of time, then block it until tomorrow or until a cooldown/rationing rule says it is reasonable again.
 
+- **Build your own productivity operating system**
+  Keep the raw data in a Sheet you own, build dashboards however you like, use Notion if you want, and call the same web app from Shortcuts, Chrome, widgets, NFC automations, or your own scripts.
 
+- **Ask OpenHabits what needs attention next**
+  Poll `positive_push_notification` from a Shortcut or widget to get a useful prompt based on which scheduled metric is currently due.
 
-*Dev Note*:  OpenHabits is currently primarily iOS focussed, but that's just because I haven't had the time to build the Shortcut client equivalents on Tasker for Android. Perhaps a community member could help with this!
+## How do I Use it?
 
-## Lockouts V2 timezone behavior
+Once setup is finished, daily use is mostly Shortcuts and automations:
 
-Lockouts V2 supports explicit block timezone modes for travel-safe app blocking:
+1. You log metrics from Shortcut buttons, QR codes, NFC tags, widgets, or Notion.
+2. The Apps Script web app writes those metrics into your Google Sheet.
+3. OpenHabits calculates derived status such as points, streaks, completion, and insight messages.
+4. Lockout clients ask the same web app whether the current app/site should be allowed.
+5. If a rule blocks you, the client redirects you or shows the reason why.
 
-- `timezoneMode: 'fixed'` evaluates `times.beg` and `times.end` in the Lockouts cache/server timezone (`cache.timezone`). This is the backward-compatible default when a block omits `timezoneMode`.
-- `timezoneMode: 'floating'` evaluates the block window in the device or browser's local JavaScript timezone so the block follows the user's current wall clock while traveling.
+The important idea is that the Sheet is not just a dashboard. It is the shared source of truth that lets habits and lockouts work together.
 
-Lockouts V2 globals may also include:
+### Next Step >> [Setup and Usage Guide](Repo%20Docs/setup.md)
 
-```js
-lockoutsV2: {
-  globals: {
-    defaultBlockTimezoneMode: 'fixed', // 'fixed' | 'floating'
-    cacheTimezoneMode: 'script'        // 'script' | 'client'
-  },
-  blocks: []
-}
-```
+## Why?
 
-`cacheTimezoneMode: 'script'` preserves the legacy `config_snapshot` behavior and reads task-block state from the script-timezone physical sheet day. `cacheTimezoneMode: 'client'` allows `config_snapshot` to use a valid request timezone to build virtual task-block completion state from the current physical sheet column and adjacent existing date columns. This virtual task cache does not create, reorder, or mutate sheet columns and does not merge duration, number, timestamp, or global metrics across days.
+OpenHabits was created to help users take back control over their lives and attention while still owning the system themselves.
 
-Clients may optionally include the current IANA timezone when requesting Lockouts state or decisions, for example:
+Most habit trackers only record what happened. Most app blockers only say “no” on a fixed schedule. OpenHabits tries to connect the two: if you already know the behaviors that make your day work, your devices should be able to help protect those behaviors before attention gets spent somewhere else.
 
-```txt
-?key="config_snapshot"&timezone=Pacific/Honolulu
-```
-
-The Chrome extension may send the browser timezone with server decision requests. Existing URLs and Shortcuts continue to work without the `timezone` parameter. The server/cache timezone remains exposed as `cache.timezone`; any client timezone used for virtual task-state metadata is exposed separately under `virtualDay.timezone`.
-
-### Manual timezone verification
-
-- Request `config_snapshot` without `timezone` and confirm the response keeps `schemaVersion: 'lockouts_cache_v1'`, keeps `timezone` set to the script timezone, and has `virtualDay.enabled: false` unless a valid client timezone is supplied with `cacheTimezoneMode: 'client'`.
-- Request `config_snapshot` with `timezone=Not/AZone` and `cacheTimezoneMode: 'client'`; the cache should still be generated with script-timezone behavior and include a warning about the invalid request timezone.
-- With `cacheTimezoneMode: 'client'`, request `config_snapshot&timezone=Pacific/Honolulu` and confirm `cache.timezone` remains the script timezone while `virtualDay.timezone` is `Pacific/Honolulu`.
-- In `lockouts.js`, verify fixed blocks use `cache.timezone` even when the wrapper input has a different `timezone`, and floating blocks use the current device-local wall clock.
-- For duration blocks with rationing, verify the rationing progress follows the same fixed or floating timezone mode used for the block window check.
+*Dev Note*: OpenHabits is currently primarily iOS focused because the Shortcut clients were built first. Android equivalents could likely be built with Tasker or similar tools, and community help would be welcome.
