@@ -3,7 +3,7 @@
 ### Quick Links
 
 - [Developer Keys](developer-keys.md) — the web app keys you can call from your own clients.
-- [Personal Setup Placeholder](personal-config-placeholder.md) — a stand-in for the future shareable folder with Mike's personal config, Sheet, and Shortcuts.
+- [Personal OpenHabits Setup Example](personal-config-placeholder.md) — an anonymized example setup with the author's config structure, Sheet/Shortcut links, and lockout strategy.
 - [Habits V2 technical spec](habits-v2-spec.md) — deeper implementation details for the metric logger.
 - [Lockouts technical spec](lockouts-spec.md) — deeper implementation details for app/site blocking.
 
@@ -14,7 +14,7 @@ OpenHabits is not one single app. It is a small personal system made from pieces
 - **Apple Shortcuts** are the buttons, QR/NFC launchers, app-open automations, and simple user interface.
 - **Google Apps Script** is the web app brain that receives requests, writes metrics, calculates status, and evaluates lockout rules.
 - **Google Sheets** is the database and dashboard source of truth.
-- **Scriptable** is used by iOS lockout flows that need stronger file/client behavior than Shortcuts alone.
+- **Scriptable** is used by iOS lockout flows to keep the Locked Shortcut small, fast, and manageable. The lockout logic is too large for a reliable 1,000-action Shortcut, so Scriptable runs the heavier client-side logic.
 - **Chrome Extension** is the desktop website blocker/client.
 - **Notion** is optional. Use it only if you want habit/task status mirrored there.
 
@@ -83,32 +83,23 @@ You can find the Sheet ID in the Sheet URL between `/d/` and `/edit`.
 
 > **Screenshot to add:** Apps Script Script Properties with `spreadsheetId` shown and secret values blurred.
 
-## D) Configure `Config.gs`
+## D) Configure OpenHabits with the Config Editor
 
-Start with these values:
+The recommended way to build and maintain your config is the **OpenHabits Config Editor GUI**:
 
-```js
-scriptProperties: {
-  spreadsheetId: 'spreadSheetID'
-},
-trackingSheetName: 'Tracking Data',
-writeToNotion: false,
-dailyPointsID: 'point_total_today',
-cumulativePointsID: 'point_total_alltime',
-lateExtensionHours: 5,
-metricSettings: [],
-lockouts: {
-  globals: {
-    cumulativeScreentimeID: null,
-    timeOpenedID: 'timeOpenedID',
-    barLength: 20,
-    presetCalendarName: ''
-  },
-  blocks: []
-}
-```
+<https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/>
 
-Important fields:
+Use the editor as your normal workflow:
+
+1. Open the Config Editor website.
+2. Add your shared settings, habit metrics, timer metrics, and lockout blocks.
+3. Copy the generated config code.
+4. Paste it into `Config.gs` in Apps Script.
+5. Deploy a new version of the web app after each config change.
+
+You still need to understand what the features mean, but you should not have to hand-write most config objects. Treat the code examples in this guide as reference material for understanding fields, debugging, and making small edits after the GUI generates a starting point.
+
+Important shared fields:
 
 - `spreadsheetId` points the script at your Sheet.
 - `trackingSheetName` should match the tab name exactly.
@@ -116,6 +107,10 @@ Important fields:
 - `metricSettings` is where habit metrics go.
 - `lockouts.blocks` is where blocking rules go.
 - `writeToNotion` should stay `false` unless you are intentionally setting up Notion.
+
+> **Tip:** If you are not sure what config to build, see the README section on using AI to generate, revise, or debug an OpenHabits setup. You can bring the result back into the Config Editor for review.
+
+> **Screenshot to add:** Config Editor home screen with the export/copy config button highlighted, then Apps Script `Config.gs` with the pasted output.
 
 ## E) Deploy the web app
 
@@ -129,24 +124,16 @@ Important fields:
 
 # 4) Recommended first smoke test
 
-Before building your whole system, create one simple metric row and call it successfully.
+Do this after you have installed at least one logger Shortcut. Most users should not need curl, Postman, or any developer tool for the first test.
 
-1. Add a row in `Tracking Data` with `test_metric` in column A and `Test Metric` in column B.
-2. Add a simple metric object to `metricSettings`.
-3. Call `record_metric_iOS` from a Shortcut, curl, or Postman.
-4. Confirm today's cell updates in the Sheet.
+1. In the Config Editor, create one simple test metric with the ID `test_metric`.
+2. Copy the generated config into `Config.gs`, then redeploy the Apps Script web app.
+3. Add a row in `Tracking Data` with `test_metric` in column A and `Test Metric` in column B.
+4. Install and configure **Metric Logger Template** with your web app URL, shared secret, and `test_metric`.
+5. Run the Shortcut manually.
+6. Confirm today's cell updates in the Sheet.
 
-Example request body:
-
-```json
-{
-  "key": "record_metric_iOS",
-  "secret": "your_random_secret_string",
-  "data": [["test_metric", 1]]
-}
-```
-
-If this works, your Sheet, Apps Script deployment, permissions, and basic client path are connected.
+If this works, your Sheet, Apps Script deployment, permissions, secret, and Shortcut path are connected. If it fails, fix this before building a full habit or lockout system.
 
 # 5) Habit Tracking Setup
 
@@ -167,16 +154,19 @@ Compared with a normal habit tracker, OpenHabits can:
 
 For habit tracking, import or build these Shortcuts:
 
-- **Habits QR Code Maker** — creates QR codes that launch specific logging flows.
-- **Metric(s) Logger Template** — logs one or more metrics to the web app.
-- **Toggle Timer Template** — starts/stops duration timers.
-- **Insights** — fetches or displays insight/status output.
+- **Habits QR Code Maker** — creates QR codes in the Shortcut URL format so QR scans can launch habit loggers.
+- **Metric Logger Template** — duplicatable template for non-timer metrics such as checkboxes, numbers, ratings, timestamps, and notes.
+- **Toggle Timer Template** — duplicatable template for timer metrics. Tapping the same Shortcut toggles between starting and stopping.
+- **Insights** — optional UX helper that reads and displays the return message generated after a metric logger Shortcut records something.
+- **Remember!** — optional helper that fetches the current status of a metric.
 
 Follow the setup comments at the top of each Shortcut. Usually you will paste in:
 
 - your Apps Script web app URL,
 - your shared secret,
 - and the metric IDs you want that Shortcut to log.
+
+**Important Shortcuts import note:** if an imported Shortcut contains a **Run Shortcut** action, open that action and manually reselect the Shortcut it should run. Apple Shortcuts can show the correct name while still failing to connect the imported Shortcut behind the scenes.
 
 No automations are required for basic habit logging. Optional NFC automations can scan a tag and launch a specific logging Shortcut.
 
@@ -261,113 +251,104 @@ The lockout server decides whether the current rule says `allowed` or `blocked`.
 
 OpenHabits is meant to make good behavior easier and bad behavior more annoying. It is not a device-management product and cannot be perfectly tamper-proof on a personal phone.
 
-## C) Shortcuts you need
+## C) Scriptable setup
 
-For iOS lockouts, import or build:
+The **Locked** Shortcut uses a Scriptable script named `lockouts` for the heavier lockout logic. This keeps the Shortcut layer small and reliable instead of trying to maintain hundreds of actions inside one Shortcut.
 
-- **Locked** — runs when a blocked app opens and asks the web app if access is allowed.
-- **Allowed** — handles allowed access or a legitimate unlock path.
-- **Update Lockout Cache** — refreshes lockout/cache data for faster client decisions.
-- **Metric Logger for Screen Time** — logs start/stop timestamps or duration rows if you want duration-based blocks.
+1. Install Scriptable from the App Store.
+2. In iCloud Drive, create this folder: `Shortcuts/App Locker`.
+3. Open Scriptable and create a new script named `lockouts`.
+4. Copy the contents of `lockouts.js` into that Scriptable script.
+5. In Scriptable, create a file bookmark to the `Shortcuts/App Locker` folder. Name the bookmark exactly `App Locker`.
+6. Confirm the bookmark opens successfully before testing the **Locked** Shortcut.
 
-Follow the comments at the top of each Shortcut. Paste in your web app URL, shared secret, and any preset names.
+> **Screenshot to add:** iCloud Drive showing `Shortcuts/App Locker`, Scriptable showing the `lockouts` script, and Scriptable's bookmark list showing `App Locker`.
 
-## D) Automations you need
+## D) Shortcuts you need
+
+For iOS lockouts, import or build these Shortcuts:
+
+- **Locked** — main entry check. It determines whether you are allowed into the app and uses a local cache for faster responses. Its setup instructions route to the `lockouts` Scriptable script.
+- **Allowed** — UX helper shown when entry is allowed. It makes the notification green and says “allowed,” instead of showing a grey notification from the Locked Shortcut with a lock icon.
+- **Update Lockout Cache** — refreshes the local lockout cache from the Apps Script server.
+- **Metric Logger for Screen Time** — a copy of the Metric Logger Template configured to log app start/stop timestamps or duration rows. This is required if you want duration-based blocks.
+
+Follow the comments at the top of each Shortcut. Most setup is pasting your web app URL, shared secret, and web app/deployment ID. If an imported Shortcut contains a **Run Shortcut** action, open that action and manually reselect the Shortcut it should run; Apple Shortcuts can show the correct name while keeping a stale internal link.
+
+## E) Automations you need
 
 Create Shortcuts automations for the distracting apps you want to protect:
 
 1. **When app is opened → run Locked**
+   - Choose every enforced app in the automation trigger.
+   - Turn off “Ask Before Running” if iOS offers that option.
    - This is the main blocking check.
 2. **When app is closed → log screen time stop timestamp**
-   - Required if you want blocking based on screen time duration.
+   - Required if you want to track screen time or block based on duration.
+   - Point this automation at the screen-time logger Shortcut you configured.
 3. Optional: use different copies of the Locked Shortcut for different apps.
    - Example: YouTube can pass `entertainment`, while Safari can pass `web`.
+   - This is powerful, but it is not just a tiny tweak: it can mean maintaining nearly duplicate client setups that differ only by preset, Sheet/App Script target, or routing. Start with one Locked Shortcut first. Split into app-specific copies only after the basic flow works.
 
-> **Screenshot to add:** iOS Automation screen showing “When YouTube is opened → Run Locked.”
+> **Screenshot to add:** iOS Automation screen showing “When YouTube is opened → Run Locked,” plus a second automation showing “When YouTube is closed → Run Metric Logger for Screen Time.”
 
-## E) Scriptable setup
+## F) Configure lockout rules with the Config Editor
 
-Some iOS lockout flows use Scriptable for file access and richer client behavior.
+Use the Config Editor GUI for normal lockout rule creation:
 
-1. Install Scriptable.
-2. Create the required iCloud Drive folder for OpenHabits runtime files.
-3. Add Scriptable file bookmarks required by the lockout scripts.
-4. Copy the lockout Scriptable scripts into Scriptable.
-5. Confirm bookmarks resolve before testing app-open automations.
+<https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/>
 
-> **Screenshot to add:** Scriptable File Bookmarks screen with the OpenHabits/Shortcuts folder selected.
+The editor should be your primary way to create blocks, choose rule types, and generate the code that goes into `Config.gs`. After each change:
 
-## F) Files/cache setup
+1. Copy the updated config from the editor.
+2. Paste it into `Config.gs`.
+3. Redeploy the Apps Script web app.
+4. Run **Update Lockout Cache** so your phone has the fresh rules.
+5. Re-test one protected app.
 
-The current lockout flow may require local cache/runtime files. If the client can create them automatically, let it. If not, create the files described in the Shortcut or Scriptable script comments.
+You still need to understand the concepts below, because they affect what the GUI fields mean. But you should not need to hand-write the whole block object unless you are debugging or building an advanced custom setup.
 
-> TODO: Replace this section with exact file names once the final client packaging is ready.
+### Lockout block concepts
+
+| Concept | What it means |
+| --- | --- |
+| Block ID | Human-readable identifier for debugging and messages. |
+| Rule type | The kind of condition being enforced, such as task completion, screen-time duration, or first-X-minutes-after-a-timestamp. |
+| Preset | A named mode such as `workday`, `weekend`, or `entertainment`. Clients can pass presets so different apps can be governed differently. |
+| Active time window | The daily time range when the block applies. Some windows can cross midnight. |
+| Required metric IDs | Habit/task rows that must be complete before access is allowed. |
+| Screen-time metric ID | The row where app/site usage is accumulated for duration-based blocks. |
+| Messages | Text the client can show when blocked or allowed. |
+| Shortcut/action hints | Optional information telling the client what Shortcut or next action to offer. |
 
 ## G) Chrome extension setup
 
-For desktop website blocking:
+For desktop website blocking, load the Chrome extension as an unpacked extension:
 
-1. Open `Chrome Extension/` in this repo.
-2. Load it as an unpacked extension in Chrome.
-3. Open the extension options.
-4. Add your Apps Script web app URL and secret.
-5. Configure the sites/presets you want the extension to check.
+1. Download the repo or at least the contents of the `Chrome Extension` folder.
+2. If you downloaded a zip, extract it.
+3. Put the extracted Chrome extension files into a normal folder you can find again, such as `Documents/OpenHabits Chrome Extension`.
+4. Open Chrome.
+5. Go to **⋮ → Extensions → Manage Extensions**, or open `chrome://extensions`.
+6. Turn on **Developer mode** in the top-right corner.
+7. Click **Load unpacked**.
+8. Select the folder that directly contains the extension files, including `manifest.json`. Do not select the entire repo unless `manifest.json` is directly inside the selected folder.
+9. Open the extension options page.
+10. Add your Apps Script web app URL, shared secret, protected sites, preset names, and screen-time metric IDs if you want desktop usage logging.
 
-> **Screenshot to add:** Chrome Extensions “Load unpacked” screen and the OpenHabits extension options page.
+> **Screenshot to add:** Chrome's `chrome://extensions` page with Developer Mode and Load Unpacked highlighted, then the folder picker selecting the folder that contains `manifest.json`, then the OpenHabits extension options page.
 
-## H) Lockout block template
+## H) Lockout testing sequence
 
-```js
-{
-  id: 'youtube_after_work_tasks',
-  type: 'task_block',
-  presets: ['workday'],
-  times: {
-    beg: '06:00',
-    end: '17:00'
-  },
-  typeSpecific: {
-    task: {
-      metricIDs: ['plannedWork', 'meditationDuration'],
-      mode: 'all'
-    },
-    duration: {
-      maxMinutes: 30,
-      screenTimeID: 'youtubeScreenTime'
-    },
-    firstXMinutesAfterTimestamp: {
-      timestampID: 'wakeupTime',
-      minutes: 90
-    }
-  },
-  ui: {
-    blockedMessage: 'YouTube is locked until your work-start tasks are done.',
-    allowedMessage: 'YouTube is allowed right now.'
-  },
-  shortcut: {
-    name: 'Open Work App',
-    input: 'plannedWork'
-  },
-  timezoneMode: 'fixed'
-}
-```
+Test in layers instead of trying the whole system at once:
 
-### Lockout block keys
-
-| Key | What it means |
-| --- | --- |
-| `id` | Human-readable block identifier for debugging. |
-| `type` | Rule type: `task_block`, `duration_block`, or `firstXMinutesAfterTimestamp_block`. |
-| `presets` | Preset names this block belongs to. If no preset is active, all blocks are eligible. |
-| `times` | Daily active window. `beg == end` means all day. Windows may cross midnight. |
-| `typeSpecific.task.metricIDs` | Metric IDs that must be complete for task blocks. |
-| `typeSpecific.task.mode` | Whether `all` or some other configured completion mode is required. |
-| `typeSpecific.duration.maxMinutes` | Screen-time budget for duration blocks. |
-| `typeSpecific.duration.screenTimeID` | Metric row containing accumulated screen time. |
-| `typeSpecific.firstXMinutesAfterTimestamp` | Blocks for a period after a logged timestamp. |
-| `ui` | Messages the client can show when blocked or allowed. |
-| `shortcut` | Optional hint telling the client what Shortcut/action to run. |
-| `timezoneMode` | `fixed` uses script/cache timezone; `floating` follows the device/browser local timezone. |
+1. Run **Update Lockout Cache** and confirm it finishes without an error.
+2. Open one protected iPhone app and confirm **Locked** runs.
+3. Create a rule that should allow you, then confirm the **Allowed** notification appears.
+4. Create a rule that should block you, then confirm you are redirected or shown the blocked message.
+5. Close the app and confirm your screen-time logger writes a stop timestamp or duration row to the Sheet.
+6. If using desktop blocking, open a protected site in Chrome and confirm the extension logs session time to the Sheet.
+7. Only after those pass, add more apps, presets, and stricter rules.
 
 # 7) Notion setup (optional)
 
@@ -381,17 +362,9 @@ Skip this section unless you want Notion integration.
 
 If a sync field is disabled or a metric has `writeToNotion: false`, OpenHabits should still work as a Sheet-first system.
 
-# 8) My personal config
+# 8) Personal setup example
 
-A full personal example is valuable because it shows how the pieces fit together in real life. The future folder should include:
-
-- a real `Config.gs`,
-- a copyable Google Sheet setup,
-- logger Shortcuts,
-- lockout Shortcuts,
-- and example presets.
-
-For now, use this placeholder: [Personal Setup Placeholder](personal-config-placeholder.md).
+A full personal example is valuable because it shows how the pieces fit together in real life. See the [Personal OpenHabits Setup Example](personal-config-placeholder.md) for the author's anonymized setup structure, Sheet template link, Shortcut link placeholders, lockout strategy, and customization notes.
 
 # 9) Troubleshooting
 

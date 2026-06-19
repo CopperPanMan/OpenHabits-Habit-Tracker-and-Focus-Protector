@@ -37,7 +37,15 @@ Once setup is finished, daily use is mostly Shortcuts and automations:
 
 The important idea is that the Sheet is not just a dashboard. It is the shared source of truth that lets habits and lockouts work together.
 
+## AI Can Help You Build Your Setup
+
+OpenHabits is transparent enough that a good AI assistant can help you understand, customize, and debug it. You can give your favorite AI a link to this GitHub repo, describe the habits, timers, points, lockouts, and workflows you want, and ask it to generate a Config Editor-compatible setup or a `Config.gs` version. This works surprisingly well with strong coding models, including GPT-5.5. You can paste the result into the Config Editor, review it, and keep editing from there.
+
+AI can also help with setup questions, use-case brainstorming, debugging config issues, or modifying the codebase with tools like Codex or Claude Code. Do not paste real secrets, private deployment URLs, Notion tokens, or sensitive personal data into tools you do not trust.
+
 ### Next Step >> [Setup and Usage Guide](Repo%20Docs/setup.md)
+
+Most users should build their first setup through the [OpenHabits Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/) instead of hand-writing config code. The setup guide explains when to use the editor, what to paste into Apps Script, and how to test Shortcuts and lockouts in order.
 
 ## Why?
 
@@ -46,3 +54,7 @@ OpenHabits was created to help users take back control over their lives and atte
 Most habit trackers only record what happened. Most app blockers only say “no” on a fixed schedule. OpenHabits tries to connect the two: if you already know the behaviors that make your day work, your devices should be able to help protect those behaviors before attention gets spent somewhere else.
 
 *Dev Note*: OpenHabits is currently primarily iOS focused because the Shortcut clients were built first. Android equivalents could likely be built with Tasker or similar tools, and community help would be welcome.
+
+## Ready to Set It Up?
+
+Start here: [OpenHabits Setup and Usage Guide](Repo%20Docs/setup.md).
