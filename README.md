@@ -54,3 +54,7 @@ OpenHabits was created to help users take back control over their lives and atte
 Most habit trackers only record what happened. Most app blockers only say “no” on a fixed schedule. OpenHabits tries to connect the two: if you already know the behaviors that make your day work, your devices should be able to help protect those behaviors before attention gets spent somewhere else.
 
 *Dev Note*: OpenHabits is currently primarily iOS focused because the Shortcut clients were built first. Android equivalents could likely be built with Tasker or similar tools, and community help would be welcome.
+
+## Ready to Set It Up?
+
+Start here: [OpenHabits Setup and Usage Guide](Repo%20Docs/setup.md).
