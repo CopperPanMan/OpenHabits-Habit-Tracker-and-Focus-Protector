@@ -1,7 +1,7 @@
 # OpenHabits
 ## What is this?
 
-OpenHabits is an open source habit tracker and focus protection system built around Apple Shortcuts, Google Sheets, and Google Apps Script. It is for people who want more than a checklist app or a simple app blocker: it lets your habit data become the thing that shapes what your phone and computer allow you to do next.
+OpenHabits is an open source habit tracker and focus protection system built around Apple Shortcuts, Google Sheets, and Google Apps Script. It is for people who want more than a checklist app or a simple app blocker: it lets your habit data become the thing that shapes what your phone and computer allow you to do next. It aslo allows you to build custom dashboards with a composite daily point score, to motivate positive behavior and see how you are doing over time.
 
 It has two main parts, and you can use either one without the other:
 
@@ -10,42 +10,39 @@ It has two main parts, and you can use either one without the other:
 
 ## What Can This Do?
 
-- **Turn a QR code or NFC tag into a habit logger**
+- **Scan a QR code, tap an NFC tag, or launch a shortcut to Log Metrics/Tasks/Habits**  
   Scan a code after meditating, working out, reading, cleaning, or practicing. OpenHabits can ask for a duration, score, or note, write it to your Sheet, and return a message like how today compares with last week.
 
-- **Make distracting apps depend on the life you said you wanted**
-  If YouTube, Instagram, Reddit, or another app opens before your required tasks are done, OpenHabits can immediately redirect you, show what is missing, and tell you what would unlock the app.
+- **Block Apps Based on Task Completion**  
+  If YouTube, Instagram, Reddit, or another app opens before you completed a task like "plann your day", OpenHabits can immediately redirect you, show what is missing, and tell you what would unlock the app.
 
-- **Use screen time as a budget instead of a vague intention**
+- **Block Apps Based on Screentime**  
   Let yourself use a distracting app for a certain amount of time, then block it until tomorrow or until a cooldown/rationing rule says it is reasonable again.
 
-- **Build your own productivity operating system**
-  Keep the raw data in a Sheet you own, build dashboards however you like, use Notion if you want, and call the same web app from Shortcuts, Chrome, widgets, NFC automations, or your own scripts.
+- **Build your own productivity OS**  
+  Because your data is in a Google Sheet you own, you can build custom dashboards and charts, and use AI or traditional analysis to find insights. For instance, find the correlation between hours slept and productive hours worked, or between meal times and mood. It can even two-way sync tasks with Notion.
 
-- **Ask OpenHabits what needs attention next**
-  Poll `positive_push_notification` from a Shortcut or widget to get a useful prompt based on which scheduled metric is currently due.
+- **Fully Customizeable**  
+  Because this is open source, you can code changes or use codex/claude to add features where desired. Give an AI the link to this repo and you can use it for troubleshooting, ideation, config creation, all sorts of stuff. It works surprisingly well.
 
 ## How do I Use it?
 
-Once setup is finished, daily use is mostly Shortcuts and automations:
+0. Decide what tasks and data you wish to log, and any app/website rules using the [OpenHabits Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/)
+1. Log tasks or other data from your iPhone or Notion.
+2. Display that data on a Google Sheets dashboard that lives on your desk
+3. Use that data to inform your decisions and motivate behavior
+4. App Lockouts act as bumpers through your day to guide you to the "right" behaviors, and prevent doomscrolling.
 
-1. You log metrics from Shortcut buttons, QR codes, NFC tags, widgets, or Notion.
-2. The Apps Script web app writes those metrics into your Google Sheet.
-3. OpenHabits calculates derived status such as points, streaks, completion, and insight messages.
-4. Lockout clients ask the same web app whether the current app/site should be allowed.
-5. If a rule blocks you, the client redirects you or shows the reason why.
 
-The important idea is that the Sheet is not just a dashboard. It is the shared source of truth that lets habits and lockouts work together.
+Uncategorized
+- example usage (my specific habit chain through the day)
+- habit chains in general (you can make logging one thing prompt you to log another thing)
+- how calendar alarms for iOS integrates, and can then create habit "stacks" like the following
+-   wakeup alarm goes off, and requires a code scan. Upon scanning the code, it launches "log weight", thus prompting me to input my weight (example of logging data). That is now displayed on the weight over time graph on my dashboard, which lives on a galaxy tab a9 on my desk at home and at work. I could even put one in my kitchen. Alarms guide me through my morning routine with verbal callouts, and then a QR alarm goes off to choose my work tasks at 9:10AM, gated to only work and home. Alarms will keep looping every 15 minutes until I have logged that I completed that task. Work is valued at 3 points per minute.
 
-## AI Can Help You Build Your Setup
-
-OpenHabits is transparent enough that a good AI assistant can help you understand, customize, and debug it. You can give your favorite AI a link to this GitHub repo, describe the habits, timers, points, lockouts, and workflows you want, and ask it to generate a Config Editor-compatible setup or a `Config.gs` version. This works surprisingly well with strong coding models, including GPT-5.5. You can paste the result into the Config Editor, review it, and keep editing from there.
-
-AI can also help with setup questions, use-case brainstorming, debugging config issues, or modifying the codebase with tools like Codex or Claude Code. Do not paste real secrets, private deployment URLs, Notion tokens, or sensitive personal data into tools you do not trust.
+- the greater theory, "why", and setup explanation behind the entire productivity system I have built and use. I can cover this in the videos, but do I need more here on that?
 
 ### Next Step >> [Setup and Usage Guide](Repo%20Docs/setup.md)
-
-Most users should build their first setup through the [OpenHabits Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/) instead of hand-writing config code. The setup guide explains when to use the editor, what to paste into Apps Script, and how to test Shortcuts and lockouts in order.
 
 ## Why?
 
