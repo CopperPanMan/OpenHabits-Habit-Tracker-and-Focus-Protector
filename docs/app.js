@@ -250,7 +250,7 @@
       points: { value: 0, multiplierDays: 5, maxMultiplier: 1, pointsID: '' },
       insights: {
         insightChance: 0, streakProb: 0.8, dayToDayChance: 1, dayToAvgChance: 0.5,
-        rawValueChance: 1, increaseGood: 1, firstWords: '', insightFirstWords: '', insightUnits: ''
+        rawValueChance: 1, increaseGood: 1, firstWords: '', insightUnits: ''
       },
       writeToNotion: false,
       ifTimer_Settings: { stopTimerMessage: '', timerStartMetricID: '', timerDurationMetricID: '', muteOutput: false }
@@ -259,9 +259,17 @@
 
   function applyMetricTypeDefaults(metric) {
     if (metric.type === 'timestamp') {
-      if (!metric.insights.insightFirstWords) metric.insights.insightFirstWords = 'Time Completed:';
+      if (!metric.insights.firstWords) metric.insights.firstWords = 'Time Completed:';
       if (!metric.insights.insightUnits) metric.insights.insightUnits = 'minutes';
     }
+  }
+
+  function normalizeMetricInsights(metric) {
+    if (!metric.insights) metric.insights = {};
+    if (!metric.insights.firstWords && metric.insights.insightFirstWords) {
+      metric.insights.firstWords = metric.insights.insightFirstWords;
+    }
+    delete metric.insights.insightFirstWords;
   }
 
   function newBlock() {
@@ -461,7 +469,6 @@
     });
     field(ig, 'Increase is Good', makeSelect(['1', '-1'], String(metric.insights.increaseGood), v => metric.insights.increaseGood = Number(v)), '1 means higher values are better; -1 means lower is better.');
     field(ig, 'First Words', makeInput({ value: metric.insights.firstWords, onChange: v => metric.insights.firstWords = v }), 'Opening phrase for insight text.');
-    field(ig, 'Insight First Words (legacy alias)', makeInput({ value: metric.insights.insightFirstWords, onChange: v => metric.insights.insightFirstWords = v }), 'Backward-compatible alternative to First Words.');
     field(ig, 'Insight Units', makeInput({ value: metric.insights.insightUnits, onChange: v => metric.insights.insightUnits = v }), 'Unit text for insight values.');
     insights.appendChild(ig);
     advanced.appendChild(insights);
@@ -633,6 +640,7 @@
     ];
     merged.metricSettings = (raw.metricSettings || []).map((m) => {
       const normalized = { ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, ifTimer_Settings: { ...newMetric().ifTimer_Settings, ...(m.ifTimer_Settings || {}) } };
+      normalizeMetricInsights(normalized);
       applyMetricTypeDefaults(normalized);
       return normalized;
     });
