@@ -565,10 +565,14 @@ Block-level `timezoneMode` overrides `lockoutsV2.globals.defaultBlockTimezoneMod
 `lockoutsV2.globals.cacheTimezoneMode` controls `config_snapshot` task-block cache reads:
 
 - `script`: read task-block state from the script-timezone current physical sheet column.
-- `client`: when a valid request timezone is supplied, build virtual task-block completion state from the current and adjacent existing physical sheet columns.
+- `client`: when a valid request timezone is supplied, build an exact effective-day window and evaluate task-block completion candidates from adjacent physical sheet columns against that window.
 - Default: `script`.
 
 The virtual task-state mode preserves the `lockouts_cache_v1` shape and does not mutate the sheet. `cache.timezone` remains the server/script timezone. Client timezone metadata, when used, appears separately as `virtualDay.timezone`. Non-task metrics such as duration, number, timestamp, and global metrics remain single-column reads.
+
+Adjacent columns are candidates used to bridge a client/server day boundary. Timestamp-like metrics (`timestamp`, `due_by`, `start_timer`, and `stop_timer`) use their stored instant and count only inside the half-open interval from `virtualDay.windowStartISO` through, but not including, `virtualDay.windowEndISO`. Non-timestamp task values remain daily spreadsheet values; for cross-timezone evaluation they are leniently inferred at the final millisecond of their physical script-timezone tracking day, then tested against the same window. Per-metric cache entries report `completionTimeSource`, `completionInstantISO`, and `matchedSourceCol` so exact and inferred decisions remain distinguishable. The configured late-day extension defines both virtual and physical day boundaries.
+
+The script timezone remains the canonical tracking timezone for physical spreadsheet columns and writes. This keeps the one-column-per-day sheet, charts, totals, and other daily values stable. Client-timezone task evaluation is a read-time projection: timestamp-like task values are exact across timezones, while non-timestamp daily values are necessarily best-effort outside the canonical timezone.
 
 Shortcuts may pass the device timezone when refreshing the cache, for example:
 
