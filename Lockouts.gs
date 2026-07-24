@@ -1415,6 +1415,7 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
       timezoneOffsetRFC2822: resolvedTz.timezoneOffsetRFC2822,
       timezoneSource: resolvedTz.source,
       lateExtensionHours: lateExtensionHours !== undefined ? lateExtensionHours : lateExtension,
+      metricTypesByID: habitsMetricTypesByID,
       warnings: warnings
     });
 
@@ -1589,12 +1590,55 @@ function lockouts_getEffectiveDayKeyForTimezone_(dateObj, extensionHours, timezo
   return Utilities.formatDate(shifted, tz, 'yyyy-MM-dd');
 }
 
+function lockouts_addDaysToDayKey_(dayKey, days) {
+  var parts = String(dayKey || '').split('-');
+  var date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + Number(days || 0)));
+  return Utilities.formatDate(date, 'GMT', 'yyyy-MM-dd');
+}
+
+function lockouts_buildDayBoundary_(dayKey, extensionHours, timezone, offsetMinutes) {
+  var parts = String(dayKey || '').split('-');
+  var year = Number(parts[0]);
+  var month = Number(parts[1]);
+  var day = Number(parts[2]);
+  var hours = Math.max(0, Number(extensionHours) || 0);
+  var wallClockUTC = Date.UTC(year, month - 1, day, hours, 0, 0, 0);
+
+  if (offsetMinutes !== null && offsetMinutes !== undefined && isFinite(Number(offsetMinutes))) {
+    return new Date(wallClockUTC - Number(offsetMinutes) * 60 * 1000);
+  }
+
+  var tz = lockouts_isValidTimezone_(timezone) ? String(timezone).trim() : Session.getScriptTimeZone();
+  var candidate = new Date(wallClockUTC);
+  for (var i = 0; i < 2; i++) {
+    var offsetInfo = lockouts_parseClientNowOffset_(Utilities.formatDate(candidate, tz, 'Z'));
+    if (!offsetInfo) {
+      break;
+    }
+    candidate = new Date(wallClockUTC - offsetInfo.offsetMinutes * 60 * 1000);
+  }
+  return candidate;
+}
+
+function lockouts_buildEffectiveDayWindow_(dayKey, extensionHours, timezone, offsetMinutes) {
+  return {
+    start: lockouts_buildDayBoundary_(dayKey, extensionHours, timezone, offsetMinutes),
+    end: lockouts_buildDayBoundary_(lockouts_addDaysToDayKey_(dayKey, 1), extensionHours, timezone, offsetMinutes)
+  };
+}
+
+function lockouts_isTimestampMetricType_(metricType) {
+  return metricType === 'timestamp' || metricType === 'due_by' || metricType === 'start_timer' || metricType === 'stop_timer';
+}
+
 function lockouts_buildVirtualTaskState_(taskBlockIDs, ctx) {
   var context = ctx || {};
   var warnings = context.warnings || [];
   var trackingSheet = context.trackingSheet || getTrackingSheet_();
   var now = context.now instanceof Date ? context.now : new Date();
   var sourceCols = lockouts_getAdjacentDateColumns_(trackingSheet, context.todayCol);
+  var dayKey = lockouts_getEffectiveDayKeyForTimezone_(now, context.lateExtensionHours, context.clientTimezone, context.offsetMinutes);
+  var window = lockouts_buildEffectiveDayWindow_(dayKey, context.lateExtensionHours, context.clientTimezone, context.offsetMinutes);
   var metricStateByID = {};
   var ids = Array.isArray(taskBlockIDs) ? taskBlockIDs : [];
 
@@ -1608,6 +1652,10 @@ function lockouts_buildVirtualTaskState_(taskBlockIDs, ctx) {
       trackingSheet: trackingSheet,
       sourceCols: sourceCols,
       now: now,
+      windowStart: window.start,
+      windowEnd: window.end,
+      lateExtensionHours: context.lateExtensionHours,
+      metricType: (context.metricTypesByID || {})[metricID] || null,
       warnings: warnings
     });
   }
@@ -1619,7 +1667,9 @@ function lockouts_buildVirtualTaskState_(taskBlockIDs, ctx) {
     timezoneOffsetRFC2822: context.timezoneOffsetRFC2822 || '',
     clientNow: context.clientNow || '',
     timezoneSource: context.timezoneSource || 'client',
-    dayKey: lockouts_getEffectiveDayKeyForTimezone_(now, context.lateExtensionHours, context.clientTimezone, context.offsetMinutes),
+    dayKey: dayKey,
+    windowStartISO: window.start.toISOString(),
+    windowEndISO: window.end.toISOString(),
     sourceCols: sourceCols,
     metricStateByID: metricStateByID
   };
@@ -1631,6 +1681,9 @@ function lockouts_readVirtualTaskValue_(metricID, ctx) {
   var warnings = context.warnings || [];
   var sourceCols = Array.isArray(context.sourceCols) ? context.sourceCols : [];
   var nowISO = context.now instanceof Date ? context.now.toISOString() : new Date().toISOString();
+  var windowStart = context.windowStart instanceof Date ? context.windowStart : null;
+  var windowEnd = context.windowEnd instanceof Date ? context.windowEnd : null;
+  var metricType = context.metricType || null;
   var lookup = findRowByMetricId_(metricID, trackingSheet);
 
   if (!lookup || !lookup.row) {
@@ -1650,14 +1703,47 @@ function lockouts_readVirtualTaskValue_(metricID, ctx) {
 
   var selectedRaw = '';
   var selectedDisplay = '';
+  var selectedInstant = null;
+  var selectedSourceCol = null;
+  var completionTimeSource = '';
   var hasCompletion = false;
 
   for (var i = 0; i < sourceCols.length; i++) {
-    var cell = trackingSheet.getRange(lookup.row, sourceCols[i]);
+    var sourceCol = sourceCols[i];
+    var cell = trackingSheet.getRange(lookup.row, sourceCol);
     var rawValue = cell.getValue();
-    if (isCompletedCellValue_(rawValue)) {
+    if (!isCompletedCellValue_(rawValue)) {
+      continue;
+    }
+
+    var completionInstant = null;
+    var candidateSource = '';
+    if (lockouts_isTimestampMetricType_(metricType)) {
+      completionInstant = rawValue instanceof Date ? rawValue : new Date(rawValue);
+      candidateSource = 'stored_timestamp';
+      if (!(completionInstant instanceof Date) || isNaN(completionInstant.getTime())) {
+        warnings.push('Invalid timestamp ignored for virtual task metric "' + metricID + '" at column ' + sourceCol + '.');
+        continue;
+      }
+    } else {
+      var headerValue = trackingSheet.getRange(1, sourceCol).getValue();
+      var headerDate = headerValue instanceof Date ? headerValue : new Date(headerValue);
+      if (!(headerDate instanceof Date) || isNaN(headerDate.getTime())) {
+        warnings.push('Unable to infer completion day for virtual task metric "' + metricID + '" at column ' + sourceCol + '.');
+        continue;
+      }
+      var physicalDayKey = lockouts_getEffectiveDayKeyForTimezone_(headerDate, context.lateExtensionHours, Session.getScriptTimeZone(), null);
+      var physicalWindow = lockouts_buildEffectiveDayWindow_(physicalDayKey, context.lateExtensionHours, Session.getScriptTimeZone(), null);
+      completionInstant = new Date(physicalWindow.end.getTime() - 1);
+      candidateSource = 'physical_day_end_inferred';
+    }
+
+    if (windowStart && windowEnd && completionInstant.getTime() >= windowStart.getTime() && completionInstant.getTime() < windowEnd.getTime() && (!selectedInstant || completionInstant.getTime() > selectedInstant.getTime())) {
       selectedRaw = rawValue;
       selectedDisplay = cell.getDisplayValue();
+      selectedInstant = completionInstant;
+      selectedSourceCol = sourceCol;
+      completionTimeSource = candidateSource;
       hasCompletion = true;
     }
   }
@@ -1668,6 +1754,10 @@ function lockouts_readVirtualTaskValue_(metricID, ctx) {
     value: value,
     rawValue: value,
     displayValue: hasCompletion ? selectedDisplay : '',
+    metricType: metricType,
+    completionInstantISO: selectedInstant ? selectedInstant.toISOString() : '',
+    completionTimeSource: completionTimeSource,
+    matchedSourceCol: selectedSourceCol,
     lastUpdated: nowISO,
     virtual: true,
     sourceCols: sourceCols,
