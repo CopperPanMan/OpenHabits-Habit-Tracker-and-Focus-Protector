@@ -258,6 +258,9 @@
   }
 
   function applyMetricTypeDefaults(metric) {
+    if (metric.type === 'duration') {
+      if (!metric.insights.insightUnits) metric.insights.insightUnits = 'minutes';
+    }
     if (metric.type === 'timestamp') {
       if (!metric.insights.firstWords) metric.insights.firstWords = 'Time Completed:';
       if (!metric.insights.insightUnits) metric.insights.insightUnits = 'minutes';
@@ -668,6 +671,12 @@
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
       if (m.rowNumber !== undefined && (!Number.isInteger(m.rowNumber) || m.rowNumber <= 0)) errors.push(`Metric ${i + 1}: Row Number must be a positive whole number.`);
       if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) errors.push(`Metric ${i + 1}: timezoneMode must be fixed or floating.`);
+      if (m.recordType === 'add' && !['number', 'duration'].includes(m.type)) errors.push(`Metric ${i + 1}: add record type is only supported for number and duration metrics.`);
+      if (m.type === 'due_by' && m.dates.length === 0) errors.push(`Metric ${i + 1}: due_by metrics require at least one date rule.`);
+      if (m.type === 'start_timer' || m.type === 'stop_timer') {
+        if (!m.ifTimer_Settings.timerStartMetricID) errors.push(`Metric ${i + 1}: Timer Start Metric ID is required for timer metrics.`);
+        if (!m.ifTimer_Settings.timerDurationMetricID) errors.push(`Metric ${i + 1}: Timer Duration Metric ID is required for timer metrics.`);
+      }
       m.dates.forEach((d, di) => {
         if (!DAYS.includes(d[0])) errors.push(`Metric ${i + 1}, date ${di + 1}: invalid day.`);
         const hasDueBy = String(d[1] || '').trim() !== '';
