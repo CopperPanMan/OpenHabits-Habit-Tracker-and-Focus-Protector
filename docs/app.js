@@ -409,6 +409,10 @@
     const g = document.createElement('div');
     g.className = 'grid';
     field(g, 'Metric ID', makeInput({ value: metric.metricID, onChange: v => metric.metricID = v, required: true }), 'Unique ID used for tracking row lookups.');
+    field(g, 'Row Number (Optional)', makeInput({ type: 'number', min: 1, step: '1', value: metric.rowNumber, onChange: v => {
+      if (Number.isInteger(v) && v > 0) metric.rowNumber = v;
+      else delete metric.rowNumber;
+    } }), 'Optionally use a positive sheet row number to override the Metric ID row search when recording this metric.');
     field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => metric.displayName = v, required: true }), 'Friendly name shown to users.');
     field(g, 'Type', makeSelect(['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'], metric.type, v => { metric.type = v; applyMetricTypeDefaults(metric); renderAll(); }), HELP.metricType);
     field(g, 'Timezone Mode', makeSelect(['floating', 'fixed'], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Floating follows the current device/local time for metric schedules and due-by checks. Fixed uses Apps Script/server timezone.');
@@ -662,6 +666,7 @@
     state.metricSettings.forEach((m, i) => {
       if (!m.metricID) errors.push(`Metric ${i + 1}: Metric ID is required.`);
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
+      if (m.rowNumber !== undefined && (!Number.isInteger(m.rowNumber) || m.rowNumber <= 0)) errors.push(`Metric ${i + 1}: Row Number must be a positive whole number.`);
       if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) errors.push(`Metric ${i + 1}: timezoneMode must be fixed or floating.`);
       m.dates.forEach((d, di) => {
         if (!DAYS.includes(d[0])) errors.push(`Metric ${i + 1}, date ${di + 1}: invalid day.`);
