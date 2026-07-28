@@ -940,7 +940,7 @@ function lockouts_parseDurationCellToMinutes_(value) {
       return 0;
     }
 
-    var hhmmssMatch = /^\d{1,3}:[0-5]\d:[0-5]\d$/.exec(trimmed);
+    var hhmmssMatch = /^-?\d{1,3}:[0-5]\d:[0-5]\d$/.exec(trimmed);
     if (hhmmssMatch) {
       return lockouts_parseHHMMSSMinutesSafe_(trimmed);
     }
@@ -963,15 +963,16 @@ function lockouts_parseDurationCellToMinutes_(value) {
  * @return {(number|null)}
  */
 function lockouts_parseHHMMSSMinutesSafe_(value) {
-  var match = /^(\d{1,3}):([0-5]\d):([0-5]\d)$/.exec(String(value || '').trim());
+  var match = /^(-?)(\d{1,3}):([0-5]\d):([0-5]\d)$/.exec(String(value || '').trim());
   if (!match) {
     return null;
   }
 
-  var hours = Number(match[1]);
-  var minutes = Number(match[2]);
-  var seconds = Number(match[3]);
-  return hours * 60 + minutes + (seconds / 60);
+  var sign = match[1] === '-' ? -1 : 1;
+  var hours = Number(match[2]);
+  var minutes = Number(match[3]);
+  var seconds = Number(match[4]);
+  return sign * (hours * 60 + minutes + (seconds / 60));
 }
 
 /**
