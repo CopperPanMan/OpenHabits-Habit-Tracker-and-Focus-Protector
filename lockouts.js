@@ -595,15 +595,16 @@ function parseDurationCellToMinutes(value) {
   const trimmed = String(value).trim();
   if (!trimmed) return 0;
 
-  const m = /^(\d{1,3}):(\d{2}):(\d{2})$/.exec(trimmed);
+  const m = /^(-?)(\d{1,3}):(\d{2}):(\d{2})$/.exec(trimmed);
   if (!m) return null;
 
-  const hours = Number(m[1]);
-  const minutes = Number(m[2]);
-  const seconds = Number(m[3]);
+  const sign = m[1] === '-' ? -1 : 1;
+  const hours = Number(m[2]);
+  const minutes = Number(m[3]);
+  const seconds = Number(m[4]);
 
   if (minutes > 59 || seconds > 59) return null;
-  return hours * 60 + minutes + (seconds / 60);
+  return sign * (hours * 60 + minutes + (seconds / 60));
 }
 
 function validateConfig(config) {

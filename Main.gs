@@ -1325,8 +1325,8 @@ function recordMetricBySource_(rawData, options) {
       }
 
       var addedSeconds = existingDurationSeconds + validated.seconds;
-      if (addedSeconds > 99 * 3600 + 59 * 60 + 59) {
-        entryErrors.push("Duration exceeds max 99:59:59 for metricID: " + metricID);
+      if (Math.abs(addedSeconds) > 99 * 3600 + 59 * 60 + 59) {
+        entryErrors.push("Duration exceeds supported range -99:59:59 to 99:59:59 for metricID: " + metricID);
         results.push(resultEntry);
         Array.prototype.push.apply(errors, entryErrors);
         continue;
@@ -2524,7 +2524,7 @@ function calculatePointsDelta_(metricID, type, value, addedValue, multiplier) {
     if (durationSeconds === null) {
       return 0;
     }
-    var roundedMinutes = Math.round(durationSeconds / 60);
+    var roundedMinutes = (durationSeconds < 0 ? -1 : 1) * Math.round(Math.abs(durationSeconds) / 60);
     return basePoints * roundedMinutes * resolvedMultiplier;
   }
 
@@ -3027,7 +3027,7 @@ function validateMetricValueForRecord_(metricType, rawValue) {
     if (durationSeconds === null) {
       return {
         ok: false,
-        error: "Invalid duration value. Use MM:SS or HH:MM:SS."
+        error: "Invalid duration value. Use MM:SS or HH:MM:SS, optionally prefixed with -."
       };
     }
 
@@ -3243,7 +3243,7 @@ function parseStoredDurationForAdd_(value) {
   }
 
   if (typeof value === 'number') {
-    if (!isFinite(value) || value < 0) {
+    if (!isFinite(value)) {
       return null;
     }
     return Math.round(value * 24 * 60 * 60);
@@ -3264,6 +3264,12 @@ function parseDurationToSeconds_(value, allowEmptyAsZero) {
   var trimmed = value.trim();
   if (!trimmed) {
     return null;
+  }
+
+  var sign = 1;
+  if (trimmed.charAt(0) === '-') {
+    sign = -1;
+    trimmed = trimmed.substring(1);
   }
 
   var parts = trimmed.split(":");
@@ -3299,15 +3305,17 @@ function parseDurationToSeconds_(value, allowEmptyAsZero) {
     return null;
   }
 
-  return totalSeconds;
+  return sign * totalSeconds;
 }
 
 function secondsToDurationString_(totalSeconds) {
-  var hours = Math.floor(totalSeconds / 3600);
-  var minutes = Math.floor((totalSeconds % 3600) / 60);
-  var seconds = totalSeconds % 60;
+  var sign = totalSeconds < 0 ? '-' : '';
+  var absoluteSeconds = Math.abs(totalSeconds);
+  var hours = Math.floor(absoluteSeconds / 3600);
+  var minutes = Math.floor((absoluteSeconds % 3600) / 60);
+  var seconds = absoluteSeconds % 60;
 
-  return String(hours).padStart(2, '0') + ":" +
+  return sign + String(hours).padStart(2, '0') + ":" +
     String(minutes).padStart(2, '0') + ":" +
     String(seconds).padStart(2, '0');
 }
