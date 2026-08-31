@@ -2274,6 +2274,7 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
   if (metricType === 'start_timer') {
     var currentStartValue = optionalAccessor ? optionalAccessor.get(startLookup.row) : trackingSheet.getRange(startLookup.row, activeColInput).getValue();
     var hasStartValue = !(currentStartValue === '' || currentStartValue === null);
+    var currentTimerMetricPoints = getMetricPointsRowValue_(setting, activeColInput, trackingSheet, warnings, optionalAccessor);
     if (recordType === 'keep_first' && hasStartValue) {
       return {
         handled: true,
@@ -2282,7 +2283,7 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
         value: currentStartValue,
         complete: true,
         pointsDelta: 0,
-        metricPointsToday: 0,
+        metricPointsToday: currentTimerMetricPoints,
         muteOutput: timerSettings.muteOutput === true
       };
     }
@@ -2300,7 +2301,7 @@ function processTimerMetric_(setting, metricID, rawValue, recordType, trackingSh
       value: startTimestamp,
       complete: true,
       pointsDelta: 0,
-      metricPointsToday: 0,
+      metricPointsToday: currentTimerMetricPoints,
       muteOutput: timerSettings.muteOutput === true
     };
   }
