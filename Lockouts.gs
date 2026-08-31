@@ -1841,8 +1841,11 @@ function lockouts_handleMetricState_(payload, ctx) {
       value: entry.found ? entry.value : null,
       displayValue: entry.found ? entry.displayValue : '',
       displayName: entry.displayName,
+      complete: entry.found ? entry.complete : false,
+      scheduledToday: entry.found ? entry.scheduledToday : false,
       streak: entry.streak,
       dueState: entry.dueState,
+      dueProperties: entry.dueProperties,
       points: entry.points,
       todayPoints: todayPoints,
       yesterdayPoints: yesterdayPoints,
@@ -1938,7 +1941,9 @@ function lockouts_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerVal
     return {
       displayName: null,
       streak: null,
+      scheduledToday: false,
       dueState: null,
+      dueProperties: lockouts_buildNoDeadlineProperties_(),
       points: null,
       currMultiplier: null
     };
@@ -1948,11 +1953,16 @@ function lockouts_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerVal
   var streakParts = lockouts_calculateStreakPartsFromRow_(rowValues, headerValues, todayIndex, setting, extensionHours);
   var currMultiplier = lockouts_roundToOneDecimal_(getMultiplier_(metricID, streakParts.streakBeforeLog));
 
+  var timezoneContext = resolveMetricTimezoneContext_(setting);
+  var effectiveDayName = getEffectiveWeekdayName_(now, extensionHours, timezoneContext);
+  var scheduleDays = normalizeScheduledDays_(setting.dates);
+  var scheduledToday = scheduleDays.length === 0 || scheduleDays.indexOf(effectiveDayName) !== -1;
+  var dueLookup = getDueByTimeForCurrentEffectiveDay_(setting.dates, now, extensionHours, timezoneContext);
   var dueState = null;
-  var dueLookup = getDueByTimeForCurrentEffectiveDay_(setting.dates, now, extensionHours, resolveMetricTimezoneContext_(setting));
   if (dueLookup && dueLookup.dueDateTime instanceof Date && !isNaN(dueLookup.dueDateTime.getTime())) {
     dueState = Math.round((now.getTime() - dueLookup.dueDateTime.getTime()) / 60000);
   }
+  var dueProperties = lockouts_buildDueProperties_(dueLookup, now, timezoneContext);
 
   var points = null;
   var pointsConfig = setting.points || null;
@@ -1967,9 +1977,38 @@ function lockouts_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerVal
     streak: useYesterdayStreakForIncompleteToday
       ? streakParts.streakAsOfYesterdayUnlessCompletedToday
       : streakParts.currentStreak,
+    scheduledToday: scheduledToday,
     dueState: dueState,
+    dueProperties: dueProperties,
     points: points,
     currMultiplier: currMultiplier
+  };
+}
+
+function lockouts_buildNoDeadlineProperties_() {
+  return {
+    hasDeadline: false,
+    dueAtISO: null,
+    dueTimeLocal: null,
+    minutesRemaining: null,
+    status: 'none'
+  };
+}
+
+function lockouts_buildDueProperties_(dueLookup, now, timezoneContext) {
+  var deadline = dueLookup && dueLookup.dueDateTime;
+  if (!(deadline instanceof Date) || isNaN(deadline.getTime())) {
+    return lockouts_buildNoDeadlineProperties_();
+  }
+
+  var millisecondsRemaining = deadline.getTime() - now.getTime();
+  var upcoming = millisecondsRemaining >= 0;
+  return {
+    hasDeadline: true,
+    dueAtISO: deadline.toISOString(),
+    dueTimeLocal: formatDateForTimezoneContext_(deadline, timezoneContext, 'h:mm a'),
+    minutesRemaining: upcoming ? Math.ceil(millisecondsRemaining / 60000) : 0,
+    status: upcoming ? 'upcoming' : 'expired'
   };
 }
 
@@ -2028,8 +2067,11 @@ function lockouts_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, hea
       value: null,
       displayValue: '',
       displayName: null,
+      complete: false,
+      scheduledToday: false,
       streak: null,
       dueState: null,
+      dueProperties: lockouts_buildNoDeadlineProperties_(),
       points: null,
       currMultiplier: null,
       error: lookup && lookup.error ? lookup.error : ('metricID not found in sheet: ' + metricID),
@@ -2051,8 +2093,11 @@ function lockouts_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, hea
     value: lockouts_normalizeMetricValueForCache_(metricType, value),
     displayValue: value === null || value === undefined ? '' : String(value),
     displayName: promptFields.displayName,
+    complete: isCompletedCellValue_(value),
+    scheduledToday: promptFields.scheduledToday,
     streak: promptFields.streak,
     dueState: promptFields.dueState,
+    dueProperties: promptFields.dueProperties,
     points: promptFields.points,
     currMultiplier: promptFields.currMultiplier,
     warnings: lookup.warnings || []
