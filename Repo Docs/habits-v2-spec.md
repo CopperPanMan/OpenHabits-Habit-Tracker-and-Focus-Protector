@@ -385,15 +385,9 @@ Let `basePoints = metric.points.value`.
 - `cumulativePointsID` row:
     - Increment today’s cell by total points delta across all metrics processed in the request.
     - If multiple metrics are logged in one webhook, add the cumulative delta **once**.
-- Metric logging response entries include `todayPoints` and `cumulativePoints`, containing the
-  updated points for today and all-time cumulative points after all metrics in the request have
-  been processed. Either total can be combined with `pointsDelta` in Shortcut messages to show
-  the new total and the amount just added.
-- These totals are included for every metric type, including `start_timer` and `stop_timer`.
-  `metricPointsToday` remains the points total for the individual metric, while `todayPoints` is
-  the total across all metrics for the current day. Starting a timer has a `pointsDelta` of `0`,
-  but its `metricPointsToday` reports any points that metric has already earned today rather than
-  incorrectly resetting the reported value to `0`.
+- Metric logging response entries include `cumulativePoints`, containing the updated all-time
+  cumulative points total after all metrics in the request have been processed. This can be
+  combined with `pointsDelta` in Shortcut messages to show the new total and the amount just added.
 
 ## 10.5 Non-retroactive rule
 
