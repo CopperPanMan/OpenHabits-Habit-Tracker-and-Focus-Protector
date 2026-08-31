@@ -2600,6 +2600,22 @@ function incrementPointsRowById_(metricID, delta, activeColInput, trackingSheet,
   trackingSheet.getRange(rowLookup.row, activeColInput).setValue(currentNumber + delta);
 }
 
+function getTodayPointsRowValue_(metricID, activeColInput, trackingSheet, warnings, optionalAccessor) {
+  if (!metricID) {
+    return 0;
+  }
+
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    warnings.push(rowLookup.error || ("metricID not found in sheet: " + metricID));
+    return 0;
+  }
+
+  var existingValue = optionalAccessor ? optionalAccessor.get(rowLookup.row) : trackingSheet.getRange(rowLookup.row, activeColInput).getValue();
+  var todayPoints = parseStoredNumberForAdd_(existingValue);
+  return todayPoints === null ? 0 : todayPoints;
+}
+
 function incrementCumulativePointsRowById_(metricID, delta, activeColInput, trackingSheet, warnings, optionalAccessor) {
   if (!metricID) {
     return;
