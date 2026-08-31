@@ -1404,6 +1404,13 @@ function recordMetricBySource_(rawData, options) {
     incrementCumulativePointsRowById_(cumulativePointsID, totalPointsDelta, activeCol, trackingSheet, warnings, activeColAccessor);
   }
 
+  var todayPoints = getTodayPointsRowValue_(dailyPointsID, activeCol, trackingSheet, warnings, activeColAccessor);
+  var cumulativePoints = getCumulativePointsRowValue_(cumulativePointsID, activeCol, trackingSheet, warnings, activeColAccessor);
+  for (var resultIndex = 0; resultIndex < results.length; resultIndex++) {
+    results[resultIndex].todayPoints = todayPoints;
+    results[resultIndex].cumulativePoints = cumulativePoints;
+  }
+
   if (writeToSheet) {
     activeColAccessor.flush();
   }
@@ -2595,6 +2602,22 @@ function incrementPointsRowById_(metricID, delta, activeColInput, trackingSheet,
   trackingSheet.getRange(rowLookup.row, activeColInput).setValue(currentNumber + delta);
 }
 
+function getTodayPointsRowValue_(metricID, activeColInput, trackingSheet, warnings, optionalAccessor) {
+  if (!metricID) {
+    return 0;
+  }
+
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    warnings.push(rowLookup.error || ("metricID not found in sheet: " + metricID));
+    return 0;
+  }
+
+  var existingValue = optionalAccessor ? optionalAccessor.get(rowLookup.row) : trackingSheet.getRange(rowLookup.row, activeColInput).getValue();
+  var todayPoints = parseStoredNumberForAdd_(existingValue);
+  return todayPoints === null ? 0 : todayPoints;
+}
+
 function incrementCumulativePointsRowById_(metricID, delta, activeColInput, trackingSheet, warnings, optionalAccessor) {
   if (!metricID) {
     return;
@@ -2619,6 +2642,22 @@ function incrementCumulativePointsRowById_(metricID, delta, activeColInput, trac
   }
 
   trackingSheet.getRange(rowLookup.row, activeColInput).setValue(currentNumber + delta);
+}
+
+function getCumulativePointsRowValue_(metricID, activeColInput, trackingSheet, warnings, optionalAccessor) {
+  if (!metricID) {
+    return 0;
+  }
+
+  var rowLookup = findRowByMetricId_(metricID, trackingSheet);
+  if (!rowLookup.row) {
+    warnings.push(rowLookup.error || ("metricID not found in sheet: " + metricID));
+    return 0;
+  }
+
+  var existingValue = optionalAccessor ? optionalAccessor.get(rowLookup.row) : trackingSheet.getRange(rowLookup.row, activeColInput).getValue();
+  var cumulativePoints = resolveStartingCumulativePoints_(existingValue, rowLookup.row, activeColInput, trackingSheet);
+  return cumulativePoints === null ? 0 : cumulativePoints;
 }
 
 function resolveStartingCumulativePoints_(existingValue, row, activeColInput, trackingSheet) {
