@@ -1404,8 +1404,10 @@ function recordMetricBySource_(rawData, options) {
     incrementCumulativePointsRowById_(cumulativePointsID, totalPointsDelta, activeCol, trackingSheet, warnings, activeColAccessor);
   }
 
+  var todayPoints = getTodayPointsRowValue_(dailyPointsID, activeCol, trackingSheet, warnings, activeColAccessor);
   var cumulativePoints = getCumulativePointsRowValue_(cumulativePointsID, activeCol, trackingSheet, warnings, activeColAccessor);
   for (var resultIndex = 0; resultIndex < results.length; resultIndex++) {
+    results[resultIndex].todayPoints = todayPoints;
     results[resultIndex].cumulativePoints = cumulativePoints;
   }
 
