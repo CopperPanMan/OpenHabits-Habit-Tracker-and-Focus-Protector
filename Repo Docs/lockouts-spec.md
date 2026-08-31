@@ -505,6 +505,11 @@ To support faster on-device lockout decisions, Lockouts also exposes read-only s
   - `generatedAtISO`
   - `todayCol`
   - `metricsByID` (always present, even for a single metric)
+    - Each entry preserves the metric value and scoring fields and also reports:
+      - `complete`, using the same non-empty-cell completion semantics as Habits V2.
+      - `scheduledToday`, evaluated against the current effective Habits day.
+      - `dueState`, preserving the legacy signed numeric minutes-after-deadline value (or `null` when there is no deadline).
+      - `dueProperties`, with `hasDeadline`, `dueAtISO`, `dueTimeLocal`, `minutesRemaining`, and `status` (`none`, `upcoming`, or `expired`). Expired deadlines report zero remaining minutes; metrics without a deadline report `null` for the deadline-specific fields.
   - `warnings` / `error` as applicable.
 
 ### 14.2 Lockout cache file shape
