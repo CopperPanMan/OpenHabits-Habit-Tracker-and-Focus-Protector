@@ -56,12 +56,45 @@
       <p>Copy this output into <code>Config.gs</code>.</p>
       <p id="exportStatus" class="status"></p>
     </section>
+
+    <section class="panel" aria-labelledby="shortcutQrHeading">
+      <h2 id="shortcutQrHeading">Shortcut QR Code Generator</h2>
+      <p>Create a QR code that launches an installed Apple Shortcut. The QR code is generated entirely in your browser.</p>
+      <div class="qr-layout">
+        <div class="qr-controls">
+          <label for="qrMetricSelect">Choose a configured metric (optional)</label>
+          <select id="qrMetricSelect">
+            <option value="">Select a metric to suggest a Shortcut name</option>
+          </select>
+
+          <label for="qrShortcutName">Shortcut name</label>
+          <input id="qrShortcutName" type="text" autocomplete="off" placeholder="Log Meditation" />
+          <p class="field-hint">Enter the name exactly as it appears in Apple Shortcuts.</p>
+
+          <div class="row gap">
+            <button id="qrGenerateBtn" type="button">Generate QR Code</button>
+            <button id="qrCopyBtn" class="secondary" type="button" disabled>Copy Launch URL</button>
+            <button id="qrDownloadBtn" class="secondary" type="button" disabled>Download PNG</button>
+            <a id="qrOpenLink" class="button-link secondary disabled" aria-disabled="true">Open Shortcut</a>
+          </div>
+
+          <label for="qrLaunchUrl">Launch URL</label>
+          <input id="qrLaunchUrl" type="text" readonly placeholder="Generated launch URL will appear here..." />
+          <p id="qrStatus" class="status" aria-live="polite"></p>
+        </div>
+        <div id="qrPreview" class="qr-preview" aria-live="polite">
+          <p class="muted">Your QR code will appear here.</p>
+        </div>
+      </div>
+    </section>
   </main>
 
   <template id="helpIconTemplate">
     <span class="help" tabindex="0" aria-label="Help">?</span>
   </template>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="./shortcut-qr.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
