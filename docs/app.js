@@ -502,6 +502,9 @@
     root.innerHTML = '';
     state.metricSettings.forEach((m, i) => root.appendChild(renderMetric(m, i)));
     root.append(button('Add Metric', '', () => { state.metricSettings.push(newMetric()); renderAll(); }));
+    document.dispatchEvent(new CustomEvent('openhabits:metrics-changed', {
+      detail: state.metricSettings.map(({ metricID, displayName }) => ({ metricID, displayName }))
+    }));
   }
 
   function renderBlock(block, i) {

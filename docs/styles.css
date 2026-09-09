@@ -90,6 +90,19 @@ button {
   cursor: pointer;
 }
 button.secondary { background: var(--panel); color: var(--accent); }
+button:disabled { cursor: not-allowed; opacity: .55; }
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: .45rem .8rem;
+  color: #fff;
+  background: var(--accent);
+  text-decoration: none;
+}
+.button-link.secondary { background: var(--panel); color: var(--accent); }
+.button-link.disabled { pointer-events: none; opacity: .55; }
 .tab-explainer { margin: -.35rem 0 .7rem; color: var(--muted); }
 button.danger { border-color: var(--danger); background: var(--danger); }
 .status { color: var(--muted); min-height: 1.2rem; }
@@ -149,3 +162,27 @@ button.danger { border-color: var(--danger); background: var(--danger); }
 .controls { display:flex; gap:.4rem; flex-wrap:wrap; }
 .error { color: var(--danger); font-size:.82rem; }
 .muted { color: var(--muted); }
+.field-hint { margin: -.05rem 0 .6rem; color: var(--muted); font-size: .85rem; }
+.qr-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+  gap: 1.25rem;
+  align-items: start;
+}
+.qr-controls { display: flex; flex-direction: column; gap: .55rem; }
+.qr-preview {
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+}
+.qr-preview canvas { display: block; width: min(100%, 320px); height: auto; }
+@media (max-width: 720px) {
+  .qr-layout { grid-template-columns: 1fr; }
+  .qr-preview { min-height: 240px; }
+}

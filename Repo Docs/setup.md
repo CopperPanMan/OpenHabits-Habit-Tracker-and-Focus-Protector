@@ -154,7 +154,7 @@ Compared with a normal habit tracker, OpenHabits can:
 
 For habit tracking, import or build these Shortcuts:
 
-- **Habits QR Code Maker** — creates QR codes in the Shortcut URL format so QR scans can launch habit loggers.
+- **Shortcut QR Code Generator** — use the always-available panel below Export in the online Config Editor to create a QR code that launches any installed habit logger Shortcut. Enter the Shortcut name exactly as it appears in Apple Shortcuts, then download or scan the generated code.
 - **Metric Logger Template** — duplicatable template for non-timer metrics such as checkboxes, numbers, ratings, timestamps, and notes.
 - **Toggle Timer Template** — duplicatable template for timer metrics. Tapping the same Shortcut toggles between starting and stopping.
 - **Insights** — optional UX helper that reads and displays the return message generated after a metric logger Shortcut records something.
@@ -169,6 +169,8 @@ Follow the setup comments at the top of each Shortcut. Usually you will paste in
 **Important Shortcuts import note:** if an imported Shortcut contains a **Run Shortcut** action, open that action and manually reselect the Shortcut it should run. Apple Shortcuts can show the correct name while still failing to connect the imported Shortcut behind the scenes.
 
 No automations are required for basic habit logging. Optional NFC automations can scan a tag and launch a specific logging Shortcut.
+
+The QR generator runs in your browser and encodes only the Shortcut launch URL. It does not include your Apps Script URL, shared secret, or metric IDs; those remain configured inside the logger Shortcut itself.
 
 > **Screenshot to add:** one Shortcut editor screen showing where the web app URL and metric ID are pasted.
 
