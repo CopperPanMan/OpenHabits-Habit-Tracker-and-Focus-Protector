@@ -190,6 +190,9 @@ All Habits V2 endpoints return a JSON response:
 - `ok` (boolean): true if request processed (even if partial errors), false only if catastrophic (e.g., cannot open sheet)
 - `messages` (string[]): user-facing messages to display
 - `metricsByID` (object[]): key-specific structured output (`record_metric_*` returns one object per requested metric in the same array position)
+- `pointsDelta` (number, metric logging only): net points change across all metrics processed in the request
+- `todayPoints` (number, metric logging only): updated points total for today after the request
+- `cumulativePoints` (number, metric logging only): updated all-time points total after the request
 - `errors` (string[]): error messages (validation/config/unknown IDs)
 - `warnings` (string[]): non-fatal issues (duplicates, ignored values, unsupported operations)
 
@@ -385,10 +388,11 @@ Let `basePoints = metric.points.value`.
 - `cumulativePointsID` row:
     - Increment today’s cell by total points delta across all metrics processed in the request.
     - If multiple metrics are logged in one webhook, add the cumulative delta **once**.
-- Metric logging response entries include `todayPoints` and `cumulativePoints`, containing the
-  updated points for today and all-time cumulative points after all metrics in the request have
-  been processed. Either total can be combined with `pointsDelta` in Shortcut messages to show
-  the new total and the amount just added. Existing response fields remain unchanged.
+- Metric logging responses include top-level `pointsDelta`, `todayPoints`, and `cumulativePoints`.
+  These contain the net points change for the request, the updated points for today, and the
+  updated all-time cumulative points after all metrics in the request have been processed.
+- Each `metricsByID` entry retains its metric-specific `pointsDelta`; request-wide point totals are
+  not repeated in those entries.
 
 ## 10.5 Non-retroactive rule
 

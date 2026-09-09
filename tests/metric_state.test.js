@@ -119,3 +119,30 @@ test('uses the late extension when selecting the effective day and deadline', ()
   assert.equal(entry.dueProperties.status, 'expired');
   assert.equal(entry.dueProperties.minutesRemaining, 0);
 });
+
+test('builds metric responses with request totals and metric-specific deltas', () => {
+  const context = loadAppsScript();
+  const response = JSON.parse(context.buildHabitsV2Response({
+    ok: true,
+    results: [
+      { metricID: 'exercise', pointsDelta: 2 },
+      { metricID: 'meditation', pointsDelta: 3 }
+    ],
+    pointsDelta: 5,
+    todayPoints: 15,
+    cumulativePoints: 240
+  }));
+
+  assert.equal(response.pointsDelta, 5);
+  assert.equal(response.todayPoints, 15);
+  assert.equal(response.cumulativePoints, 240);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(response.metricsByID)),
+    [
+      { metricID: 'exercise', pointsDelta: 2 },
+      { metricID: 'meditation', pointsDelta: 3 }
+    ]
+  );
+  assert.equal('todayPoints' in response.metricsByID[0], false);
+  assert.equal('cumulativePoints' in response.metricsByID[0], false);
+});
