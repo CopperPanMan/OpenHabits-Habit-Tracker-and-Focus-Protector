@@ -1406,10 +1406,6 @@ function recordMetricBySource_(rawData, options) {
 
   var todayPoints = getTodayPointsRowValue_(dailyPointsID, activeCol, trackingSheet, warnings, activeColAccessor);
   var cumulativePoints = getCumulativePointsRowValue_(cumulativePointsID, activeCol, trackingSheet, warnings, activeColAccessor);
-  for (var resultIndex = 0; resultIndex < results.length; resultIndex++) {
-    results[resultIndex].todayPoints = todayPoints;
-    results[resultIndex].cumulativePoints = cumulativePoints;
-  }
 
   if (writeToSheet) {
     activeColAccessor.flush();
@@ -1423,6 +1419,9 @@ function recordMetricBySource_(rawData, options) {
     ok: true,
     messages: messages,
     results: results,
+    pointsDelta: totalPointsDelta,
+    todayPoints: todayPoints,
+    cumulativePoints: cumulativePoints,
     errors: errors,
     warnings: warnings
   });
@@ -3478,6 +3477,9 @@ function buildHabitsV2Response(response) {
     metricsByID: Array.isArray(payload.metricsByID)
       ? payload.metricsByID
       : (Array.isArray(payload.results) ? payload.results : []),
+    pointsDelta: payload.pointsDelta,
+    todayPoints: payload.todayPoints,
+    cumulativePoints: payload.cumulativePoints,
     errors: Array.isArray(payload.errors) ? payload.errors : [],
     warnings: Array.isArray(payload.warnings) ? payload.warnings : []
   });
