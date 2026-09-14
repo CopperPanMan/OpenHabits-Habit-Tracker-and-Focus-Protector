@@ -62,7 +62,7 @@ The Shortcut-side architecture is already substantially centralized:
 
 - Individual logging Shortcuts need only provide the metric ID or list of metric IDs they want to log.
 - They pass those IDs to the **Insights** Shortcut.
-- Insights retrieves the deployment URL and shared secret from `settings.json` in iCloud and performs the common request/response work.
+- Insights retrieves the deployment URL and shared secret from `Shortcuts/OpenHabits/OpenHabits Tracker/settings.json` in iCloud and performs the common request/response work.
 - Insights already accepts a list of metric IDs, so it is effectively the shared logging dispatcher.
 
 Future work must preserve this useful architecture. Some current setup documentation incorrectly implies that every individual logger must contain its own deployment URL and secret; that documentation should be corrected in a dedicated documentation change.
@@ -280,7 +280,7 @@ Offer at least:
 - **Dedicated Shortcut QR:** launch an existing named Shortcut, preserving current behavior.
 - **Direct Insights QR:** launch Insights with one or more selected metric IDs.
 
-Do not place the shared secret or private deployment credentials in QR payloads. Insights should continue reading them from its iCloud `settings.json`.
+Do not place the shared secret or private deployment credentials in QR payloads. Insights should continue reading them from `Shortcuts/OpenHabits/OpenHabits Tracker/settings.json` in iCloud.
 
 After saving a metric, provide a success screen with:
 
@@ -325,7 +325,7 @@ Documentation should be rewritten around one canonical happy path after the unde
 6. Create the first custom metric.
 7. Add optional lockouts, Chrome, or Notion later.
 
-Correct the Shortcut documentation to explain that individual logger Shortcuts pass metric ID lists to Insights, while Insights obtains URL/secret settings from iCloud `settings.json`.
+Correct the Shortcut documentation to explain that individual logger Shortcuts pass metric ID lists to Insights, while Insights obtains URL/secret settings from `Shortcuts/OpenHabits/OpenHabits Tracker/settings.json` in iCloud.
 
 Technical migration/export documentation should remain available for advanced users, but it should not be the primary onboarding path.
 

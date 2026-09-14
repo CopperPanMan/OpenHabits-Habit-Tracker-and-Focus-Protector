@@ -137,6 +137,28 @@ If this works, your Sheet, Apps Script deployment, permissions, secret, and Shor
 
 # 5) Habit Tracking Setup
 
+## Local iCloud folder layout
+
+OpenHabits stores its Shortcut-managed files below the base `Shortcuts` folder in iCloud Drive. Use this layout so habit tracking, timers, lockouts, and Calendar Alarms do not compete for the same files:
+
+```text
+Shortcuts/
+└── OpenHabits/
+    ├── OpenHabits Tracker/
+    │   ├── settings.json
+    │   ├── timerStates.json
+    │   ├── lockoutCache.json
+    │   └── lockouts.json
+    └── Calendar Alarms/
+        ├── <5 × Calendar Alarms .txt files>
+        ├── settings.json
+        └── Alarm Tones/
+```
+
+`OpenHabits Tracker` is the canonical location for files managed by the OpenHabits Shortcuts. `Calendar Alarms` is reserved for the separate Calendar Alarms for iOS integration; its `Alarm Tones` folder is user-managed, and OpenHabits must not replace or delete it.
+
+When upgrading an existing installation, move files into `Shortcuts/OpenHabits/OpenHabits Tracker` before running the updated Shortcuts. In particular, move `Shortcuts/App Locker/lockoutCache.json` to the new folder. If a file already exists at the new location, keep it rather than overwriting it with an older copy. After verifying that the updated Shortcuts work, the old `App Locker` folder can be removed.
+
 ## A) What habit tracking can do
 
 OpenHabits logs metrics, not just checkboxes. That means one habit can be a yes/no completion, a number, a duration, a timestamp, a timer start/stop pair, or a due-by task. Because the data is in a Sheet, you can build formulas, charts, dashboards, and custom review systems on top of it.
@@ -255,16 +277,16 @@ OpenHabits is meant to make good behavior easier and bad behavior more annoying.
 
 ## C) Scriptable setup
 
-The **Locked** Shortcut uses a Scriptable script named `lockouts` for the heavier lockout logic. This keeps the Shortcut layer small and reliable instead of trying to maintain hundreds of actions inside one Shortcut.
+The **Locked** Shortcut uses a Scriptable script named `lockouts` for the heavier lockout logic. This keeps the Shortcut layer small and reliable instead of trying to maintain hundreds of actions inside one Shortcut. The Shortcut reads the cache from `Shortcuts/OpenHabits/OpenHabits Tracker/lockoutCache.json` and passes its contents to the script; the script does not read the file itself.
 
 1. Install Scriptable from the App Store.
-2. In iCloud Drive, create this folder: `Shortcuts/App Locker`.
+2. In iCloud Drive, create `Shortcuts/OpenHabits/OpenHabits Tracker` if it does not already exist.
 3. Open Scriptable and create a new script named `lockouts`.
 4. Copy the contents of `lockouts.js` into that Scriptable script.
-5. In Scriptable, create a file bookmark to the `Shortcuts/App Locker` folder. Name the bookmark exactly `App Locker`.
+5. In Scriptable, create a file bookmark to the base `Shortcuts` folder. Name the bookmark exactly `Shortcuts`.
 6. Confirm the bookmark opens successfully before testing the **Locked** Shortcut.
 
-> **Screenshot to add:** iCloud Drive showing `Shortcuts/App Locker`, Scriptable showing the `lockouts` script, and Scriptable's bookmark list showing `App Locker`.
+> **Screenshot to add:** iCloud Drive showing `Shortcuts/OpenHabits/OpenHabits Tracker`, Scriptable showing the `lockouts` script, and Scriptable's bookmark list showing the base `Shortcuts` bookmark.
 
 ## D) Shortcuts you need
 
