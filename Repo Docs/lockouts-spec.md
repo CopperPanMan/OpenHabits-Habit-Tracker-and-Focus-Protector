@@ -515,7 +515,9 @@ To support faster on-device lockout decisions, Lockouts also exposes read-only s
 ### 14.2 Lockout cache file shape
 
 Recommended cache file path (Scriptable/iCloud):
-- `shortcuts/App Locker/lockoutCache.json`
+- `Shortcuts/OpenHabits/OpenHabits Tracker/lockoutCache.json`
+
+Scriptable bookmarks the base `Shortcuts` folder under the bookmark name `Shortcuts`. Shortcut clients construct the `OpenHabits/OpenHabits Tracker/lockoutCache.json` relative path, read or update the cache, and pass the parsed cache to the pure-input Scriptable evaluator. The obsolete `Shortcuts/App Locker` directory is not part of the current layout.
 
 Recommended shape:
 
@@ -548,6 +550,8 @@ Recommended shape:
 - Fast incremental shortcut (`Update Cached Metric`) calls `metric_state` for one metric and updates that metric’s cache entry.
 - Portable evaluator reads `lockoutCache.json` and performs lockout decisions locally using the same block order, token substitution, and JSON output shape as `app_closer`.
 - For preset selection on-device, the portable evaluator resolves presets from calendar events on calendar name `App Lockout Settings` for events that occur today (instead of relying on `data` preset input).
+
+Existing clients should migrate `Shortcuts/App Locker/lockoutCache.json` only when the new cache path does not already exist. They must not overwrite a cache already present at the new path. Once migration succeeds, all subsequent cache reads and writes use only the new path.
 
 ## Lockouts V2 timezone modes
 
