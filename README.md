@@ -27,11 +27,13 @@ It has two main parts, and you can use either one without the other:
 
 ## How do I Use it?
 
-0. Decide what tasks and data you wish to log, and any app/website rules using the [OpenHabits Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/)
-1. Log tasks or other data from your iPhone or Notion.
+0. Copy the Sheet, open **OpenHabits → Setup Status**, and install the included starter metrics.
+1. Deploy once, connect Insights, then log tasks or other data from your iPhone or Notion.
 2. Display that data on a Google Sheets dashboard that lives on your desk
 3. Use that data to inform your decisions and motivate behavior
 4. App Lockouts act as bumpers through your day to guide you to the "right" behaviors, and prevent doomscrolling.
+
+Configuration is stored as versioned JSON in the copied Sheet. Use **OpenHabits → Edit Configuration → Save and Apply** to validate changes and create missing rows without editing source or redeploying. The [browser Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/) also provides recipes, Shortcut-ready metric text, and credential-free QR launchers.
 
 
 Uncategorized

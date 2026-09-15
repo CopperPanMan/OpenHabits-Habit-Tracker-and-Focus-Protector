@@ -1,4 +1,5 @@
-function getAppConfig() {
+// The immutable, code-backed configuration remains the compatibility fallback.
+function getCodeBackedAppConfig() {
   return {
     scriptProperties: {
       spreadsheetId: 'spreadSheetID'
@@ -82,4 +83,11 @@ function getAppConfig() {
       blocks: []
     }
   };
+}
+
+function getAppConfig() {
+  // Existing installations that have not copied SetupV2.gs remain functional.
+  return typeof openHabitsLoadAppConfig_ === 'function'
+    ? openHabitsLoadAppConfig_()
+    : getCodeBackedAppConfig();
 }

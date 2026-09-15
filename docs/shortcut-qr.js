@@ -15,10 +15,37 @@
     return PREFIX + encodeURIComponent(name);
   }
 
+  function buildInsightsUrl(metricIds, shortcutName) {
+    const ids = (metricIds || []).map(normalizeShortcutName).filter(Boolean);
+    if (!ids.length) throw new Error('Select at least one metric first.');
+    const text = buildShortcutMetricText(ids.map(id => ({ metricID: id })));
+    return buildShortcutUrl(shortcutName || 'Insights') + '&input=text&text=' + encodeURIComponent(text);
+  }
+
+  function buildShortcutMetricText(metrics) {
+    if (!Array.isArray(metrics) || !metrics.length) throw new Error('Select at least one metric first.');
+    const inputMetrics = metrics.filter(metric => metric && metric.requiresInput);
+    if (inputMetrics.length && metrics.length > 1) throw new Error('Generate input-bearing metrics one at a time so each magic variable is unambiguous.');
+    const entries = metrics.map(metric => {
+      const id = normalizeShortcutName(metric && metric.metricID);
+      if (!id) throw new Error('Every selected metric needs a metric ID.');
+      return metric.requiresInput ? `[${JSON.stringify(id)}, <Provided Input>]` : `[${JSON.stringify(id)}]`;
+    });
+    return `[${entries.join(',')}]`;
+  }
+
+  function buildTimerShortcutText(startMetricID, stopMetricID) {
+    return {
+      startText: buildShortcutMetricText([{ metricID: startMetricID }]),
+      stopText: buildShortcutMetricText([{ metricID: stopMetricID }])
+    };
+  }
+
   function init() {
     if (typeof document === 'undefined') return;
     const metricSelect = document.getElementById('qrMetricSelect');
     const nameInput = document.getElementById('qrShortcutName');
+    const modeInput = document.getElementById('qrLaunchMode');
     const urlInput = document.getElementById('qrLaunchUrl');
     const generateBtn = document.getElementById('qrGenerateBtn');
     const copyBtn = document.getElementById('qrCopyBtn');
@@ -72,13 +99,15 @@
     function generate() {
       try {
         const shortcutName = normalizeShortcutName(nameInput.value);
-        const url = buildShortcutUrl(shortcutName);
+        const selectedOption = metricSelect.options[metricSelect.selectedIndex];
+        const metricID = selectedOption && selectedOption.dataset.metricId;
+        const url = modeInput && modeInput.value === 'insights' ? buildInsightsUrl([metricID], 'Insights') : buildShortcutUrl(shortcutName);
         nameInput.value = shortcutName;
         drawQr(url, shortcutName);
         urlInput.value = url;
         openLink.href = url;
         setOutputEnabled(true);
-        status.textContent = 'QR code generated. Scan it on a device where this Shortcut is installed.';
+        status.textContent = modeInput && modeInput.value === 'insights' ? 'Direct Insights QR generated. It contains the metric ID, never your secret or deployment URL.' : 'QR code generated. Scan it on a device where this Shortcut is installed.';
       } catch (error) {
         canvas = null;
         urlInput.value = '';
@@ -121,7 +150,7 @@
         const label = metric.metricID && metric.metricID !== suggestion
           ? `${suggestion} — ${metric.metricID}`
           : suggestion;
-        metricSelect.add(new Option(label, suggestion));
+        const option = new Option(label, suggestion); option.dataset.metricId = metric.metricID; metricSelect.add(option);
       });
       if ([...metricSelect.options].some(option => option.value === previous)) metricSelect.value = previous;
     });
@@ -132,5 +161,5 @@
     else init();
   }
 
-  return { normalizeShortcutName, buildShortcutUrl };
+  return { normalizeShortcutName, buildShortcutUrl, buildInsightsUrl, buildShortcutMetricText, buildTimerShortcutText };
 }));

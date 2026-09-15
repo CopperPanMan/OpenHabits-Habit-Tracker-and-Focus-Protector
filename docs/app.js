@@ -65,6 +65,7 @@
   const sectionOpenState = new Map();
   const undoStack = [];
   const redoStack = [];
+  const generatedMetricIds = new WeakSet();
   const HISTORY_LIMIT = 150;
 
   const HELP = {
@@ -257,6 +258,25 @@
     };
   }
 
+  function normalizedMetricId(name) {
+    return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  function metricFromRecipe(recipe) {
+    const metric = newMetric();
+    const defaults = {
+      completion: ['Completion', 'number', 'keep_first'],
+      number_add: ['Number', 'number', 'add'], number_replace: ['Number', 'number', 'overwrite'],
+      timestamp: ['Timestamp', 'timestamp', 'overwrite'], duration: ['Duration', 'duration', 'add'],
+      due_by: ['Due-by Task', 'due_by', 'keep_first']
+    }[recipe] || ['Custom Metric', 'number', 'overwrite'];
+    [metric.displayName, metric.type, metric.recordType] = defaults;
+    metric.metricID = normalizedMetricId(metric.displayName);
+    if (recipe === 'due_by') metric.dates = [['Sunday', '22:00', 0, 24]];
+    generatedMetricIds.add(metric);
+    return metric;
+  }
+
   function applyMetricTypeDefaults(metric) {
     if (metric.type === 'duration') {
       if (!metric.insights.insightUnits) metric.insights.insightUnits = 'minutes';
@@ -396,7 +416,8 @@
 
   function renderMetric(metric, i) {
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'card metric-card';
+    card.id = `metric-card-${i}`;
     const head = document.createElement('div');
     head.className = 'card-head';
     const name = document.createElement('h3');
@@ -411,19 +432,20 @@
 
     const g = document.createElement('div');
     g.className = 'grid';
-    field(g, 'Metric ID', makeInput({ value: metric.metricID, onChange: v => metric.metricID = v, required: true }), 'Unique ID used for tracking row lookups.');
+    const metricIdInput = makeInput({ value: metric.metricID, onChange: v => { metric.metricID = v; generatedMetricIds.delete(metric); }, required: true });
+    field(g, 'Metric ID', metricIdInput, 'Unique ID used for tracking row lookups. Changing a saved ID does not rename historical rows.');
     field(g, 'Row Number (Optional)', makeInput({ type: 'number', min: 1, step: '1', value: metric.rowNumber, onChange: v => {
       if (Number.isInteger(v) && v > 0) metric.rowNumber = v;
       else delete metric.rowNumber;
     } }), 'Optionally use a positive sheet row number to override the Metric ID row search when recording this metric.');
-    field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => metric.displayName = v, required: true }), 'Friendly name shown to users.');
+    field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => { metric.displayName = v; if (generatedMetricIds.has(metric)) { metric.metricID = normalizedMetricId(v); metricIdInput.value = metric.metricID; } }, required: true }), 'Friendly name shown to users. New recipe IDs follow this name until the ID is edited.');
     field(g, 'Type', makeSelect(['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'], metric.type, v => { metric.type = v; applyMetricTypeDefaults(metric); renderAll(); }), HELP.metricType);
     field(g, 'Timezone Mode', makeSelect(['floating', 'fixed'], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Floating follows the current device/local time for metric schedules and due-by checks. Fixed uses Apps Script/server timezone.');
     field(g, 'Record Type', makeSelect(['overwrite', 'keep_first', 'add'], metric.recordType, v => metric.recordType = v), 'How writes merge with existing same-day values.');
     field(g, 'Write to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Enable this metric for Notion sync fields.');
     card.appendChild(g);
 
-    const advanced = toggleSection(`Advanced (Metric ${i + 1})`, `metric-${i}-advanced`, !(metric.metricID === '' && metric.displayName === ''));
+    const advanced = toggleSection(`Advanced · ${metric.type} · ${metric.timezoneMode || 'floating'} timezone`, `metric-${i}-advanced`, false);
 
     const dates = toggleSection('Date Rules', `metric-${i}-dates`, false);
     metric.dates.forEach((d, di) => {
@@ -500,8 +522,17 @@
   function renderMetrics() {
     const root = $('tab-metrics');
     root.innerHTML = '';
+    const tools = document.createElement('div'); tools.className = 'metric-tools';
+    const search = makeInput({ value: '', onChange: () => {}, required: false }); search.placeholder = 'Search metrics by name or ID';
+    search.addEventListener('input', () => document.querySelectorAll('.metric-card').forEach((card, index) => { const m = state.metricSettings[index]; card.hidden = !`${m.displayName} ${m.metricID} ${m.type}`.toLowerCase().includes(search.value.toLowerCase()); }));
+    tools.append(search, button('Expand All', 'secondary', () => document.querySelectorAll('#tab-metrics details').forEach(d => d.open = true), { trackHistory: false }), button('Collapse All', 'secondary', () => document.querySelectorAll('#tab-metrics details').forEach(d => d.open = false), { trackHistory: false }));
+    root.appendChild(tools);
+    const nav = document.createElement('nav'); nav.className = 'metric-navigator'; nav.setAttribute('aria-label', 'Metric navigator');
+    state.metricSettings.forEach((m, i) => { const link = document.createElement('a'); link.href = `#metric-card-${i}`; link.textContent = `${m.displayName || 'Unnamed'} · ${m.metricID || 'missing ID'} · ${m.type}`; nav.appendChild(link); });
+    root.appendChild(nav);
     state.metricSettings.forEach((m, i) => root.appendChild(renderMetric(m, i)));
-    root.append(button('Add Metric', '', () => { state.metricSettings.push(newMetric()); renderAll(); }));
+    const recipe = makeSelect(['completion', 'number_add', 'number_replace', 'timestamp', 'duration', 'due_by', 'advanced'], 'completion', () => {});
+    const addRow = document.createElement('div'); addRow.className = 'row gap'; addRow.append(recipe, button('Add from recipe', '', () => { state.metricSettings.push(metricFromRecipe(recipe.value)); renderAll(); })); root.append(addRow);
     document.dispatchEvent(new CustomEvent('openhabits:metrics-changed', {
       detail: state.metricSettings.map(({ metricID, displayName }) => ({ metricID, displayName }))
     }));
@@ -721,7 +752,7 @@
 
   $('parseBtn').addEventListener('click', () => {
     try {
-      withHistory(() => { state = parseConfigGs($('importText').value); });
+      withHistory(() => { state = parseConfigGs($('importText').value); sectionOpenState.clear(); });
       $('importStatus').textContent = 'Config loaded successfully.';
       renderAll();
     } catch (err) {
