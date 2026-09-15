@@ -1,0 +1,41 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+
+function load() {
+  const context = vm.createContext({ console, JSON, Object, Array, String, Number, Date });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'SetupV2.gs'), 'utf8'), context);
+  return context;
+}
+
+test('validates config IDs and timer requirements', () => {
+  const c = load();
+  const result = c.openHabitsValidateConfig_({ trackingSheetName: 'Tracking Data', metricSettings: [
+    { metricID: 'same', displayName: 'One', type: 'number' },
+    { metricID: 'same', displayName: 'Two', type: 'start_timer', ifTimer_Settings: {} }
+  ] });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(' '), /Duplicate metricID/);
+  assert.match(result.errors.join(' '), /timer rows are incomplete/);
+});
+
+test('collects every primary, derived, points, and lockout row once', () => {
+  const c = load();
+  const rows = c.openHabitsCollectRequiredRows_({
+    dailyPointsID: 'daily', cumulativePointsID: 'all', metricSettings: [{ metricID: 'focus_start', displayName: 'Focus', streaks: { streaksID: 'streak' }, points: { pointsID: 'points' }, ifTimer_Settings: { timerStartMetricID: 'timer_started', timerDurationMetricID: 'timer_minutes' } }],
+    lockouts: { globals: { cumulativeScreentimeID: 'screen_all', timeOpenedID: 'opened' }, blocks: [{ id: 'social', typeSpecific: { duration: { screenTimeID: 'social_time' }, task_block_IDs: ['focus_start'], firstXMinutes: { timestampID: 'wake' } } }] }
+  });
+  assert.deepEqual(Array.from(rows, row => row.id).sort(), ['all','daily','focus_start','opened','points','screen_all','social_time','streak','timer_minutes','timer_started','wake']);
+});
+
+test('reconciliation appends only missing rows, reports duplicates, and retains history', () => {
+  const c = load();
+  const config = { metricSettings: [{ metricID: 'one', displayName: 'One' }, { metricID: 'two', displayName: 'Two' }] };
+  const plan = c.openHabitsPlanReconciliation_(config, [['one', 'One'], ['one', 'duplicate'], ['old', 'History']]);
+  assert.equal(plan.ok, false);
+  assert.deepEqual(Array.from(plan.missing, row => row.id), ['two']);
+  assert.deepEqual(Array.from(plan.duplicates), ['one']);
+  assert.deepEqual(Array.from(plan.retainedUnreferenced), ['old']);
+});

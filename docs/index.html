@@ -15,7 +15,7 @@
   <main>
     <section class="panel">
       <h2>1. Get Started</h2>
-      <p>To create a new <code>Config.gs</code>, continue to <strong>Edit Config</strong> below. To edit an existing <code>Config.gs</code>, paste its contents here and click <strong>Load Existing</strong>.</p>
+      <p>This browser editor can create a JSON backup or legacy <code>Config.gs</code>. For no-redeploy editing, open <strong>OpenHabits → Edit Configuration</strong> in your Sheet.</p>
       <textarea id="importText" rows="10" placeholder="Paste full Config.gs code here..."></textarea>
       <div class="row gap">
         <button id="parseBtn">Load Existing</button>
@@ -45,8 +45,8 @@
     </section>
 
     <section class="panel">
-      <h2>3. Export</h2>
-      <p>When finished, click <strong>Generate Output,</strong> then copy and paste it into your <code>Config.gs</code> file.</p>
+      <h2>3. Backup / legacy export</h2>
+      <p>Use the Sheet-hosted editor for normal Save and Apply. This export remains available for migration and backup.</p>
       <label for="exportText">Generated Output</label>
       <textarea id="exportText" rows="14" placeholder="Generated output will appear here..."></textarea>
       <div class="row gap">
@@ -55,6 +55,17 @@
       </div>
       <p>Copy this output into <code>Config.gs</code>.</p>
       <p id="exportStatus" class="status"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="metricTextHeading">
+      <h2 id="metricTextHeading">Shortcut-ready metric text</h2>
+      <p>Select metric IDs below, then copy the complete text into the Metric Logger Shortcut's <strong>Text</strong> action. Value-bearing metrics include a clearly marked <code>&lt;Provided Input&gt;</code> placeholder that must be replaced with an Apple Shortcuts magic variable.</p>
+      <label for="shortcutMetricIds">Metric IDs (one per line)</label>
+      <textarea id="shortcutMetricIds" rows="5" placeholder="started_work&#10;glasses_of_water"></textarea>
+      <label><input id="shortcutRequiresInput" type="checkbox"> This metric requires Provided Input (one metric only)</label>
+      <div class="row gap"><button id="shortcutTextGenerate" type="button">Generate metric text</button><button id="shortcutTextCopy" class="secondary" type="button">Copy metric text</button></div>
+      <label for="shortcutMetricOutput">Paste-ready text</label><input id="shortcutMetricOutput" readonly>
+      <p id="shortcutMetricStatus" class="status" aria-live="polite"></p>
     </section>
 
     <section class="panel" aria-labelledby="shortcutQrHeading">
@@ -66,6 +77,9 @@
           <select id="qrMetricSelect">
             <option value="">Select a metric to suggest a Shortcut name</option>
           </select>
+
+          <label for="qrLaunchMode">Launcher type</label>
+          <select id="qrLaunchMode"><option value="dedicated">Dedicated Shortcut QR</option><option value="insights">Direct Insights QR (selected metric input)</option></select>
 
           <label for="qrShortcutName">Shortcut name</label>
           <input id="qrShortcutName" type="text" autocomplete="off" placeholder="Log Meditation" />
@@ -96,5 +110,21 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
   <script src="./shortcut-qr.js"></script>
   <script src="./app.js"></script>
+  <script>
+    (() => {
+      const ids = document.getElementById('shortcutMetricIds');
+      const output = document.getElementById('shortcutMetricOutput');
+      const status = document.getElementById('shortcutMetricStatus');
+      function generate() {
+        try {
+          const values = ids.value.split(/\n|,/).map(value => value.trim()).filter(Boolean);
+          output.value = OpenHabitsShortcutQr.buildShortcutMetricText(values.map(metricID => ({ metricID, requiresInput: document.getElementById('shortcutRequiresInput').checked })));
+          status.textContent = document.getElementById('shortcutRequiresInput').checked ? 'Replace <Provided Input> with the appropriate magic variable before running.' : 'Ready to paste into the Shortcut Text action.';
+        } catch (error) { output.value = ''; status.textContent = error.message; }
+      }
+      document.getElementById('shortcutTextGenerate').addEventListener('click', generate);
+      document.getElementById('shortcutTextCopy').addEventListener('click', async () => { if (!output.value) generate(); if (!output.value) return; await navigator.clipboard.writeText(output.value); status.textContent = 'Copied. Replace the Metric Logger Shortcut Text action.'; });
+    })();
+  </script>
 </body>
 </html>

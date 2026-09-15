@@ -1,5 +1,18 @@
 # OpenHabits Setup and Usage Guide
 
+## V2 quick start (recommended)
+
+1. Copy the OpenHabits Sheet and its bound Apps Script, then reload the Sheet.
+2. Set the Apps Script project timezone and add the `OPENHABITS_SECRET` Script Property. Add `spreadsheetId` only when the script is not bound to the target Sheet.
+3. Choose **OpenHabits → Setup Status** and resolve any red checks.
+4. Choose **OpenHabits → Install Starter Metrics**. This creates the hidden, protected `_OpenHabits Config` tab, saves a revision, and appends all missing rows to `Tracking Data`.
+5. Deploy the Apps Script web app once. Configuration edits after this point do **not** require redeployment.
+6. Install Insights and the starter Metric Logger / Toggle Timer Shortcuts. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Tracker/settings.json`; individual loggers only pass metric text to Insights.
+7. Try `started_work`, add a value to `glasses_of_water`, and toggle `focus_session_start` / `focus_session_stop`.
+8. Choose **OpenHabits → Edit Configuration** to edit JSON, preview row changes, and use **Save and Apply**. The previous valid revision remains restorable from the OpenHabits menu.
+
+The V2 script creates `_OpenHabits Config` itself; do not create or edit that tab manually. The tracking tab defaults to `Tracking Data`, with `Metric ID` in column A and the friendly label in column B. Existing unreferenced rows and their history are retained, never deleted.
+
 ### Quick Links
 
 - [Developer Keys](developer-keys.md) — the web app keys you can call from your own clients.
@@ -63,6 +76,8 @@ OpenHabits finds rows by the ID in column A, so you can reorganize the Sheet vis
    - `Main.gs`
    - `Config.gs`
    - `Lockouts.gs`
+   - `SetupV2.gs`
+   - `SetupV2Sidebar.html`
 3. In Apps Script project settings, set the timezone to your real local timezone.
 
 Timezone matters because daily columns, streaks, due times, and lockout windows all depend on what OpenHabits thinks “today” means.
