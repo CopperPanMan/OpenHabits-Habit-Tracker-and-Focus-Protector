@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <?!= openHabitsInclude_('SetupV2Styles'); ?>
+</head>
+<body class="launcher-body">
+  <main class="launcher-main">
+    <section class="launcher-hero">
+      <span class="eyebrow">OPENHABITS</span>
+      <h1>Your habits, configured simply.</h1>
+      <p>The configuration editor opens in its own spacious workspace, while this sidebar stays available for status and quick actions.</p>
+      <? if (editorUrls.available) { ?>
+        <a id="openEditor" class="launcher-primary" target="_blank" rel="noopener" href="<?= suggestedAction === 'add' ? editorUrls.add : editorUrls.edit ?>"><?= suggestedAction === 'add' ? 'Add a Metric' : 'Open Config Editor' ?> ↗</a>
+        <p class="status">Opens the full editor in a new browser tab.</p>
+      <? } else { ?>
+        <span class="launcher-primary disabled" aria-disabled="true"><?= suggestedAction === 'add' ? 'Add a Metric' : 'Open Config Editor' ?></span>
+        <p id="launchStatus" class="status"><?= editorUrls.message ?></p>
+      <? } ?>
+    </section>
+
+    <section class="panel launcher-status-panel">
+      <div class="section-header"><h2>Setup status</h2><button id="refreshStatus" class="secondary" type="button">Refresh</button></div>
+      <div id="checks" class="setup-checks"><p>Checking your installation…</p></div>
+    </section>
+
+    <section class="panel launcher-actions">
+      <h2>Quick actions</h2>
+      <? if (editorUrls.available) { ?>
+        <a id="editConfig" class="button-link secondary" target="_blank" rel="noopener" href="<?= editorUrls.edit ?>">Edit full configuration ↗</a>
+        <a id="addMetric" class="button-link secondary" target="_blank" rel="noopener" href="<?= editorUrls.add ?>">Add a metric ↗</a>
+      <? } ?>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const escapeHtml = value => { const node = document.createElement('div'); node.textContent = String(value || ''); return node.innerHTML; };
+      function renderStatus(result) {
+        document.getElementById('checks').innerHTML = result.checks.map(check =>
+          `<div class="setup-check ${check.state}"><strong>${check.state === 'pass' ? 'Ready' : check.state === 'fail' ? 'Needs attention' : 'Recommended'}</strong><br>${escapeHtml(check.message)}</div>`
+        ).join('');
+      }
+      function failure(error) { document.getElementById('checks').textContent = `Could not check setup: ${error.message || error}`; }
+      document.getElementById('refreshStatus').addEventListener('click', () => google.script.run.withSuccessHandler(renderStatus).withFailureHandler(failure).openHabitsSetupStatus());
+      google.script.run.withSuccessHandler(renderStatus).withFailureHandler(failure).openHabitsSetupStatus();
+    })();
+  </script>
+</body>
+</html>
