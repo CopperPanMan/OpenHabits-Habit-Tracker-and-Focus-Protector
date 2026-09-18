@@ -21,6 +21,24 @@ test('validates config IDs and timer requirements', () => {
   assert.match(result.errors.join(' '), /timer rows are incomplete/);
 });
 
+test('allows add record type for stop timers but not other non-addable metrics', () => {
+  const c = load();
+  const timerSettings = { timerStartMetricID: 'timer_started', timerDurationMetricID: 'timer_duration' };
+  const result = c.openHabitsValidateConfig_({ trackingSheetName: 'Tracking Data', metricSettings: [
+    { metricID: 'stop', displayName: 'Stop', type: 'stop_timer', recordType: 'add', ifTimer_Settings: timerSettings },
+    { metricID: 'start', displayName: 'Start', type: 'start_timer', recordType: 'add', ifTimer_Settings: timerSettings }
+  ] });
+
+  assert.equal(result.ok, false);
+  assert.doesNotMatch(result.errors.join(' '), /metricSettings\[0\].*can only use add/);
+  assert.match(result.errors.join(' '), /metricSettings\[1\] can only use add/);
+});
+
+test('config editor allows add record type for stop timers', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+  assert.match(source, /\['number', 'duration', 'stop_timer'\]\.includes\(m\.type\)/);
+});
+
 test('collects every primary, derived, points, and lockout row once', () => {
   const c = load();
   const rows = c.openHabitsCollectRequiredRows_({

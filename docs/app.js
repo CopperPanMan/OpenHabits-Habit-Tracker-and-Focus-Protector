@@ -718,7 +718,7 @@
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
       if (m.rowNumber !== undefined && (!Number.isInteger(m.rowNumber) || m.rowNumber <= 0)) errors.push(`Metric ${i + 1}: Row Number must be a positive whole number.`);
       if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) errors.push(`Metric ${i + 1}: timezoneMode must be fixed or floating.`);
-      if (m.recordType === 'add' && !['number', 'duration'].includes(m.type)) errors.push(`Metric ${i + 1}: add record type is only supported for number and duration metrics.`);
+      if (m.recordType === 'add' && !['number', 'duration', 'stop_timer'].includes(m.type)) errors.push(`Metric ${i + 1}: add record type is only supported for number, duration, and stop_timer metrics.`);
       if (m.type === 'due_by' && m.dates.length === 0) errors.push(`Metric ${i + 1}: due_by metrics require at least one date rule.`);
       if (m.type === 'start_timer' || m.type === 'stop_timer') {
         if (!m.ifTimer_Settings.timerStartMetricID) errors.push(`Metric ${i + 1}: Timer Start Metric ID is required for timer metrics.`);
