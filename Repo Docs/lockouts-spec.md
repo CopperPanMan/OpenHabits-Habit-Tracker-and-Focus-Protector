@@ -515,9 +515,9 @@ To support faster on-device lockout decisions, Lockouts also exposes read-only s
 ### 14.2 Lockout cache file shape
 
 Recommended cache file path (Scriptable/iCloud):
-- `Shortcuts/OpenHabits/OpenHabits Tracker/lockoutCache.json`
+- `Shortcuts/OpenHabits/OpenHabits Metrics/lockoutCache.json`
 
-Scriptable bookmarks the base `Shortcuts` folder under the bookmark name `Shortcuts`. Shortcut clients construct the `OpenHabits/OpenHabits Tracker/lockoutCache.json` relative path, read or update the cache, and pass the parsed cache to the pure-input Scriptable evaluator. The obsolete `Shortcuts/App Locker` directory is not part of the current layout.
+Scriptable bookmarks the base `Shortcuts` folder under the bookmark name `Shortcuts`. Shortcut clients construct the `OpenHabits/OpenHabits Metrics/lockoutCache.json` relative path, read or update the cache, and pass the parsed cache to the pure-input Scriptable evaluator. The obsolete `Shortcuts/App Locker` directory is not part of the current layout.
 
 Recommended shape:
 
