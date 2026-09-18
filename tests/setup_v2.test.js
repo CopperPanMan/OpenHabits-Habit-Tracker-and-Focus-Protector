@@ -71,8 +71,21 @@ test('Sheet menu links the lightweight sidebar to a full-page web app editor', (
   assert.match(main, /parameter\.openhabits === 'editor'/);
   assert.match(source, /addItem\('Add a Metric', 'openHabitsShowAddMetric'\)/);
   assert.match(launcher, /target="_blank"/);
+  assert.match(launcher, /window\.open\(editorLink\.href, 'openhabits-config-editor'\)/);
   assert.doesNotMatch(source, /showModelessDialog/);
   assert.doesNotMatch(launcher, /openHabitsSaveAndApply/);
+});
+
+test('Sheet editor mirrors the GitHub editor layout while adding Sheet save controls', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'SetupV2Sidebar.html'), 'utf8');
+  const githubEditor = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
+  for (const text of ['OpenHabits Config Editor', '1. Get Started', '2. Edit Config', 'Global', 'Metrics', 'Blocks']) {
+    assert.match(editor, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(githubEditor, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.match(editor, /id="saveBtn"/);
+  assert.match(editor, /id="previewBtn"/);
+  assert.doesNotMatch(editor, /showSidebar/);
 });
 
 test('full-page editor links are deployment-aware and short-lived', () => {

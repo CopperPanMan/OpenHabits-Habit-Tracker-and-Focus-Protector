@@ -792,9 +792,10 @@
     savedMetricIds = new Set(state.metricSettings.map(m => m.metricID));
     sectionOpenState.clear(); undoStack.length = 0; redoStack.length = 0;
     renderAll(); renderStatus(data.status);
-    document.querySelectorAll('.tab').forEach(b => { const active = b.dataset.tab === 'metrics'; b.classList.toggle('active', active); b.setAttribute('aria-selected', active ? 'true' : 'false'); });
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-metrics'));
-    setTabExplainer('metrics');
+    const initialTab = window.OPENHABITS_EDITOR_MODE === 'add' ? 'metrics' : 'global';
+    document.querySelectorAll('.tab').forEach(b => { const active = b.dataset.tab === initialTab; b.classList.toggle('active', active); b.setAttribute('aria-selected', active ? 'true' : 'false'); });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${initialTab}`));
+    setTabExplainer(initialTab);
     $('revisionLabel').textContent = loadedRevision ? `Saved revision ${loadedRevision}` : 'Not yet migrated—your first save enables no-redeploy editing.';
     $('saveStatus').textContent = 'Make changes, then choose Save and Apply.';
     setBusy(false);
