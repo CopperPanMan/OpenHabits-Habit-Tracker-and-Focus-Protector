@@ -7,7 +7,7 @@
 3. Choose **OpenHabits → Setup Status** and resolve any red checks.
 4. Choose **OpenHabits → Install Starter Metrics**. This creates the hidden, protected `_OpenHabits Config` tab, saves a revision, and appends all missing rows to `Tracking Data`.
 5. Deploy the Apps Script web app once. Configuration edits after this point do **not** require redeployment.
-6. Install Insights and the starter Metric Logger / Toggle Timer Shortcuts. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Tracker/settings.json`; individual loggers only pass metric text to Insights.
+6. Install Insights and the starter Metric Logger / Toggle Timer Shortcuts. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Metrics/settings.json`; individual loggers only pass metric text to Insights.
 7. Try `started_work`, add a value to `glasses_of_water`, and toggle `focus_session_start` / `focus_session_stop`.
 8. Choose **OpenHabits → Edit Configuration** to add metrics from recipes, edit settings in forms, preview row changes, and use **Save and Apply**. You never need to edit JSON or redeploy for configuration changes, and the previous valid revision remains restorable.
 
@@ -156,7 +156,7 @@ OpenHabits stores its Shortcut-managed files below the base `Shortcuts` folder i
 ```text
 Shortcuts/
 └── OpenHabits/
-    ├── OpenHabits Tracker/
+    ├── OpenHabits Metrics/
     │   ├── settings.json
     │   ├── timerStates.json
     │   ├── lockoutCache.json
@@ -167,9 +167,9 @@ Shortcuts/
         └── Alarm Tones/
 ```
 
-`OpenHabits Tracker` is the canonical location for files managed by the OpenHabits Shortcuts. `Calendar Alarms` is reserved for the separate Calendar Alarms for iOS integration; its `Alarm Tones` folder is user-managed, and OpenHabits must not replace or delete it.
+`OpenHabits Metrics` is the canonical location for files managed by the OpenHabits Shortcuts. `Calendar Alarms` is reserved for the separate Calendar Alarms for iOS integration; its `Alarm Tones` folder is user-managed, and OpenHabits must not replace or delete it.
 
-When upgrading an existing installation, move files into `Shortcuts/OpenHabits/OpenHabits Tracker` before running the updated Shortcuts. In particular, move `Shortcuts/App Locker/lockoutCache.json` to the new folder. If a file already exists at the new location, keep it rather than overwriting it with an older copy. After verifying that the updated Shortcuts work, the old `App Locker` folder can be removed.
+When upgrading an existing installation, move files into `Shortcuts/OpenHabits/OpenHabits Metrics` before running the updated Shortcuts. In particular, move `Shortcuts/App Locker/lockoutCache.json` to the new folder. If a file already exists at the new location, keep it rather than overwriting it with an older copy. After verifying that the updated Shortcuts work, the old `App Locker` folder can be removed.
 
 ## A) What habit tracking can do
 
@@ -289,16 +289,16 @@ OpenHabits is meant to make good behavior easier and bad behavior more annoying.
 
 ## C) Scriptable setup
 
-The **Locked** Shortcut uses a Scriptable script named `lockouts` for the heavier lockout logic. This keeps the Shortcut layer small and reliable instead of trying to maintain hundreds of actions inside one Shortcut. The Shortcut reads the cache from `Shortcuts/OpenHabits/OpenHabits Tracker/lockoutCache.json` and passes its contents to the script; the script does not read the file itself.
+The **Locked** Shortcut uses a Scriptable script named `lockouts` for the heavier lockout logic. This keeps the Shortcut layer small and reliable instead of trying to maintain hundreds of actions inside one Shortcut. The Shortcut reads the cache from `Shortcuts/OpenHabits/OpenHabits Metrics/lockoutCache.json` and passes its contents to the script; the script does not read the file itself.
 
 1. Install Scriptable from the App Store.
-2. In iCloud Drive, create `Shortcuts/OpenHabits/OpenHabits Tracker` if it does not already exist.
+2. In iCloud Drive, create `Shortcuts/OpenHabits/OpenHabits Metrics` if it does not already exist.
 3. Open Scriptable and create a new script named `lockouts`.
 4. Copy the contents of `lockouts.js` into that Scriptable script.
 5. In Scriptable, create a file bookmark to the base `Shortcuts` folder. Name the bookmark exactly `Shortcuts`.
 6. Confirm the bookmark opens successfully before testing the **Locked** Shortcut.
 
-> **Screenshot to add:** iCloud Drive showing `Shortcuts/OpenHabits/OpenHabits Tracker`, Scriptable showing the `lockouts` script, and Scriptable's bookmark list showing the base `Shortcuts` bookmark.
+> **Screenshot to add:** iCloud Drive showing `Shortcuts/OpenHabits/OpenHabits Metrics`, Scriptable showing the `lockouts` script, and Scriptable's bookmark list showing the base `Shortcuts` bookmark.
 
 ## D) Shortcuts you need
 
