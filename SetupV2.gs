@@ -38,7 +38,7 @@ function openHabitsValidateConfig_(config) {
     else if (ids[id] !== undefined) errors.push('Duplicate metricID: ' + id + '.');
     else ids[id] = index;
     if (!metric.displayName) errors.push(label + '.displayName is required.');
-    if (metric.recordType === 'add' && ['number', 'duration'].indexOf(metric.type) < 0) errors.push(label + ' can only use add with number or duration.');
+    if (metric.recordType === 'add' && ['number', 'duration', 'stop_timer'].indexOf(metric.type) < 0) errors.push(label + ' can only use add with number, duration, or stop_timer.');
     if ((metric.type === 'start_timer' || metric.type === 'stop_timer') && (!metric.ifTimer_Settings || !metric.ifTimer_Settings.timerStartMetricID || !metric.ifTimer_Settings.timerDurationMetricID)) errors.push(label + ' timer rows are incomplete.');
   });
   var blockIds = {};

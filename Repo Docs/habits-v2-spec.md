@@ -271,7 +271,8 @@ Records one or more metrics and returns quickly without running Notion sync.
 
 - `number`: add numeric value to existing numeric cell (empty treated as 0).
 - `duration`: add durations (empty treated as 00:00:00), store normalized HH:MM:SS.
-- For unsupported types (`timestamp`, `due_by`, `start_timer`, `stop_timer`):
+- `stop_timer`: accept `add`; the timer workflow adds the newly elapsed duration to `timerDurationMetricID` rather than writing to the stop metric's own row. When points are configured, `add` also records the points-row value calculated from the cumulative timer duration.
+- For unsupported types (`timestamp`, `due_by`, `start_timer`):
     - Silently ignore add behavior (do not write); log a warning.
 
 ---
