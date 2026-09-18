@@ -9,7 +9,7 @@
 5. Deploy the Apps Script web app once. Configuration edits after this point do **not** require redeployment.
 6. Install Insights and the starter Metric Logger / Toggle Timer Shortcuts. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Tracker/settings.json`; individual loggers only pass metric text to Insights.
 7. Try `started_work`, add a value to `glasses_of_water`, and toggle `focus_session_start` / `focus_session_stop`.
-8. Choose **OpenHabits → Edit Configuration** to edit JSON, preview row changes, and use **Save and Apply**. The previous valid revision remains restorable from the OpenHabits menu.
+8. Choose **OpenHabits → Edit Configuration** to add metrics from recipes, edit settings in forms, preview row changes, and use **Save and Apply**. You never need to edit JSON or redeploy for configuration changes, and the previous valid revision remains restorable.
 
 The V2 script creates `_OpenHabits Config` itself; do not create or edit that tab manually. The tracking tab defaults to `Tracking Data`, with `Metric ID` in column A and the friendly label in column B. Existing unreferenced rows and their history are retained, never deleted.
 
@@ -78,6 +78,8 @@ OpenHabits finds rows by the ID in column A, so you can reorganize the Sheet vis
    - `Lockouts.gs`
    - `SetupV2.gs`
    - `SetupV2Sidebar.html`
+   - `SetupV2Styles.html`
+   - `SetupV2Client.html`
 3. In Apps Script project settings, set the timezone to your real local timezone.
 
 Timezone matters because daily columns, streaks, due times, and lockout windows all depend on what OpenHabits thinks “today” means.
@@ -98,21 +100,18 @@ You can find the Sheet ID in the Sheet URL between `/d/` and `/edit`.
 
 > **Screenshot to add:** Apps Script Script Properties with `spreadsheetId` shown and secret values blurred.
 
-## D) Configure OpenHabits with the Config Editor
+## D) Configure OpenHabits in the Sheet
 
-The recommended way to build and maintain your config is the **OpenHabits Config Editor GUI**:
+The normal configuration workflow is entirely graphical:
 
-<https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/>
+1. In your Sheet, choose **OpenHabits → Edit Configuration**.
+2. Use **Metrics → Add from recipe** for a completion habit, additive or replacement number, timestamp, duration, start/stop timer, or due-by task.
+3. Give the metric a friendly name. The editor generates its ID; you can still customize it before saving.
+4. Open the collapsed **Advanced** sections only when you need schedules, streaks, points, insights, or timer details.
+5. Add optional focus rules under **Focus rules**. Installation-wide and optional Notion settings are under **Settings**.
+6. Choose **Preview Sheet changes**, then **Save and Apply**. OpenHabits validates the complete configuration, creates missing rows, retains historical rows, and activates the new revision immediately.
 
-Use the editor as your normal workflow:
-
-1. Open the Config Editor website.
-2. Add your shared settings, habit metrics, timer metrics, and lockout blocks.
-3. Copy the generated config code.
-4. Paste it into `Config.gs` in Apps Script.
-5. Deploy a new version of the web app after each config change.
-
-You still need to understand what the features mean, but you should not have to hand-write most config objects. Treat the code examples in this guide as reference material for understanding fields, debugging, and making small edits after the GUI generates a starting point.
+There is no config code to copy, no JSON to write, and no deployment step after a configuration change. The [standalone browser editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/) remains available for advanced migration and offline backup work; it is not the normal setup path.
 
 Important shared fields:
 
@@ -125,7 +124,7 @@ Important shared fields:
 
 > **Tip:** If you are not sure what config to build, see the README section on using AI to generate, revise, or debug an OpenHabits setup. You can bring the result back into the Config Editor for review.
 
-> **Screenshot to add:** Config Editor home screen with the export/copy config button highlighted, then Apps Script `Config.gs` with the pasted output.
+> **Screenshot to add:** Sheet sidebar with the recipe picker and **Save and Apply** button highlighted.
 
 ## E) Deploy the web app
 
@@ -141,12 +140,10 @@ Important shared fields:
 
 Do this after you have installed at least one logger Shortcut. Most users should not need curl, Postman, or any developer tool for the first test.
 
-1. In the Config Editor, create one simple test metric with the ID `test_metric`.
-2. Copy the generated config into `Config.gs`, then redeploy the Apps Script web app.
-3. Add a row in `Tracking Data` with `test_metric` in column A and `Test Metric` in column B.
-4. Install and configure **Metric Logger Template** with your web app URL, shared secret, and `test_metric`.
-5. Run the Shortcut manually.
-6. Confirm today's cell updates in the Sheet.
+1. Choose **OpenHabits → Install Starter Metrics**.
+2. Install Insights and the starter logger Shortcuts; configure the deployment URL and secret once in Insights' settings file.
+3. Run the Started Work logger, the Glasses of Water logger, and the Focus Session timer manually.
+4. Confirm today's cells update in the Sheet.
 
 If this works, your Sheet, Apps Script deployment, permissions, secret, and Shortcut path are connected. If it fails, fix this before building a full habit or lockout system.
 
@@ -333,17 +330,9 @@ Create Shortcuts automations for the distracting apps you want to protect:
 
 ## F) Configure lockout rules with the Config Editor
 
-Use the Config Editor GUI for normal lockout rule creation:
+Use **OpenHabits → Edit Configuration → Focus rules** for normal lockout rule creation.
 
-<https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/>
-
-The editor should be your primary way to create blocks, choose rule types, and generate the code that goes into `Config.gs`. After each change:
-
-1. Copy the updated config from the editor.
-2. Paste it into `Config.gs`.
-3. Redeploy the Apps Script web app.
-4. Run **Update Lockout Cache** so your phone has the fresh rules.
-5. Re-test one protected app.
+The editor is the primary way to create blocks and choose rule types. Choose **Save and Apply** after each change; no source edit or redeployment is required. Then run **Update Lockout Cache** so your phone has the fresh rules and re-test one protected app.
 
 You still need to understand the concepts below, because they affect what the GUI fields mean. But you should not need to hand-write the whole block object unless you are debugging or building an advanced custom setup.
 

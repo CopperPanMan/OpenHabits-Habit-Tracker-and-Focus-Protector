@@ -33,11 +33,24 @@ function openHabitsValidateConfig_(config) {
     if (!metric || typeof metric !== 'object') { errors.push(label + ' must be an object.'); return; }
     var id = String(metric.metricID || '').trim();
     if (!id) errors.push(label + '.metricID is required.');
+    else if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id)) errors.push(label + '.metricID may only contain letters, numbers, underscores, and hyphens.');
     else if (ids[id] !== undefined) errors.push('Duplicate metricID: ' + id + '.');
     else ids[id] = index;
     if (!metric.displayName) errors.push(label + '.displayName is required.');
     if (metric.recordType === 'add' && ['number', 'duration'].indexOf(metric.type) < 0) errors.push(label + ' can only use add with number or duration.');
     if ((metric.type === 'start_timer' || metric.type === 'stop_timer') && (!metric.ifTimer_Settings || !metric.ifTimer_Settings.timerStartMetricID || !metric.ifTimer_Settings.timerDurationMetricID)) errors.push(label + ' timer rows are incomplete.');
+  });
+  var blockIds = {};
+  var blocks = ((config.lockouts || {}).blocks) || [];
+  if (!Array.isArray(blocks)) {
+    errors.push('lockouts.blocks must be an array.');
+    blocks = [];
+  }
+  blocks.forEach(function (block, index) {
+    var blockId = String(block && block.id || '').trim();
+    if (!blockId) errors.push('lockouts.blocks[' + index + '].id is required.');
+    else if (blockIds[blockId]) errors.push('Duplicate lockout block ID: ' + blockId + '.');
+    else blockIds[blockId] = true;
   });
   var references = openHabitsCollectRequiredRows_(config);
   references.forEach(function (row) {
@@ -65,7 +78,7 @@ function openHabitsCollectRequiredRows_(config) {
   var lockouts = config.lockouts || {};
   add(lockouts.globals && lockouts.globals.cumulativeScreentimeID, 'Cumulative screen time');
   add(lockouts.globals && lockouts.globals.timeOpenedID, 'Time opened');
-  (lockouts.blocks || []).forEach(function (block) {
+  (Array.isArray(lockouts.blocks) ? lockouts.blocks : []).forEach(function (block) {
     var specific = block.typeSpecific || {};
     add(specific.duration && specific.duration.screenTimeID, (block.id || 'Lockout') + ' screen time');
     (specific.task_block_IDs || []).forEach(function (id) { add(id, id); });
@@ -103,16 +116,25 @@ function openHabitsReadStoredConfig_() {
   var cached = cache.get(OPENHABITS_CONFIG_CACHE_KEY);
   if (cached) return JSON.parse(cached);
   var sheet = openHabitsSpreadsheet_().getSheetByName(OPENHABITS_CONFIG_SHEET);
-  if (!sheet || sheet.getLastRow() < 2) return null;
+  if (!sheet || sheet.getLastRow() < 5 || !String(sheet.getRange('B5').getValue() || '').trim()) return null;
   var record = {
     schemaVersion: Number(sheet.getRange('B2').getValue()),
     revision: Number(sheet.getRange('B3').getValue()),
     updatedAt: String(sheet.getRange('B4').getValue()),
     config: JSON.parse(String(sheet.getRange('B5').getValue()))
   };
+  var validation;
   if (record.schemaVersion !== OPENHABITS_CONFIG_SCHEMA) throw new Error('Unsupported config schema ' + record.schemaVersion + '.');
-  var validation = openHabitsValidateConfig_(record.config);
-  if (!validation.ok) throw new Error(validation.errors.join(' '));
+  validation = openHabitsValidateConfig_(record.config);
+  if (!validation.ok) {
+    var previousJson = String(sheet.getRange('B7').getValue() || '');
+    if (!previousJson) throw new Error(validation.errors.join(' '));
+    record.config = JSON.parse(previousJson);
+    record.revision = Number(sheet.getRange('B6').getValue()) || record.revision;
+    validation = openHabitsValidateConfig_(record.config);
+    if (!validation.ok) throw new Error('Active and previous configurations are invalid. ' + validation.errors.join(' '));
+    console.warn('OpenHabits is using the previous valid configuration because the active revision is invalid.');
+  }
   cache.put(OPENHABITS_CONFIG_CACHE_KEY, JSON.stringify(record), 21600);
   return record;
 }
@@ -139,7 +161,7 @@ function openHabitsPreviewConfig(configJson) {
   var validation = openHabitsValidateConfig_(config);
   if (!validation.ok) return validation;
   var tracking = openHabitsSpreadsheet_().getSheetByName(config.trackingSheetName);
-  var values = tracking && tracking.getLastRow() ? tracking.getRange(1, config.sheetConfig && config.sheetConfig.taskIdColumn || 1, tracking.getLastRow(), 2).getValues() : [];
+  var values = tracking && tracking.getLastRow() ? openHabitsReadIdAndLabelRows_(tracking, config) : [];
   var plan = openHabitsPlanReconciliation_(config, values.slice(1));
   return { ok: plan.ok, errors: plan.duplicates.length ? ['Duplicate Tracking Data IDs: ' + plan.duplicates.join(', ')] : [], warnings: validation.warnings, plan: plan };
 }
@@ -156,12 +178,15 @@ function openHabitsSaveAndApply(configJson, options) {
     var sheet = openHabitsEnsureConfigSheet_();
     var oldRevision = Number(sheet.getRange('B3').getValue()) || 0;
     var oldJson = String(sheet.getRange('B5').getValue() || '');
-    sheet.getRange('B6:B7').setValues([[oldRevision], [oldJson]]);
     var revision = oldRevision + 1;
-    sheet.getRange('B2:B5').setValues([[OPENHABITS_CONFIG_SCHEMA], [revision], [new Date().toISOString()], [JSON.stringify(config)]]);
     var added = [];
+    // Reconciliation only appends/fills rows, so do it before activating the new
+    // revision. A Sheet write failure can never leave a half-activated config.
     if (options.reconcile !== false) added = openHabitsApplyReconciliation_(config, preview.plan);
-    CacheService.getScriptCache().remove(OPENHABITS_CONFIG_CACHE_KEY);
+    sheet.getRange('B6:B7').setValues([[oldRevision], [oldJson]]);
+    var record = { schemaVersion: OPENHABITS_CONFIG_SCHEMA, revision: revision, updatedAt: new Date().toISOString(), config: config };
+    sheet.getRange('B2:B5').setValues([[record.schemaVersion], [record.revision], [record.updatedAt], [JSON.stringify(config)]]);
+    CacheService.getScriptCache().put(OPENHABITS_CONFIG_CACHE_KEY, JSON.stringify(record), 21600);
     return { ok: true, revision: revision, addedRows: added, retainedUnreferenced: preview.plan.retainedUnreferenced, warnings: preview.warnings || [] };
   } finally { lock.releaseLock(); }
 }
@@ -173,15 +198,44 @@ function openHabitsApplyReconciliation_(config, plan) {
     tracking = spreadsheet.insertSheet(config.trackingSheetName);
     tracking.getRange(1, 1, 1, 3).setValues([['Metric ID', 'Metric', new Date()]]);
   }
-  if (!plan.missing.length) return [];
   var idColumn = config.sheetConfig && config.sheetConfig.taskIdColumn || 1;
   var labelColumn = config.sheetConfig && config.sheetConfig.labelColumn || 2;
+  openHabitsFillBlankLabels_(tracking, config, plan.required);
+  if (!plan.missing.length) return [];
   var start = Math.max(2, tracking.getLastRow() + 1);
-  plan.missing.forEach(function (row, index) {
-    tracking.getRange(start + index, idColumn).setValue(row.id);
-    tracking.getRange(start + index, labelColumn).setValue(row.label);
+  var width = Math.max(idColumn, labelColumn);
+  var output = plan.missing.map(function (row) {
+    var values = new Array(width);
+    for (var i = 0; i < width; i++) values[i] = '';
+    values[idColumn - 1] = row.id;
+    values[labelColumn - 1] = row.label;
+    return values;
   });
+  tracking.getRange(start, 1, output.length, width).setValues(output);
   return plan.missing;
+}
+
+function openHabitsReadIdAndLabelRows_(tracking, config) {
+  var lastRow = tracking.getLastRow();
+  if (!lastRow) return [];
+  var idColumn = config.sheetConfig && config.sheetConfig.taskIdColumn || 1;
+  var labelColumn = config.sheetConfig && config.sheetConfig.labelColumn || 2;
+  var firstColumn = Math.min(idColumn, labelColumn);
+  var values = tracking.getRange(1, firstColumn, lastRow, Math.abs(labelColumn - idColumn) + 1).getValues();
+  return values.map(function (row) { return [row[idColumn - firstColumn], row[labelColumn - firstColumn]]; });
+}
+
+function openHabitsFillBlankLabels_(tracking, config, requiredRows) {
+  if (tracking.getLastRow() < 2) return;
+  var idColumn = config.sheetConfig && config.sheetConfig.taskIdColumn || 1;
+  var labelColumn = config.sheetConfig && config.sheetConfig.labelColumn || 2;
+  var rows = openHabitsReadIdAndLabelRows_(tracking, config);
+  var labels = {};
+  requiredRows.forEach(function (row) { labels[row.id] = row.label; });
+  rows.slice(1).forEach(function (row, index) {
+    var id = String(row[0] || '').trim();
+    if (id && labels[id] && !String(row[1] || '').trim()) tracking.getRange(index + 2, labelColumn).setValue(labels[id]);
+  });
 }
 
 function openHabitsRestorePreviousRevision() {
@@ -221,9 +275,13 @@ function openHabitsSetupStatus() {
   var tracking = spreadsheet.getSheetByName(config.trackingSheetName);
   checks.push({ id: 'tracking', state: tracking ? 'pass' : 'fail', message: tracking ? config.trackingSheetName + ' exists.' : config.trackingSheetName + ' is missing.' });
   if (tracking) {
-    var rows = tracking.getRange(1, config.sheetConfig.taskIdColumn || 1, Math.max(1, tracking.getLastRow()), 2).getValues().slice(1);
+    var rows = openHabitsReadIdAndLabelRows_(tracking, config).slice(1);
     var plan = openHabitsPlanReconciliation_(config, rows);
     checks.push({ id: 'rows', state: plan.duplicates.length ? 'fail' : plan.missing.length ? 'warning' : 'pass', message: plan.duplicates.length ? 'Duplicate IDs: ' + plan.duplicates.join(', ') : plan.missing.length ? plan.missing.length + ' required rows are missing.' : 'All required rows are present.' });
+    var configuredIds = {};
+    (config.metricSettings || []).forEach(function (metric) { configuredIds[metric.metricID] = true; });
+    var missingStarters = OPENHABITS_STARTER_IDS.filter(function (id) { return !configuredIds[id]; });
+    checks.push({ id: 'starters', state: missingStarters.length ? 'warning' : 'pass', message: missingStarters.length ? 'Starter examples are not installed. Use OpenHabits → Install Starter Metrics for a guided first test.' : 'All starter examples are configured.' });
   }
   checks.push({ id: 'timezone', state: Session.getScriptTimeZone() ? 'pass' : 'fail', message: 'Script timezone: ' + (Session.getScriptTimeZone() || 'not set') });
   checks.push({ id: 'secret', state: PropertiesService.getScriptProperties().getProperty('OPENHABITS_SECRET') ? 'pass' : 'warning', message: PropertiesService.getScriptProperties().getProperty('OPENHABITS_SECRET') ? 'Request secret is configured.' : 'Add OPENHABITS_SECRET before connecting clients.' });
@@ -238,7 +296,8 @@ function onOpen() {
     .addItem('Restore Previous Revision', 'openHabitsRestorePreviousRevisionFromMenu').addToUi();
 }
 
-function openHabitsShowEditor() { SpreadsheetApp.getUi().showSidebar(HtmlService.createHtmlOutputFromFile('SetupV2Sidebar').setTitle('OpenHabits V2')); }
+function openHabitsInclude_(filename) { return HtmlService.createHtmlOutputFromFile(filename).getContent(); }
+function openHabitsShowEditor() { SpreadsheetApp.getUi().showSidebar(HtmlService.createTemplateFromFile('SetupV2Sidebar').evaluate().setTitle('OpenHabits V2')); }
 function openHabitsShowSetupStatus() { var status = openHabitsSetupStatus(); SpreadsheetApp.getUi().alert(status.checks.map(function (c) { return c.state.toUpperCase() + ': ' + c.message; }).join('\n')); }
 function openHabitsSyncMetricRows() { var stored = openHabitsReadStoredConfig_(); if (!stored) return SpreadsheetApp.getUi().alert('Import or save a configuration first.'); var result = openHabitsSaveAndApply(stored.config, { reconcile: true }); SpreadsheetApp.getUi().alert(result.ok ? 'Synced rows. Added ' + result.addedRows.length + '.' : result.errors.join('\n')); }
 function openHabitsRestorePreviousRevisionFromMenu() { var result = openHabitsRestorePreviousRevision(); SpreadsheetApp.getUi().alert(result.ok ? 'Restored as revision ' + result.revision + '.' : result.errors.join('\n')); }

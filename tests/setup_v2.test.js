@@ -39,3 +39,24 @@ test('reconciliation appends only missing rows, reports duplicates, and retains 
   assert.deepEqual(Array.from(plan.duplicates), ['one']);
   assert.deepEqual(Array.from(plan.retainedUnreferenced), ['old']);
 });
+
+test('rejects unsafe metric IDs and duplicate focus-rule IDs', () => {
+  const c = load();
+  const result = c.openHabitsValidateConfig_({
+    trackingSheetName: 'Tracking Data',
+    metricSettings: [{ metricID: 'has spaces', displayName: 'Unsafe' }],
+    lockouts: { blocks: [{ id: 'social' }, { id: 'social' }] }
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(' '), /only contain letters/);
+  assert.match(result.errors.join(' '), /Duplicate lockout block ID/);
+});
+
+test('validates lockout block collection shape without throwing', () => {
+  const c = load();
+  const result = c.openHabitsValidateConfig_({
+    trackingSheetName: 'Tracking Data', metricSettings: [], lockouts: { blocks: {} }
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(' '), /lockouts.blocks must be an array/);
+});
