@@ -8,8 +8,7 @@
 var OPENHABITS_CONFIG_SHEET = '_OpenHabits Config';
 var OPENHABITS_CONFIG_SCHEMA = 2;
 var OPENHABITS_CONFIG_CACHE_KEY = 'openhabits-config-v2';
-var OPENHABITS_EDITOR_TOKEN_PREFIX = 'openhabits-editor-token-';
-var OPENHABITS_EDITOR_TOKEN_TTL_SECONDS = 600;
+var OPENHABITS_CONFIG_EDITOR_URL = 'https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/';
 var OPENHABITS_STARTER_IDS = ['started_work', 'glasses_of_water', 'focus_session_start', 'focus_session_stop'];
 
 function openHabitsLoadAppConfig_() {
@@ -267,6 +266,15 @@ function openHabitsGetEditorBootstrap() {
   return { config: stored ? stored.config : getCodeBackedAppConfig(), revision: stored ? stored.revision : 0, status: openHabitsSetupStatus() };
 }
 
+function openHabitsGetConfigBridgeData() {
+  var stored = openHabitsReadStoredConfig_();
+  return {
+    configJson: JSON.stringify(stored ? stored.config : getCodeBackedAppConfig(), null, 2),
+    revision: stored ? stored.revision : 0,
+    editorUrl: OPENHABITS_CONFIG_EDITOR_URL
+  };
+}
+
 function openHabitsSetupStatus() {
   var checks = [];
   var spreadsheet = openHabitsSpreadsheet_();
@@ -304,37 +312,8 @@ function openHabitsShowAddMetric() { openHabitsShowLauncher_('add'); }
 function openHabitsShowLauncher_(suggestedAction) {
   var template = HtmlService.createTemplateFromFile('SetupV2Launcher');
   template.suggestedAction = suggestedAction || 'edit';
-  template.editorUrls = openHabitsCreateEditorUrls_();
+  template.editorUrl = OPENHABITS_CONFIG_EDITOR_URL;
   SpreadsheetApp.getUi().showSidebar(template.evaluate().setTitle('OpenHabits'));
-}
-
-/**
- * Creates short-lived links from the owner-authorized Sheet UI to the
- * full-page editor. No request secret or deployment credential is put in the
- * URL. The launch token only grants access to the editor bootstrap page and
- * expires after ten minutes.
- */
-function openHabitsCreateEditorUrls_() {
-  var deploymentUrl = ScriptApp.getService().getUrl();
-  if (!deploymentUrl) return { available: false, message: 'Deploy this script as a web app once to enable the full-page editor.' };
-  var token = Utilities.getUuid() + Utilities.getUuid();
-  CacheService.getScriptCache().put(OPENHABITS_EDITOR_TOKEN_PREFIX + token, 'allowed', OPENHABITS_EDITOR_TOKEN_TTL_SECONDS);
-  var base = deploymentUrl + '?openhabits=editor&token=' + encodeURIComponent(token) + '&mode=';
-  return { available: true, edit: base + 'edit', add: base + 'add' };
-}
-
-function openHabitsServeEditor_(request) {
-  var parameters = request && request.parameter || {};
-  var token = String(parameters.token || '');
-  var allowed = token && CacheService.getScriptCache().get(OPENHABITS_EDITOR_TOKEN_PREFIX + token);
-  if (!allowed) {
-    return HtmlService.createHtmlOutput('<!doctype html><html><body><h1>Editor link expired</h1><p>Return to your OpenHabits Sheet and open the editor again.</p></body></html>')
-      .setTitle('OpenHabits Editor');
-  }
-  var template = HtmlService.createTemplateFromFile('SetupV2Sidebar');
-  template.editorMode = parameters.mode === 'add' ? 'add' : 'edit';
-  return template.evaluate()
-    .setTitle(template.editorMode === 'add' ? 'Add an OpenHabits Metric' : 'OpenHabits Configuration');
 }
 function openHabitsShowSetupStatus() { var status = openHabitsSetupStatus(); SpreadsheetApp.getUi().alert(status.checks.map(function (c) { return c.state.toUpperCase() + ': ' + c.message; }).join('\n')); }
 function openHabitsSyncMetricRows() { var stored = openHabitsReadStoredConfig_(); if (!stored) return SpreadsheetApp.getUi().alert('Import or save a configuration first.'); var result = openHabitsSaveAndApply(stored.config, { reconcile: true }); SpreadsheetApp.getUi().alert(result.ok ? 'Synced rows. Added ' + result.addedRows.length + '.' : result.errors.join('\n')); }

@@ -15,10 +15,13 @@
   <main>
     <section class="panel">
       <h2>1. Get Started</h2>
-      <p>This browser editor can create a JSON backup or legacy <code>Config.gs</code>. For no-redeploy editing, open <strong>OpenHabits → Edit Configuration</strong> in your Sheet.</p>
-      <textarea id="importText" rows="10" placeholder="Paste full Config.gs code here..."></textarea>
+      <p>Copy the current JSON from <strong>OpenHabits → Edit Configuration</strong> in your Sheet, or load a JSON file. Your working draft is autosaved only in this browser.</p>
+      <textarea id="importText" rows="10" placeholder="Paste configuration JSON (legacy Config.gs is also accepted)"></textarea>
       <div class="row gap">
-        <button id="parseBtn">Load Existing</button>
+        <button id="parseBtn">Load Pasted Config</button>
+        <label class="file-button secondary" for="importFile">Import JSON File</label>
+        <input id="importFile" class="visually-hidden" type="file" accept="application/json,.json">
+        <button id="restoreDraftBtn" class="secondary" type="button" hidden>Restore Local Draft</button>
       </div>
       <p id="importStatus" class="status"></p>
     </section>
@@ -45,15 +48,16 @@
     </section>
 
     <section class="panel">
-      <h2>3. Backup / legacy export</h2>
-      <p>Use the Sheet-hosted editor for normal Save and Apply. This export remains available for migration and backup.</p>
-      <label for="exportText">Generated Output</label>
+      <h2>3. Return JSON to your Sheet</h2>
+      <p>Generate JSON, then copy it or download it. Return to the Sheet import panel to Preview Changes and Save and Apply. No deployment is required.</p>
+      <label for="exportText">Configuration JSON</label>
       <textarea id="exportText" rows="14" placeholder="Generated output will appear here..."></textarea>
       <div class="row gap">
-        <button id="exportBtn">Generate Output</button>
-        <button id="copyBtn" class="secondary">Copy Output</button>
+        <button id="exportBtn">Generate JSON</button>
+        <button id="copyBtn" class="secondary">Copy JSON</button>
+        <button id="downloadBtn" class="secondary">Download JSON</button>
+        <button id="legacyExportBtn" class="secondary">Generate Legacy Config.gs</button>
       </div>
-      <p>Copy this output into <code>Config.gs</code>.</p>
       <p id="exportStatus" class="status"></p>
     </section>
 

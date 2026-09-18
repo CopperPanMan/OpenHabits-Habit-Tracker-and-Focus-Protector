@@ -33,7 +33,7 @@ It has two main parts, and you can use either one without the other:
 3. Use that data to inform your decisions and motivate behavior
 4. App Lockouts act as bumpers through your day to guide you to the "right" behaviors, and prevent doomscrolling.
 
-Configuration is stored as versioned JSON in the copied Sheet. Use **OpenHabits → Edit Configuration → Save and Apply** to validate changes and create missing rows without editing source or redeploying. The [browser Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/) also provides recipes, Shortcut-ready metric text, and credential-free QR launchers.
+Configuration is stored as versioned JSON in the copied Sheet. Use **OpenHabits → Edit Configuration** to copy the current JSON, edit it in the [browser Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/), then import, preview, and **Save and Apply** it from the Sheet. This creates missing rows without editing source or redeploying; the public editor never receives access to the Sheet.
 
 
 Uncategorized

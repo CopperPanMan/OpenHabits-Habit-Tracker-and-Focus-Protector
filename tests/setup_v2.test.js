@@ -61,45 +61,37 @@ test('validates lockout block collection shape without throwing', () => {
   assert.match(result.errors.join(' '), /lockouts.blocks must be an array/);
 });
 
-test('Sheet menu links the lightweight sidebar to a full-page web app editor', () => {
+test('Sheet menu opens an owner-authorized import bridge to the canonical editor', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'SetupV2.gs'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'Main.gs'), 'utf8');
   const launcher = fs.readFileSync(path.join(__dirname, '..', 'SetupV2Launcher.html'), 'utf8');
   assert.match(source, /showSidebar\(template\.evaluate\(\)\.setTitle\('OpenHabits'\)\)/);
-  assert.match(source, /ScriptApp\.getService\(\)\.getUrl\(\)/);
-  assert.match(source, /CacheService\.getScriptCache\(\)\.put/);
-  assert.match(main, /parameter\.openhabits === 'editor'/);
+  assert.match(source, /OPENHABITS_CONFIG_EDITOR_URL/);
+  assert.match(source, /openHabitsGetConfigBridgeData/);
+  assert.doesNotMatch(source, /ScriptApp\.getService\(\)\.getUrl\(\)/);
+  assert.doesNotMatch(main, /parameter\.openhabits === 'editor'/);
   assert.match(source, /addItem\('Add a Metric', 'openHabitsShowAddMetric'\)/);
   assert.match(launcher, /target="_blank"/);
-  assert.match(launcher, /window\.open\(editorLink\.href, 'openhabits-config-editor'\)/);
-  assert.doesNotMatch(source, /showModelessDialog/);
-  assert.doesNotMatch(launcher, /openHabitsSaveAndApply/);
+  assert.match(launcher, /Open Config Editor/);
+  assert.match(launcher, /openHabitsPreviewConfig/);
+  assert.match(launcher, /openHabitsSaveAndApply/);
+  assert.match(launcher, /accept="application\/json,\.json"/);
 });
 
-test('Sheet editor mirrors the GitHub editor layout while adding Sheet save controls', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '..', 'SetupV2Sidebar.html'), 'utf8');
+test('GitHub editor is the sole visual editor and exports first-class JSON', () => {
   const githubEditor = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
   for (const text of ['OpenHabits Config Editor', '1. Get Started', '2. Edit Config', 'Global', 'Metrics', 'Blocks']) {
-    assert.match(editor, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(githubEditor, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
-  assert.match(editor, /id="saveBtn"/);
-  assert.match(editor, /id="previewBtn"/);
-  assert.doesNotMatch(editor, /showSidebar/);
+  assert.match(githubEditor, /Import JSON File/);
+  assert.match(githubEditor, /Download JSON/);
+  assert.match(githubEditor, /Copy JSON/);
 });
 
-test('full-page editor links are deployment-aware and short-lived', () => {
-  const c = load();
-  let cached;
-  c.ScriptApp = { getService: () => ({ getUrl: () => 'https://script.google.com/example/exec' }) };
-  c.Utilities = { getUuid: () => 'uuid-' };
-  c.CacheService = { getScriptCache: () => ({ put: (...args) => { cached = args; } }) };
-  const urls = c.openHabitsCreateEditorUrls_();
-  assert.equal(urls.available, true);
-  assert.equal(urls.edit, 'https://script.google.com/example/exec?openhabits=editor&token=uuid-uuid-&mode=edit');
-  assert.equal(urls.add, 'https://script.google.com/example/exec?openhabits=editor&token=uuid-uuid-&mode=add');
-  assert.deepEqual(cached, ['openhabits-editor-token-uuid-uuid-', 'allowed', 600]);
-
-  c.ScriptApp = { getService: () => ({ getUrl: () => null }) };
-  assert.equal(c.openHabitsCreateEditorUrls_().available, false);
+test('public web endpoint does not expose configuration administration', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'SetupV2.gs'), 'utf8');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'Main.gs'), 'utf8');
+  assert.doesNotMatch(source, /openHabitsServeEditor_/);
+  assert.doesNotMatch(source, /EDITOR_TOKEN/);
+  assert.doesNotMatch(main, /openHabitsServeEditor_/);
 });

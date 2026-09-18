@@ -1,72 +1,73 @@
 <!doctype html>
-<html>
-<head>
-  <base target="_top">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <?!= openHabitsInclude_('SetupV2Styles'); ?>
-</head>
+<html><head><base target="_blank"><meta name="viewport" content="width=device-width,initial-scale=1"><?!= openHabitsInclude_('SetupV2Styles'); ?></head>
 <body class="launcher-body">
-  <main class="launcher-main">
-    <section class="launcher-hero">
-      <span class="eyebrow">OPENHABITS</span>
-      <h1>Your habits, configured simply.</h1>
-      <p>The configuration editor opens in its own spacious workspace, while this sidebar stays available for status and quick actions.</p>
-      <? if (editorUrls.available) { ?>
-        <a id="openEditor" class="launcher-primary" target="_blank" rel="noopener" href="<?= suggestedAction === 'add' ? editorUrls.add : editorUrls.edit ?>"><?= suggestedAction === 'add' ? 'Add a Metric' : 'Open Config Editor' ?> ↗</a>
-        <p id="launchStatus" class="status" aria-live="polite">Opening the full editor in a new browser tab…</p>
-      <? } else { ?>
-        <span class="launcher-primary disabled" aria-disabled="true"><?= suggestedAction === 'add' ? 'Add a Metric' : 'Open Config Editor' ?></span>
-        <p id="launchStatus" class="status"><?= editorUrls.message ?></p>
-      <? } ?>
+  <main class="launcher-shell">
+    <h1>Configuration bridge</h1>
+    <p>Edit in the canonical browser editor, then return here to validate and apply the JSON to this Sheet.</p>
+    <section class="panel">
+      <h2>1. Export and edit</h2>
+      <div class="row gap">
+        <button id="copyCurrent" type="button">Copy Current Config</button>
+        <a class="button-link secondary" href="<?= editorUrl ?>">Open Config Editor ↗</a>
+      </div>
+      <p id="revision" class="status">Loading current configuration…</p>
     </section>
-
-    <section class="panel launcher-status-panel">
-      <div class="section-header"><h2>Setup status</h2><button id="refreshStatus" class="secondary" type="button">Refresh</button></div>
-      <div id="checks" class="setup-checks"><p>Checking your installation…</p></div>
+    <section class="panel">
+      <h2>2. Import updated JSON</h2>
+      <label for="configJson">Paste JSON</label>
+      <textarea id="configJson" rows="14" placeholder="Paste the JSON copied or downloaded from the browser editor"></textarea>
+      <label class="file-label" for="configFile">Or choose a .json file</label>
+      <input id="configFile" type="file" accept="application/json,.json">
+      <div class="row gap"><button id="preview" class="secondary" type="button">Preview Changes</button><button id="save" type="button" disabled>Save and Apply</button></div>
+      <div id="result" class="status" aria-live="polite"></div>
     </section>
-
-    <section class="panel launcher-actions">
-      <h2>Quick actions</h2>
-      <? if (editorUrls.available) { ?>
-        <a id="editConfig" class="button-link secondary" target="_blank" rel="noopener" href="<?= editorUrls.edit ?>">Edit full configuration ↗</a>
-        <a id="addMetric" class="button-link secondary" target="_blank" rel="noopener" href="<?= editorUrls.add ?>">Add a metric ↗</a>
-      <? } ?>
-    </section>
+    <button id="restore" class="danger" type="button">Restore Previous Revision</button>
   </main>
-  <script>
-    (() => {
-      const escapeHtml = value => { const node = document.createElement('div'); node.textContent = String(value || ''); return node.innerHTML; };
-      function renderStatus(result) {
-        document.getElementById('checks').innerHTML = result.checks.map(check =>
-          `<div class="setup-check ${check.state}"><strong>${check.state === 'pass' ? 'Ready' : check.state === 'fail' ? 'Needs attention' : 'Recommended'}</strong><br>${escapeHtml(check.message)}</div>`
-        ).join('');
-      }
-      function failure(error) { document.getElementById('checks').textContent = `Could not check setup: ${error.message || error}`; }
-      document.getElementById('refreshStatus').addEventListener('click', () => google.script.run.withSuccessHandler(renderStatus).withFailureHandler(failure).openHabitsSetupStatus());
-      google.script.run.withSuccessHandler(renderStatus).withFailureHandler(failure).openHabitsSetupStatus();
-
-      // A Sheet custom menu cannot navigate the top-level browser window itself.
-      // This deliberately keeps the sidebar as a launcher only: try the new tab
-      // immediately, then leave a real link behind when the browser blocks it.
-      const editorLink = document.getElementById('openEditor');
-      if (editorLink) {
-        const launchStatus = document.getElementById('launchStatus');
-        const openEditor = () => {
-          const editorWindow = window.open(editorLink.href, 'openhabits-config-editor');
-          if (editorWindow) {
-            editorWindow.opener = null;
-            launchStatus.textContent = 'The editor opened in a separate browser tab. You may close this launcher.';
-            try { editorWindow.focus(); } catch (_) {}
-          } else {
-            launchStatus.textContent = 'Your browser blocked the new tab. Select the button above to open the editor.';
-          }
-        };
-        editorLink.addEventListener('click', () => {
-          launchStatus.textContent = 'Opening the editor in a separate browser tab…';
-        });
-        window.addEventListener('load', openEditor, { once: true });
-      }
-    })();
-  </script>
-</body>
-</html>
+<script>
+(() => {
+  const json = document.getElementById('configJson');
+  const result = document.getElementById('result');
+  const save = document.getElementById('save');
+  let currentJson = '';
+  const server = (name, value, success) => google.script.run.withSuccessHandler(success).withFailureHandler(error => {
+    result.textContent = 'Error: ' + error.message;
+    save.disabled = true;
+  })[name](value);
+  google.script.run.withSuccessHandler(data => {
+    currentJson = data.configJson;
+    document.getElementById('revision').textContent = data.revision ? 'Active revision ' + data.revision : 'Using the code-backed fallback (not yet imported).';
+  }).withFailureHandler(error => { result.textContent = 'Error: ' + error.message; }).openHabitsGetConfigBridgeData();
+  document.getElementById('copyCurrent').addEventListener('click', async () => {
+    if (!currentJson) return;
+    try { await navigator.clipboard.writeText(currentJson); result.textContent = 'Current JSON copied. Paste it into the browser editor.'; }
+    catch (_) { json.value = currentJson; json.focus(); json.select(); result.textContent = 'Clipboard access was blocked. Copy the selected JSON below.'; }
+  });
+  document.getElementById('configFile').addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (file) json.value = await file.text();
+    save.disabled = true;
+    result.textContent = file ? 'Loaded ' + file.name + '. Preview it before saving.' : '';
+  });
+  json.addEventListener('input', () => { save.disabled = true; result.textContent = 'Preview required before saving.'; });
+  document.getElementById('preview').addEventListener('click', () => {
+    result.textContent = 'Validating…';
+    server('openHabitsPreviewConfig', json.value, preview => {
+      if (!preview.ok) { result.textContent = 'Cannot apply: ' + (preview.errors || []).join(' '); save.disabled = true; return; }
+      const plan = preview.plan;
+      result.textContent = 'Valid JSON. ' + plan.missing.length + ' row(s) will be added; ' + plan.retainedUnreferenced.length + ' historical row(s) will be retained.' + ((preview.warnings || []).length ? ' Warnings: ' + preview.warnings.join(' ') : '');
+      save.disabled = false;
+    });
+  });
+  save.addEventListener('click', () => {
+    save.disabled = true; result.textContent = 'Saving…';
+    server('openHabitsSaveAndApply', json.value, response => {
+      result.textContent = response.ok ? 'Saved revision ' + response.revision + '. Added ' + response.addedRows.length + ' row(s).' : 'Cannot apply: ' + (response.errors || []).join(' ');
+      if (response.ok) currentJson = json.value;
+    });
+  });
+  document.getElementById('restore').addEventListener('click', () => {
+    if (!confirm('Restore the previous configuration as a new active revision?')) return;
+    server('openHabitsRestorePreviousRevision', null, response => { result.textContent = response.ok ? 'Restored as revision ' + response.revision + '.' : (response.errors || []).join(' '); });
+  });
+})();
+</script></body></html>
