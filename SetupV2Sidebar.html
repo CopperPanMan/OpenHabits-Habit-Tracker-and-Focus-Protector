@@ -1,5 +1,17 @@
-<!doctype html><html><head><base target="_top"><style>
-body{font:14px system-ui;margin:0;padding:16px;color:#202124}h2{margin-top:0}textarea{box-sizing:border-box;width:100%;min-height:280px;font:12px monospace}button{border:0;border-radius:6px;padding:9px 12px;margin:8px 6px 0 0;background:#1769e0;color:white;cursor:pointer}.secondary{background:#5f6368}.check{padding:7px;border-left:4px solid #f9ab00;margin:6px 0}.pass{border-color:#188038}.fail{border-color:#d93025}.status{white-space:pre-wrap;background:#f1f3f4;padding:8px;margin-top:10px}
-</style></head><body><h2>OpenHabits V2</h2><div id="checks"></div><label for="json"><strong>Configuration JSON</strong></label><textarea id="json"></textarea><button onclick="preview()">Preview changes</button><button onclick="save()">Save and Apply</button><button class="secondary" onclick="restore()">Restore previous</button><div id="status" class="status" aria-live="polite">Loading…</div><script>
-const $=id=>document.getElementById(id);function fail(e){$('status').textContent='Error: '+(e.message||e)}function render(data){$('json').value=JSON.stringify(data.config,null,2);$('checks').innerHTML=data.status.checks.map(c=>`<div class="check ${c.state}"><b>${c.state.toUpperCase()}</b> ${c.message}</div>`).join('');$('status').textContent=data.revision?'Editing revision '+data.revision:'Using Config.gs fallback. Save to migrate.'}google.script.run.withSuccessHandler(render).withFailureHandler(fail).openHabitsGetEditorBootstrap();function preview(){google.script.run.withSuccessHandler(r=>$('status').textContent=r.ok?`${r.plan.missing.length} rows will be added; ${r.plan.retainedUnreferenced.length} historical rows retained.`:(r.errors||[]).join('\n')).withFailureHandler(fail).openHabitsPreviewConfig($('json').value)}function save(){google.script.run.withSuccessHandler(r=>$('status').textContent=r.ok?`Saved revision ${r.revision}; added ${r.addedRows.length} rows.`:(r.errors||[]).join('\n')).withFailureHandler(fail).openHabitsSaveAndApply($('json').value,{reconcile:true})}function restore(){google.script.run.withSuccessHandler(r=>$('status').textContent=r.ok?`Restored as revision ${r.revision}.`:(r.errors||[]).join('\n')).withFailureHandler(fail).openHabitsRestorePreviousRevision()}
-</script></body></html>
+<!doctype html>
+<html><head><base target="_top"><meta name="viewport" content="width=device-width,initial-scale=1"><?!= openHabitsInclude_('SetupV2Styles'); ?></head>
+<body>
+<header><h1>OpenHabits</h1><p>Create habits and focus rules here—no code, copying, or redeploying.</p></header>
+<main>
+<section class="panel" id="setupPanel"><div class="section-header"><h2>Setup status</h2><button class="secondary" id="refreshStatus" type="button">Refresh</button></div><div id="checks" class="setup-checks"><p>Checking your setup…</p></div></section>
+<section class="panel">
+ <div class="section-header"><div><h2>Configuration</h2><p class="tab-explainer" id="revisionLabel">Loading your installation…</p></div><div class="row gap section-actions"><button id="undoBtn" class="secondary">Undo</button><button id="redoBtn" class="secondary">Redo</button></div></div>
+ <div class="tabs" role="tablist"><button class="tab active" data-tab="metrics" role="tab" aria-selected="true">Metrics</button><button class="tab" data-tab="blocks" role="tab">Focus rules</button><button class="tab" data-tab="global" role="tab">Settings</button></div>
+ <p id="tabExplainer" class="tab-explainer"></p>
+ <div id="tab-metrics" class="tab-panel active"></div><div id="tab-blocks" class="tab-panel"></div><div id="tab-global" class="tab-panel"></div>
+</section>
+<section class="panel"><details><summary><strong>Backup and recovery</strong></summary><p>Download a JSON backup before major changes, or restore the previous saved revision.</p><div class="row gap"><button id="downloadBackup" class="secondary">Download backup</button><button id="restoreBtn" class="danger">Restore previous revision</button></div></details></section>
+</main>
+<div class="savebar"><div class="row gap"><button id="previewBtn" class="secondary">Preview Sheet changes</button><button id="saveBtn">Save and Apply</button></div><div id="saveStatus" class="status" aria-live="polite">Loading…</div></div>
+<?!= openHabitsInclude_('SetupV2Client'); ?>
+</body></html>
