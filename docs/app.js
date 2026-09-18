@@ -67,6 +67,8 @@
   const redoStack = [];
   const generatedMetricIds = new WeakSet();
   const HISTORY_LIMIT = 150;
+  const DRAFT_KEY = 'openhabits-config-editor-draft-v2';
+  let cleanSnapshot = JSON.stringify(state);
 
   const HELP = {
     spreadsheetId: 'Google Sheet ID where tracking rows are stored.',
@@ -208,6 +210,7 @@
     changeFn();
     if (JSON.stringify(state) !== beforeSerialized) {
       pushUndoSnapshot(before);
+      saveLocalDraft();
     } else {
       updateUndoRedoButtons();
     }
@@ -215,7 +218,16 @@
 
   function restoreState(snapshot) {
     state = ensureShape(cloneState(snapshot));
+    saveLocalDraft();
     renderAll();
+  }
+
+  function saveLocalDraft() {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: new Date().toISOString(), config: state })); } catch (_) {}
+  }
+
+  function markClean() {
+    cleanSnapshot = JSON.stringify(state);
   }
 
   function undo() {
@@ -691,7 +703,8 @@
 
   function parseConfigGs(text) {
     const cleaned = text.trim();
-    if (!cleaned) throw new Error('Paste Config.gs text first.');
+    if (!cleaned) throw new Error('Paste configuration JSON or Config.gs text first.');
+    if (cleaned[0] === '{') return ensureShape(JSON.parse(cleaned));
     const fn = new Function(`${cleaned}; return (typeof getAppConfig === 'function') ? getAppConfig() : null;`);
     const cfg = fn();
     if (!cfg || typeof cfg !== 'object') throw new Error('Could not evaluate getAppConfig(). Ensure full file is pasted.');
@@ -753,11 +766,19 @@
   $('parseBtn').addEventListener('click', () => {
     try {
       withHistory(() => { state = parseConfigGs($('importText').value); sectionOpenState.clear(); });
+      markClean();
       $('importStatus').textContent = 'Config loaded successfully.';
       renderAll();
     } catch (err) {
       $('importStatus').textContent = `Load failed: ${err.message}`;
     }
+  });
+
+  $('importFile').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    $('importText').value = await file.text();
+    $('parseBtn').click();
   });
 
   $('freshBtn').addEventListener('click', () => {
@@ -788,8 +809,16 @@
       $('exportStatus').textContent = `Fix validation errors first: ${errors.slice(0, 3).join(' | ')}`;
       return;
     }
+    $('exportText').value = JSON.stringify(state, null, 2);
+    markClean();
+    $('exportStatus').textContent = 'JSON ready. Copy or download it, then return to your Sheet.';
+  });
+
+  $('legacyExportBtn').addEventListener('click', () => {
+    const errors = validateState();
+    if (errors.length) { $('exportStatus').textContent = `Fix validation errors first: ${errors.slice(0, 3).join(' | ')}`; return; }
     $('exportText').value = toConfigGs(state);
-    $('exportStatus').textContent = 'Config.gs generated.';
+    $('exportStatus').textContent = 'Legacy Config.gs generated for migration use.';
   });
 
   $('copyBtn').addEventListener('click', async () => {
@@ -804,6 +833,37 @@
     } catch (_) {
       $('exportStatus').textContent = 'Clipboard copy failed. Copy text manually.';
     }
+  });
+
+  $('downloadBtn').addEventListener('click', () => {
+    const errors = validateState();
+    if (errors.length) { $('exportStatus').textContent = `Fix validation errors first: ${errors.slice(0, 3).join(' | ')}`; return; }
+    const content = JSON.stringify(state, null, 2);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+    link.download = 'openhabits-config.json';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    markClean();
+    $('exportStatus').textContent = 'JSON downloaded. Import it from the OpenHabits Sheet panel.';
+  });
+
+  try {
+    const draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    if (draft && draft.config) {
+      $('restoreDraftBtn').hidden = false;
+      $('restoreDraftBtn').addEventListener('click', () => {
+        withHistory(() => { state = ensureShape(draft.config); });
+        $('importStatus').textContent = `Restored local-only draft${draft.savedAt ? ' from ' + new Date(draft.savedAt).toLocaleString() : ''}.`;
+        renderAll();
+      });
+    }
+  } catch (_) {}
+
+  window.addEventListener('beforeunload', (event) => {
+    if (JSON.stringify(state) === cleanSnapshot) return;
+    event.preventDefault();
+    event.returnValue = '';
   });
 
   renderAll();
