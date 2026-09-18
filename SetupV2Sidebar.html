@@ -1,16 +1,16 @@
 <!doctype html>
 <html><head><base target="_top"><meta name="viewport" content="width=device-width,initial-scale=1"><?!= openHabitsInclude_('SetupV2Styles'); ?></head>
 <body class="editor-body">
-<header class="editor-header"><div><span class="eyebrow">OPENHABITS CONFIG EDITOR</span><h1 id="editorTitle">Configuration workspace</h1><p>Create habits and focus rules here—no code, copying, or redeploying.</p></div></header>
+<header><h1 id="editorTitle">OpenHabits Config Editor</h1><p>Create or edit your OpenHabits config with a simple user interface.</p></header>
 <main>
-<section class="panel" id="setupPanel"><div class="section-header"><h2>Setup status</h2><button class="secondary" id="refreshStatus" type="button">Refresh</button></div><div id="checks" class="setup-checks"><p>Checking your setup…</p></div></section>
+<section class="panel" id="setupPanel"><div class="section-header"><div><h2>1. Get Started</h2><p>This full-page editor is connected to your Sheet. Changes are not active until you choose <strong>Save and Apply</strong>.</p></div><button class="secondary" id="refreshStatus" type="button">Refresh status</button></div><div id="checks" class="setup-checks"><p>Checking your setup…</p></div></section>
 <section class="panel">
- <div class="section-header"><div><h2>Configuration</h2><p class="tab-explainer" id="revisionLabel">Loading your installation…</p></div><div class="row gap section-actions"><button id="undoBtn" class="secondary">Undo</button><button id="redoBtn" class="secondary">Redo</button></div></div>
- <div class="tabs" role="tablist"><button class="tab active" data-tab="metrics" role="tab" aria-selected="true">Metrics</button><button class="tab" data-tab="blocks" role="tab">Focus rules</button><button class="tab" data-tab="global" role="tab">Settings</button></div>
+ <div class="section-header"><div><h2>2. Edit Config</h2><p class="tab-explainer" id="revisionLabel">Loading your installation…</p></div><div class="row gap section-actions"><button id="undoBtn" class="secondary">Undo</button><button id="redoBtn" class="secondary">Redo</button></div></div>
+ <div class="tabs" role="tablist" aria-label="Config Sections"><button class="tab active" data-tab="global" role="tab" aria-selected="true">Global</button><button class="tab" data-tab="metrics" role="tab" aria-selected="false">Metrics</button><button class="tab" data-tab="blocks" role="tab" aria-selected="false">Blocks</button></div>
  <p id="tabExplainer" class="tab-explainer"></p>
- <div id="tab-metrics" class="tab-panel active"></div><div id="tab-blocks" class="tab-panel"></div><div id="tab-global" class="tab-panel"></div>
+ <div id="tab-global" class="tab-panel active"></div><div id="tab-metrics" class="tab-panel"></div><div id="tab-blocks" class="tab-panel"></div>
 </section>
-<section class="panel"><details><summary><strong>Backup and recovery</strong></summary><p>Download a JSON backup before major changes, or restore the previous saved revision.</p><div class="row gap"><button id="downloadBackup" class="secondary">Download backup</button><button id="restoreBtn" class="danger">Restore previous revision</button></div></details></section>
+<section class="panel"><h2>3. Backup / recovery</h2><p>Download a JSON backup before major changes, or restore the previous saved revision.</p><div class="row gap"><button id="downloadBackup" class="secondary">Download backup</button><button id="restoreBtn" class="danger">Restore previous revision</button></div></section>
 </main>
 <div class="savebar"><div class="row gap"><button id="previewBtn" class="secondary">Preview Sheet changes</button><button id="saveBtn">Save and Apply</button></div><div id="saveStatus" class="status" aria-live="polite">Loading…</div></div>
 <script>window.OPENHABITS_EDITOR_MODE = <?!= JSON.stringify(editorMode || 'edit') ?>;</script>

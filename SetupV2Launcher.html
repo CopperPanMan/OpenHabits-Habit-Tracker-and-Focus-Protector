@@ -13,7 +13,7 @@
       <p>The configuration editor opens in its own spacious workspace, while this sidebar stays available for status and quick actions.</p>
       <? if (editorUrls.available) { ?>
         <a id="openEditor" class="launcher-primary" target="_blank" rel="noopener" href="<?= suggestedAction === 'add' ? editorUrls.add : editorUrls.edit ?>"><?= suggestedAction === 'add' ? 'Add a Metric' : 'Open Config Editor' ?> ↗</a>
-        <p class="status">Opens the full editor in a new browser tab.</p>
+        <p id="launchStatus" class="status" aria-live="polite">Opening the full editor in a new browser tab…</p>
       <? } else { ?>
         <span class="launcher-primary disabled" aria-disabled="true"><?= suggestedAction === 'add' ? 'Add a Metric' : 'Open Config Editor' ?></span>
         <p id="launchStatus" class="status"><?= editorUrls.message ?></p>
@@ -44,6 +44,28 @@
       function failure(error) { document.getElementById('checks').textContent = `Could not check setup: ${error.message || error}`; }
       document.getElementById('refreshStatus').addEventListener('click', () => google.script.run.withSuccessHandler(renderStatus).withFailureHandler(failure).openHabitsSetupStatus());
       google.script.run.withSuccessHandler(renderStatus).withFailureHandler(failure).openHabitsSetupStatus();
+
+      // A Sheet custom menu cannot navigate the top-level browser window itself.
+      // This deliberately keeps the sidebar as a launcher only: try the new tab
+      // immediately, then leave a real link behind when the browser blocks it.
+      const editorLink = document.getElementById('openEditor');
+      if (editorLink) {
+        const launchStatus = document.getElementById('launchStatus');
+        const openEditor = () => {
+          const editorWindow = window.open(editorLink.href, 'openhabits-config-editor');
+          if (editorWindow) {
+            editorWindow.opener = null;
+            launchStatus.textContent = 'The editor opened in a separate browser tab. You may close this launcher.';
+            try { editorWindow.focus(); } catch (_) {}
+          } else {
+            launchStatus.textContent = 'Your browser blocked the new tab. Select the button above to open the editor.';
+          }
+        };
+        editorLink.addEventListener('click', () => {
+          launchStatus.textContent = 'Opening the editor in a separate browser tab…';
+        });
+        window.addEventListener('load', openEditor, { once: true });
+      }
     })();
   </script>
 </body>
