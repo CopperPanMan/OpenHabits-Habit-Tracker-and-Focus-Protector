@@ -8,6 +8,8 @@
 var OPENHABITS_CONFIG_SHEET = '_OpenHabits Config';
 var OPENHABITS_CONFIG_SCHEMA = 2;
 var OPENHABITS_CONFIG_CACHE_KEY = 'openhabits-config-v2';
+var OPENHABITS_EDITOR_TOKEN_PREFIX = 'openhabits-editor-token-';
+var OPENHABITS_EDITOR_TOKEN_TTL_SECONDS = 600;
 var OPENHABITS_STARTER_IDS = ['started_work', 'glasses_of_water', 'focus_session_start', 'focus_session_stop'];
 
 function openHabitsLoadAppConfig_() {
@@ -290,14 +292,50 @@ function openHabitsSetupStatus() {
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OpenHabits')
-    .addItem('Edit Configuration', 'openHabitsShowEditor').addItem('Add a Metric', 'openHabitsShowEditor')
+    .addItem('Edit Configuration', 'openHabitsShowEditor').addItem('Add a Metric', 'openHabitsShowAddMetric')
     .addSeparator().addItem('Setup Status', 'openHabitsShowSetupStatus')
     .addItem('Sync Metric Rows', 'openHabitsSyncMetricRows').addItem('Install Starter Metrics', 'openHabitsInstallStarterConfigFromMenu')
     .addItem('Restore Previous Revision', 'openHabitsRestorePreviousRevisionFromMenu').addToUi();
 }
 
 function openHabitsInclude_(filename) { return HtmlService.createHtmlOutputFromFile(filename).getContent(); }
-function openHabitsShowEditor() { SpreadsheetApp.getUi().showSidebar(HtmlService.createTemplateFromFile('SetupV2Sidebar').evaluate().setTitle('OpenHabits V2')); }
+function openHabitsShowEditor() { openHabitsShowLauncher_('edit'); }
+function openHabitsShowAddMetric() { openHabitsShowLauncher_('add'); }
+function openHabitsShowLauncher_(suggestedAction) {
+  var template = HtmlService.createTemplateFromFile('SetupV2Launcher');
+  template.suggestedAction = suggestedAction || 'edit';
+  template.editorUrls = openHabitsCreateEditorUrls_();
+  SpreadsheetApp.getUi().showSidebar(template.evaluate().setTitle('OpenHabits'));
+}
+
+/**
+ * Creates short-lived links from the owner-authorized Sheet UI to the
+ * full-page editor. No request secret or deployment credential is put in the
+ * URL. The launch token only grants access to the editor bootstrap page and
+ * expires after ten minutes.
+ */
+function openHabitsCreateEditorUrls_() {
+  var deploymentUrl = ScriptApp.getService().getUrl();
+  if (!deploymentUrl) return { available: false, message: 'Deploy this script as a web app once to enable the full-page editor.' };
+  var token = Utilities.getUuid() + Utilities.getUuid();
+  CacheService.getScriptCache().put(OPENHABITS_EDITOR_TOKEN_PREFIX + token, 'allowed', OPENHABITS_EDITOR_TOKEN_TTL_SECONDS);
+  var base = deploymentUrl + '?openhabits=editor&token=' + encodeURIComponent(token) + '&mode=';
+  return { available: true, edit: base + 'edit', add: base + 'add' };
+}
+
+function openHabitsServeEditor_(request) {
+  var parameters = request && request.parameter || {};
+  var token = String(parameters.token || '');
+  var allowed = token && CacheService.getScriptCache().get(OPENHABITS_EDITOR_TOKEN_PREFIX + token);
+  if (!allowed) {
+    return HtmlService.createHtmlOutput('<!doctype html><html><body><h1>Editor link expired</h1><p>Return to your OpenHabits Sheet and open the editor again.</p></body></html>')
+      .setTitle('OpenHabits Editor');
+  }
+  var template = HtmlService.createTemplateFromFile('SetupV2Sidebar');
+  template.editorMode = parameters.mode === 'add' ? 'add' : 'edit';
+  return template.evaluate()
+    .setTitle(template.editorMode === 'add' ? 'Add an OpenHabits Metric' : 'OpenHabits Configuration');
+}
 function openHabitsShowSetupStatus() { var status = openHabitsSetupStatus(); SpreadsheetApp.getUi().alert(status.checks.map(function (c) { return c.state.toUpperCase() + ': ' + c.message; }).join('\n')); }
 function openHabitsSyncMetricRows() { var stored = openHabitsReadStoredConfig_(); if (!stored) return SpreadsheetApp.getUi().alert('Import or save a configuration first.'); var result = openHabitsSaveAndApply(stored.config, { reconcile: true }); SpreadsheetApp.getUi().alert(result.ok ? 'Synced rows. Added ' + result.addedRows.length + '.' : result.errors.join('\n')); }
 function openHabitsRestorePreviousRevisionFromMenu() { var result = openHabitsRestorePreviousRevision(); SpreadsheetApp.getUi().alert(result.ok ? 'Restored as revision ' + result.revision + '.' : result.errors.join('\n')); }

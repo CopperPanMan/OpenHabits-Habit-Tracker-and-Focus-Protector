@@ -1,7 +1,7 @@
 <!doctype html>
 <html><head><base target="_top"><meta name="viewport" content="width=device-width,initial-scale=1"><?!= openHabitsInclude_('SetupV2Styles'); ?></head>
-<body>
-<header><h1>OpenHabits</h1><p>Create habits and focus rules here—no code, copying, or redeploying.</p></header>
+<body class="editor-body">
+<header class="editor-header"><div><span class="eyebrow">OPENHABITS CONFIG EDITOR</span><h1 id="editorTitle">Configuration workspace</h1><p>Create habits and focus rules here—no code, copying, or redeploying.</p></div></header>
 <main>
 <section class="panel" id="setupPanel"><div class="section-header"><h2>Setup status</h2><button class="secondary" id="refreshStatus" type="button">Refresh</button></div><div id="checks" class="setup-checks"><p>Checking your setup…</p></div></section>
 <section class="panel">
@@ -13,5 +13,6 @@
 <section class="panel"><details><summary><strong>Backup and recovery</strong></summary><p>Download a JSON backup before major changes, or restore the previous saved revision.</p><div class="row gap"><button id="downloadBackup" class="secondary">Download backup</button><button id="restoreBtn" class="danger">Restore previous revision</button></div></details></section>
 </main>
 <div class="savebar"><div class="row gap"><button id="previewBtn" class="secondary">Preview Sheet changes</button><button id="saveBtn">Save and Apply</button></div><div id="saveStatus" class="status" aria-live="polite">Loading…</div></div>
+<script>window.OPENHABITS_EDITOR_MODE = <?!= JSON.stringify(editorMode || 'edit') ?>;</script>
 <?!= openHabitsInclude_('SetupV2Client'); ?>
 </body></html>

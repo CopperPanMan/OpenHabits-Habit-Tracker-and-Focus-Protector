@@ -548,7 +548,7 @@
     state.metricSettings.forEach((m, i) => root.appendChild(renderMetric(m, i)));
     const recipe = makeSelect(['completion', 'number_add', 'number_replace', 'timestamp', 'duration', 'start_stop_timer', 'due_by', 'advanced'], 'completion', () => {});
     recipe.querySelectorAll('option').forEach(o => o.textContent = ({completion:'Completion habit',number_add:'Number that adds',number_replace:'Number that replaces',timestamp:'Timestamp',duration:'Duration',start_stop_timer:'Start / stop timer',due_by:'Due-by task',advanced:'Advanced / custom'})[o.value]);
-    const addRow = document.createElement('div'); addRow.className = 'row gap'; addRow.append(recipe, button('Add from recipe', '', () => { state.metricSettings.push.apply(state.metricSettings, metricsFromRecipe(recipe.value)); renderAll(); })); root.append(addRow);
+    const addRow = document.createElement('div'); addRow.className = 'row gap recipe-picker'; addRow.id = 'metricRecipePicker'; addRow.append(recipe, button('Add from recipe', '', () => { state.metricSettings.push.apply(state.metricSettings, metricsFromRecipe(recipe.value)); renderAll(); })); root.append(addRow);
     document.dispatchEvent(new CustomEvent('openhabits:metrics-changed', {
       detail: state.metricSettings.map(({ metricID, displayName }) => ({ metricID, displayName }))
     }));
@@ -798,6 +798,16 @@
     $('revisionLabel').textContent = loadedRevision ? `Saved revision ${loadedRevision}` : 'Not yet migrated—your first save enables no-redeploy editing.';
     $('saveStatus').textContent = 'Make changes, then choose Save and Apply.';
     setBusy(false);
+    if (window.OPENHABITS_EDITOR_MODE === 'add') {
+      $('editorTitle').textContent = 'Add a Metric';
+      const picker = $('metricRecipePicker');
+      if (picker) {
+        picker.classList.add('changed');
+        picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const select = picker.querySelector('select');
+        if (select) select.focus();
+      }
+    }
   }
 
   function serverFailure(error) { setBusy(false); $('saveStatus').textContent = `Could not complete that action: ${error.message || error}`; }

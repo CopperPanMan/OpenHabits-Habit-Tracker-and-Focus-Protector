@@ -531,6 +531,7 @@ function handleApiRequest_(request) {
 }
 
 function doGet(e) {
+  if (e && e.parameter && e.parameter.openhabits === 'editor') return openHabitsServeEditor_(e);
   return respondText_('GET is no longer supported. Send a POST request with a JSON body.');
 }
 
