@@ -39,6 +39,26 @@ test('config editor allows add record type for stop timers', () => {
   assert.match(source, /\['number', 'duration', 'stop_timer'\]\.includes\(m\.type\)/);
 });
 
+test('config editor presents beginner-friendly metric fields and keeps implementation controls advanced', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+  const basicStart = source.indexOf("g.className = 'grid metric-basics'");
+  const advancedStart = source.indexOf('const advancedSummary', basicStart);
+  const basicFields = source.slice(basicStart, advancedStart);
+  const advancedFields = source.slice(advancedStart, source.indexOf("const dates = toggleSection", advancedStart));
+
+  assert.ok(basicStart > -1 && advancedStart > basicStart);
+  assert.match(basicFields, /'Display Name'/);
+  assert.match(basicFields, /'Metric ID'/);
+  assert.match(basicFields, /'What are you tracking\?'/);
+  assert.match(basicFields, /'When today already has a value'/);
+  assert.doesNotMatch(basicFields, /'Sheet Row Override'|'Timezone Behavior'/);
+  assert.match(advancedFields, /'Sheet Row Override'/);
+  assert.match(advancedFields, /'Timezone Behavior'/);
+  assert.match(advancedFields, /if \(state\.writeToNotion\)/);
+  assert.match(source, /metric\.metricID = normalizedMetricId\(metric\.displayName\)/);
+  assert.match(source, /Regenerate from name/);
+});
+
 test('collects every primary, derived, points, and lockout row once', () => {
   const c = load();
   const rows = c.openHabitsCollectRequiredRows_({

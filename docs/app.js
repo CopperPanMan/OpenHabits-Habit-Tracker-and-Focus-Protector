@@ -75,7 +75,8 @@
     trackingSheetName: 'Name of sheet tab used for tracking data.',
     writeToNotion: 'Enable/disable Notion sync globally.',
     comparisonArray: 'Pairs of [days back, human label] used for insight comparisons.',
-    metricType: 'Determines what a metric records and which extra fields apply. If you want to write text, please choose “number”, and a Record Type of “overwrite” or “keep_first”',
+    metricType: 'Choose the kind of value you want to track. Number or value: counts, ratings, amounts, or short text. Duration: elapsed time. Time completed: when something happened. Due-by task: completion against a schedule. Start/stop timer: the two actions for a timed activity.',
+    recordType: 'Controls what happens when this metric is logged more than once on the same day. Replace keeps the newest value, Keep first preserves the earliest value, and Add combines supported numbers or durations.',
     ifTimer: 'Timer-only settings used when metric type is start_timer or stop_timer.',
     blockType: 'Determines which typeSpecific section is used for this block.',
     blockTimezoneMode: 'fixed keeps this block tied to the Apps Script/cache timezone. floating follows the current device/browser wall clock while traveling.',
@@ -147,10 +148,11 @@
   function makeSelect(options, value, onChange) {
     const sel = document.createElement('select');
     options.forEach((opt) => {
+      const option = typeof opt === 'string' ? { value: opt, label: opt } : opt;
       const o = document.createElement('option');
-      o.value = opt;
-      o.textContent = opt;
-      if (opt === value) o.selected = true;
+      o.value = option.value;
+      o.textContent = option.label;
+      if (option.value === value) o.selected = true;
       sel.appendChild(o);
     });
     sel.addEventListener('change', () => withHistory(() => onChange(sel.value)));
@@ -162,6 +164,13 @@
     label.appendChild(labelWithHelp(title, help));
     label.appendChild(control);
     container.appendChild(label);
+  }
+
+  function fieldHint(text) {
+    const hint = document.createElement('p');
+    hint.className = 'field-hint';
+    hint.textContent = text;
+    return hint;
   }
 
   function toggleSection(title, key, defaultOpen = true) {
@@ -272,6 +281,41 @@
 
   function normalizedMetricId(name) {
     return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  const METRIC_TYPES = [
+    { value: 'number', label: 'Number or value' },
+    { value: 'duration', label: 'Duration' },
+    { value: 'timestamp', label: 'Time completed' },
+    { value: 'due_by', label: 'Due-by task' },
+    { value: 'start_timer', label: 'Start a timer' },
+    { value: 'stop_timer', label: 'Stop a timer' }
+  ];
+
+  const METRIC_TYPE_HINTS = {
+    number: 'Track a count, amount, rating, or short supplied value—for example 3 glasses of water or mood 8.',
+    duration: 'Track elapsed time—for example 45 minutes of exercise.',
+    timestamp: 'Track when something happened—for example when you woke up or took medication.',
+    due_by: 'Track whether something was completed by a scheduled time—for example medication by 9:00 AM.',
+    start_timer: 'Save the starting time for an activity such as a focus session.',
+    stop_timer: 'End a previously started timer and calculate its duration.'
+  };
+
+  const RECORD_TYPES = {
+    overwrite: { value: 'overwrite', label: 'Replace it with the newest value', hint: 'Logging 5 and then 7 makes today’s value 7.' },
+    keep_first: { value: 'keep_first', label: 'Keep the first value', hint: 'A second log today leaves the original value unchanged.' },
+    add: { value: 'add', label: 'Add the new amount to it', hint: 'Logging 2 and then 3 makes today’s value 5.' }
+  };
+
+  function recordTypeOptions(metricType) {
+    const values = ['overwrite', 'keep_first'];
+    if (['number', 'duration', 'stop_timer'].includes(metricType)) values.push('add');
+    return values.map(value => RECORD_TYPES[value]);
+  }
+
+  function metricTypeLabel(metricType) {
+    const option = METRIC_TYPES.find(item => item.value === metricType);
+    return option ? option.label : metricType;
   }
 
   function metricFromRecipe(recipe) {
@@ -443,21 +487,68 @@
     card.appendChild(head);
 
     const g = document.createElement('div');
-    g.className = 'grid';
+    g.className = 'grid metric-basics';
     const metricIdInput = makeInput({ value: metric.metricID, onChange: v => { metric.metricID = v; generatedMetricIds.delete(metric); }, required: true });
-    field(g, 'Metric ID', metricIdInput, 'Unique ID used for tracking row lookups. Changing a saved ID does not rename historical rows.');
-    field(g, 'Row Number (Optional)', makeInput({ type: 'number', min: 1, step: '1', value: metric.rowNumber, onChange: v => {
-      if (Number.isInteger(v) && v > 0) metric.rowNumber = v;
-      else delete metric.rowNumber;
-    } }), 'Optionally use a positive sheet row number to override the Metric ID row search when recording this metric.');
     field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => { metric.displayName = v; if (generatedMetricIds.has(metric)) { metric.metricID = normalizedMetricId(v); metricIdInput.value = metric.metricID; } }, required: true }), 'Friendly name shown to users. New recipe IDs follow this name until the ID is edited.');
-    field(g, 'Type', makeSelect(['number', 'duration', 'timestamp', 'due_by', 'start_timer', 'stop_timer'], metric.type, v => { metric.type = v; applyMetricTypeDefaults(metric); renderAll(); }), HELP.metricType);
-    field(g, 'Timezone Mode', makeSelect(['floating', 'fixed'], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Floating follows the current device/local time for metric schedules and due-by checks. Fixed uses Apps Script/server timezone.');
-    field(g, 'Record Type', makeSelect(['overwrite', 'keep_first', 'add'], metric.recordType, v => metric.recordType = v), 'How writes merge with existing same-day values.');
-    field(g, 'Write to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Enable this metric for Notion sync fields.');
+    const metricIdField = document.createElement('div');
+    metricIdField.className = 'field-group';
+    field(metricIdField, 'Metric ID', metricIdInput, 'Unique ID used by Shortcuts and Sheet row lookups. Spaces become underscores. Changing a saved ID does not rename historical rows.');
+    const idActions = document.createElement('div');
+    idActions.className = 'inline-field-actions';
+    idActions.append(fieldHint('Used by Shortcuts and integrations. Usually you can leave the generated value as-is.'));
+    idActions.append(button('Regenerate from name', 'link-button', () => {
+      metric.metricID = normalizedMetricId(metric.displayName);
+      generatedMetricIds.add(metric);
+      renderAll();
+    }));
+    metricIdField.appendChild(idActions);
+    g.appendChild(metricIdField);
+
+    const typeGroup = document.createElement('div');
+    typeGroup.className = 'field-group';
+    field(typeGroup, 'What are you tracking?', makeSelect(METRIC_TYPES, metric.type, v => {
+      metric.type = v;
+      if (metric.recordType === 'add' && !['number', 'duration', 'stop_timer'].includes(v)) metric.recordType = 'overwrite';
+      applyMetricTypeDefaults(metric);
+      renderAll();
+    }), HELP.metricType);
+    typeGroup.appendChild(fieldHint(METRIC_TYPE_HINTS[metric.type] || 'Choose the kind of value this metric stores.'));
+    g.appendChild(typeGroup);
+
+    const recordGroup = document.createElement('div');
+    recordGroup.className = 'field-group';
+    const recordHint = fieldHint((RECORD_TYPES[metric.recordType] || RECORD_TYPES.overwrite).hint);
+    field(recordGroup, 'When today already has a value', makeSelect(recordTypeOptions(metric.type), metric.recordType, v => {
+      metric.recordType = v;
+      recordHint.textContent = RECORD_TYPES[v].hint;
+    }), HELP.recordType);
+    recordGroup.appendChild(recordHint);
+    g.appendChild(recordGroup);
     card.appendChild(g);
 
-    const advanced = toggleSection(`Advanced · ${metric.type} · ${metric.timezoneMode || 'floating'} timezone`, `metric-${i}-advanced`, false);
+    const advancedSummary = [`Advanced`, metricTypeLabel(metric.type)];
+    if (['timestamp', 'due_by', 'start_timer', 'stop_timer'].includes(metric.type) || metric.dates.length > 0) {
+      advancedSummary.push(metric.timezoneMode === 'fixed' ? 'spreadsheet timezone' : 'local time');
+    }
+    const advanced = toggleSection(advancedSummary.join(' · '), `metric-${i}-advanced`, false);
+
+    const advancedGrid = document.createElement('div');
+    advancedGrid.className = 'grid';
+    field(advancedGrid, 'Sheet Row Override', makeInput({ type: 'number', min: 1, step: '1', value: metric.rowNumber, onChange: v => {
+      if (Number.isInteger(v) && v > 0) metric.rowNumber = v;
+      else delete metric.rowNumber;
+    } }), 'Normally OpenHabits finds the row by Metric ID. Enter a positive row number only when you intentionally need to override that lookup.');
+    const usesTimeSettings = ['timestamp', 'due_by', 'start_timer', 'stop_timer'].includes(metric.type) || metric.dates.length > 0;
+    if (usesTimeSettings) {
+      field(advancedGrid, 'Timezone Behavior', makeSelect([
+        { value: 'floating', label: 'Follow the device’s local time' },
+        { value: 'fixed', label: 'Always use the spreadsheet timezone' }
+      ], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Following the device is useful while traveling. Spreadsheet timezone keeps today and scheduled times tied to Apps Script.');
+    }
+    if (state.writeToNotion) {
+      field(advancedGrid, 'Sync This Metric to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Include this metric when the global Notion integration is enabled.');
+    }
+    advanced.appendChild(advancedGrid);
 
     const dates = toggleSection('Date Rules', `metric-${i}-dates`, false);
     metric.dates.forEach((d, di) => {
@@ -543,8 +634,27 @@
     state.metricSettings.forEach((m, i) => { const link = document.createElement('a'); link.href = `#metric-card-${i}`; link.textContent = `${m.displayName || 'Unnamed'} · ${m.metricID || 'missing ID'} · ${m.type}`; nav.appendChild(link); });
     root.appendChild(nav);
     state.metricSettings.forEach((m, i) => root.appendChild(renderMetric(m, i)));
-    const recipe = makeSelect(['completion', 'number_add', 'number_replace', 'timestamp', 'duration', 'due_by', 'advanced'], 'completion', () => {});
-    const addRow = document.createElement('div'); addRow.className = 'row gap'; addRow.append(recipe, button('Add from recipe', '', () => { state.metricSettings.push(metricFromRecipe(recipe.value)); renderAll(); })); root.append(addRow);
+    const recipe = makeSelect([
+      { value: 'completion', label: 'Done / not done' },
+      { value: 'number_add', label: 'Count or amount — add logs together' },
+      { value: 'number_replace', label: 'Count or amount — keep newest log' },
+      { value: 'timestamp', label: 'Time something happened' },
+      { value: 'duration', label: 'Duration' },
+      { value: 'due_by', label: 'Due-by task' },
+      { value: 'advanced', label: 'Custom / advanced' }
+    ], 'completion', () => {});
+    const addMetric = document.createElement('section');
+    addMetric.className = 'add-metric';
+    const addTitle = document.createElement('h3');
+    addTitle.textContent = 'Add a metric';
+    const addDescription = document.createElement('p');
+    addDescription.className = 'muted';
+    addDescription.textContent = 'Choose the closest starting point. You can change every setting afterward.';
+    const addRow = document.createElement('div');
+    addRow.className = 'row gap';
+    addRow.append(recipe, button('Add metric', '', () => { state.metricSettings.push(metricFromRecipe(recipe.value)); renderAll(); }));
+    addMetric.append(addTitle, addDescription, addRow);
+    root.append(addMetric);
     document.dispatchEvent(new CustomEvent('openhabits:metrics-changed', {
       detail: state.metricSettings.map(({ metricID, displayName }) => ({ metricID, displayName }))
     }));
