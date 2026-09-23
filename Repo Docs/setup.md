@@ -90,7 +90,7 @@ In **Apps Script → Project Settings → Script properties**, add:
 
 | Property | Required? | What it does |
 | --- | --- | --- |
-| `spreadsheetId` | Yes | The ID of the Google Sheet OpenHabits should read/write. |
+| `spreadsheetId` | Only for standalone scripts | The ID of the Google Sheet OpenHabits should read/write. A script bound to the OpenHabits Sheet uses that Sheet automatically. |
 | `OPENHABITS_SECRET` | Recommended | A long random shared secret for clients that call the web app. |
 | `notionMetricDatabaseIDs` | Only for Notion | Database IDs OpenHabits should search/update. |
 | `pointBlock` | Only for Notion | Notion block ID for point output. |
@@ -98,7 +98,7 @@ In **Apps Script → Project Settings → Script properties**, add:
 
 You can find the Sheet ID in the Sheet URL between `/d/` and `/edit`.
 
-> **Screenshot to add:** Apps Script Script Properties with `spreadsheetId` shown and secret values blurred.
+> **Screenshot to add:** Apps Script Script Properties with secret values blurred. A standalone deployment should also show `spreadsheetId`.
 
 ## D) Configure OpenHabits in the Sheet
 
@@ -115,7 +115,7 @@ There is no config code to copy, no JSON to write, and no deployment step after 
 
 Important shared fields:
 
-- `spreadsheetId` points the script at your Sheet.
+- `scriptProperties.spreadsheetId` names the optional Script Property that points a standalone script at your Sheet. Sheet-bound projects use their bound Sheet automatically.
 - `trackingSheetName` should match the tab name exactly.
 - `lateExtensionHours` lets late-night logging count toward the previous day. For example, `5` means 1:00 AM still belongs to yesterday.
 - `metricSettings` is where habit metrics go.
@@ -408,7 +408,7 @@ A full personal example is valuable because it shows how the pieces fit together
 
 - [ ] `Tracking Data` tab exists.
 - [ ] Column A contains unique metric IDs.
-- [ ] `spreadsheetId` Script Property is set.
+- [ ] For a standalone Apps Script project only, the `spreadsheetId` Script Property is set.
 - [ ] Apps Script timezone is correct.
 - [ ] Web app is deployed and URL is copied.
 - [ ] One test metric can be logged successfully.

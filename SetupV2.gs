@@ -107,8 +107,13 @@ function openHabitsPlanReconciliation_(config, existingRows) {
 function openHabitsSpreadsheet_() {
   var active = SpreadsheetApp.getActiveSpreadsheet();
   if (active) return active;
-  var id = PropertiesService.getScriptProperties().getProperty('spreadsheetId');
-  if (!id) id = getCodeBackedAppConfig().scriptProperties.spreadsheetId;
+  var properties = PropertiesService.getScriptProperties();
+  var propertyName = getCodeBackedAppConfig().scriptProperties.spreadsheetId;
+  var id = properties.getProperty(propertyName);
+  if (!id && propertyName !== 'spreadsheetId') id = properties.getProperty('spreadsheetId');
+  if (!id) {
+    throw new Error('No bound spreadsheet is available. Set the optional spreadsheet ID script property for a standalone Apps Script deployment.');
+  }
   return SpreadsheetApp.openById(id);
 }
 

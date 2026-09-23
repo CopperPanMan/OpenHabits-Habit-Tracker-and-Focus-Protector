@@ -59,6 +59,31 @@ function buildEntry(context, setting, value, now) {
   );
 }
 
+test('tracking uses the bound spreadsheet when no spreadsheet ID property exists', () => {
+  const context = loadAppsScript();
+  const trackingSheet = { name: 'Tracking Data' };
+  const boundSpreadsheet = {
+    getId: () => 'bound-sheet-id',
+    getSheetByName: name => name === 'Tracking Data' ? trackingSheet : null
+  };
+  context.getAppConfig = () => ({
+    scriptProperties: { spreadsheetId: 'spreadSheetID' },
+    trackingSheetName: 'Tracking Data'
+  });
+  context.PropertiesService = {
+    getScriptProperties: () => ({ getProperty: () => null })
+  };
+  context.SpreadsheetApp = {
+    getActiveSpreadsheet: () => boundSpreadsheet,
+    openById: () => { throw new Error('should not open by ID'); }
+  };
+  context.spreadsheetID = null;
+  context.trackingSheetName = null;
+
+  assert.equal(context.getTrackingSheet_(), trackingSheet);
+  assert.equal(context.spreadsheetID, 'bound-sheet-id');
+});
+
 test('reports complete using the existing non-empty-cell semantics', () => {
   const context = loadAppsScript();
   const setting = { metricID: 'task', dates: [] };

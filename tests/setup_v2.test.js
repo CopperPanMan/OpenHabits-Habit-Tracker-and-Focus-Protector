@@ -78,6 +78,35 @@ test('reconciliation appends only missing rows, reports duplicates, and retains 
   assert.deepEqual(Array.from(plan.retainedUnreferenced), ['old']);
 });
 
+test('uses the bound spreadsheet without requiring a spreadsheet ID property', () => {
+  const c = load();
+  const boundSpreadsheet = { name: 'bound' };
+  c.SpreadsheetApp = {
+    getActiveSpreadsheet: () => boundSpreadsheet,
+    openById: () => { throw new Error('should not open by ID'); }
+  };
+  c.PropertiesService = {
+    getScriptProperties: () => ({ getProperty: () => null })
+  };
+
+  assert.equal(c.openHabitsSpreadsheet_(), boundSpreadsheet);
+});
+
+test('uses an ID property for a standalone Apps Script project', () => {
+  const c = load();
+  const standaloneSpreadsheet = { name: 'standalone' };
+  c.getCodeBackedAppConfig = () => ({ scriptProperties: { spreadsheetId: 'spreadSheetID' } });
+  c.SpreadsheetApp = {
+    getActiveSpreadsheet: () => null,
+    openById: id => id === 'sheet-123' ? standaloneSpreadsheet : null
+  };
+  c.PropertiesService = {
+    getScriptProperties: () => ({ getProperty: key => key === 'spreadSheetID' ? 'sheet-123' : null })
+  };
+
+  assert.equal(c.openHabitsSpreadsheet_(), standaloneSpreadsheet);
+});
+
 test('rejects unsafe metric IDs and duplicate focus-rule IDs', () => {
   const c = load();
   const result = c.openHabitsValidateConfig_({
