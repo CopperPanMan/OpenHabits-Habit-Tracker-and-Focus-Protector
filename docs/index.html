@@ -63,9 +63,14 @@
 
     <section class="panel" aria-labelledby="metricTextHeading">
       <h2 id="metricTextHeading">Shortcut-ready metric text</h2>
-      <p>Select metric IDs below, then copy the complete text into the Metric Logger Shortcut's <strong>Text</strong> action. Value-bearing metrics include a clearly marked <code>&lt;Provided Input&gt;</code> placeholder that must be replaced with an Apple Shortcuts magic variable.</p>
-      <label for="shortcutMetricIds">Metric IDs (one per line)</label>
-      <textarea id="shortcutMetricIds" rows="5" placeholder="started_work&#10;glasses_of_water"></textarea>
+      <p>Select one or more configured metrics, then copy the complete text into the Metric Logger Shortcut's <strong>Text</strong> action. Value-bearing metrics include a clearly marked <code>&lt;Provided Input&gt;</code> placeholder that must be replaced with an Apple Shortcuts magic variable.</p>
+      <label for="shortcutMetricSearch">Find configured metrics</label>
+      <input id="shortcutMetricSearch" type="search" autocomplete="off" placeholder="Search by name or metric ID">
+      <fieldset class="metric-multi-select">
+        <legend class="visually-hidden">Select metrics for Shortcut text</legend>
+        <div id="shortcutMetricOptions" class="metric-option-list" role="group" aria-describedby="shortcutMetricSelectionStatus"></div>
+      </fieldset>
+      <p id="shortcutMetricSelectionStatus" class="field-hint" aria-live="polite">No metrics selected.</p>
       <label><input id="shortcutRequiresInput" type="checkbox"> This metric requires Provided Input (one metric only)</label>
       <div class="row gap"><button id="shortcutTextGenerate" type="button">Generate metric text</button><button id="shortcutTextCopy" class="secondary" type="button">Copy metric text</button></div>
       <label for="shortcutMetricOutput">Paste-ready text</label><input id="shortcutMetricOutput" readonly>
@@ -114,21 +119,5 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
   <script src="./shortcut-qr.js"></script>
   <script src="./app.js"></script>
-  <script>
-    (() => {
-      const ids = document.getElementById('shortcutMetricIds');
-      const output = document.getElementById('shortcutMetricOutput');
-      const status = document.getElementById('shortcutMetricStatus');
-      function generate() {
-        try {
-          const values = ids.value.split(/\n|,/).map(value => value.trim()).filter(Boolean);
-          output.value = OpenHabitsShortcutQr.buildShortcutMetricText(values.map(metricID => ({ metricID, requiresInput: document.getElementById('shortcutRequiresInput').checked })));
-          status.textContent = document.getElementById('shortcutRequiresInput').checked ? 'Replace <Provided Input> with the appropriate magic variable before running.' : 'Ready to paste into the Shortcut Text action.';
-        } catch (error) { output.value = ''; status.textContent = error.message; }
-      }
-      document.getElementById('shortcutTextGenerate').addEventListener('click', generate);
-      document.getElementById('shortcutTextCopy').addEventListener('click', async () => { if (!output.value) generate(); if (!output.value) return; await navigator.clipboard.writeText(output.value); status.textContent = 'Copied. Replace the Metric Logger Shortcut Text action.'; });
-    })();
-  </script>
 </body>
 </html>
