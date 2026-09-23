@@ -655,9 +655,9 @@
     addRow.append(recipe, button('Add metric', '', () => { state.metricSettings.push(metricFromRecipe(recipe.value)); renderAll(); }));
     addMetric.append(addTitle, addDescription, addRow);
     root.append(addMetric);
-    document.dispatchEvent(new CustomEvent('openhabits:metrics-changed', {
-      detail: state.metricSettings.map(({ metricID, displayName }) => ({ metricID, displayName }))
-    }));
+    const metricSummary = state.metricSettings.map(({ metricID, displayName }) => ({ metricID, displayName }));
+    window.OpenHabitsConfiguredMetrics = metricSummary;
+    document.dispatchEvent(new CustomEvent('openhabits:metrics-changed', { detail: metricSummary }));
   }
 
   function renderBlock(block, i) {

@@ -126,6 +126,20 @@ test('GitHub editor is the sole visual editor and exports first-class JSON', () 
   assert.match(githubEditor, /Copy JSON/);
 });
 
+test('Shortcut metric text uses a searchable configured-metric multi-select', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+  const shortcut = fs.readFileSync(path.join(__dirname, '..', 'docs', 'shortcut-qr.js'), 'utf8');
+
+  assert.match(html, /id="shortcutMetricSearch"[^>]*type="search"/);
+  assert.match(html, /id="shortcutMetricOptions"/);
+  assert.doesNotMatch(html, /id="shortcutMetricIds"/);
+  assert.match(app, /window\.OpenHabitsConfiguredMetrics = metricSummary/);
+  assert.match(shortcut, /selectedMetricIds = new Set\(\)/);
+  assert.match(shortcut, /openhabits:metrics-changed/);
+  assert.match(shortcut, /window\.OpenHabitsConfiguredMetrics/);
+});
+
 test('public web endpoint does not expose configuration administration', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'SetupV2.gs'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'Main.gs'), 'utf8');

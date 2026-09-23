@@ -192,6 +192,27 @@ button.danger { border-color: var(--danger); background: var(--danger); }
 .error { color: var(--danger); font-size:.82rem; }
 .muted { color: var(--muted); }
 .field-hint { margin: -.05rem 0 .6rem; color: var(--muted); font-size: .85rem; }
+.metric-multi-select {
+  margin: .4rem 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.metric-option-list { max-height: 240px; overflow-y: auto; }
+.metric-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .55rem;
+  padding: .55rem .7rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.metric-option + .metric-option { border-top: 1px solid var(--border); }
+.metric-option:hover { background: var(--section-bg); }
+.metric-option input { flex: 0 0 auto; }
+.metric-option-empty { margin: 0; padding: .7rem; }
 .qr-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
