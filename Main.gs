@@ -3489,22 +3489,32 @@ function buildHabitsV2Response(response) {
 function getTrackingSheet_() {
   var config = getAppConfig();
   var scriptProperties = PropertiesService.getScriptProperties();
-  var resolvedSpreadsheetID = spreadsheetID || scriptProperties.getProperty(config.scriptProperties.spreadsheetId);
-  var resolvedTrackingSheetName = trackingSheetName || config.trackingSheetName;
-
-  if (!resolvedSpreadsheetID) {
-    throw new Error('Missing spreadsheet ID script property: ' + config.scriptProperties.spreadsheetId);
+  var spreadsheetPropertyName = config.scriptProperties && config.scriptProperties.spreadsheetId;
+  var resolvedSpreadsheetID = spreadsheetID || (spreadsheetPropertyName && scriptProperties.getProperty(spreadsheetPropertyName));
+  // `spreadsheetId` was documented before the code-backed default was named
+  // `spreadSheetID`, so continue to accept it as an override for standalone
+  // deployments.
+  if (!resolvedSpreadsheetID && spreadsheetPropertyName !== 'spreadsheetId') {
+    resolvedSpreadsheetID = scriptProperties.getProperty('spreadsheetId');
   }
+  var resolvedTrackingSheetName = trackingSheetName || config.trackingSheetName;
   if (!resolvedTrackingSheetName) {
     throw new Error('Missing trackingSheetName in config.');
   }
 
-  var trackingSheet = SpreadsheetApp.openById(resolvedSpreadsheetID).getSheetByName(resolvedTrackingSheetName);
+  var spreadsheet = resolvedSpreadsheetID
+    ? SpreadsheetApp.openById(resolvedSpreadsheetID)
+    : SpreadsheetApp.getActiveSpreadsheet();
+  if (!spreadsheet) {
+    throw new Error('No bound spreadsheet is available. Set the optional spreadsheet ID script property for a standalone Apps Script deployment.');
+  }
+
+  var trackingSheet = spreadsheet.getSheetByName(resolvedTrackingSheetName);
   if (!trackingSheet) {
     throw new Error('Tracking sheet not found: ' + resolvedTrackingSheetName);
   }
 
-  spreadsheetID = resolvedSpreadsheetID;
+  spreadsheetID = resolvedSpreadsheetID || (typeof spreadsheet.getId === 'function' ? spreadsheet.getId() : null);
   trackingSheetName = resolvedTrackingSheetName;
   sheet1 = trackingSheet;
   return trackingSheet;

@@ -71,7 +71,7 @@
   let cleanSnapshot = JSON.stringify(state);
 
   const HELP = {
-    spreadsheetId: 'Google Sheet ID where tracking rows are stored.',
+    spreadsheetId: 'Optional Script Property name containing a Google Sheet ID. Bound Sheet projects use their own Sheet automatically.',
     trackingSheetName: 'Name of sheet tab used for tracking data.',
     writeToNotion: 'Enable/disable Notion sync globally.',
     comparisonArray: 'Pairs of [days back, human label] used for insight comparisons.',
@@ -381,7 +381,7 @@
     const basic = toggleSection('Basic Global Settings', 'global-basic');
     const basicGrid = document.createElement('div');
     basicGrid.className = 'grid';
-    field(basicGrid, 'Spreadsheet ID', makeInput({ value: state.scriptProperties.spreadsheetId, onChange: v => state.scriptProperties.spreadsheetId = v, required: true }), HELP.spreadsheetId);
+    field(basicGrid, 'Spreadsheet ID Property Name', makeInput({ value: state.scriptProperties.spreadsheetId, onChange: v => state.scriptProperties.spreadsheetId = v }), HELP.spreadsheetId);
     field(basicGrid, 'Tracking Sheet Name', makeInput({ value: state.trackingSheetName, onChange: v => state.trackingSheetName = v, required: true }), HELP.trackingSheetName);
     field(basicGrid, 'Daily Points Metric ID', makeInput({ value: state.dailyPointsID, onChange: v => state.dailyPointsID = v }), 'Metric ID row for daily points total.');
     field(basicGrid, 'Cumulative Points Metric ID', makeInput({ value: state.cumulativePointsID, onChange: v => state.cumulativePointsID = v }), 'Metric ID row for all-time points total.');
