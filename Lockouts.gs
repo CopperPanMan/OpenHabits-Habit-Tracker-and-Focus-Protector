@@ -1428,6 +1428,12 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
     delete virtualDay.metricStateByID;
   }
 
+  var reminderStateByID = lockouts_buildReminderStateByID_(allMetricIDs, {
+    now: now,
+    trackingSheet: trackingSheet,
+    todayCol: todayCol
+  });
+
   return {
     ok: true,
     schemaVersion: 'lockouts_cache_v1',
@@ -1444,10 +1450,50 @@ function lockouts_handleConfigSnapshot_(payload, ctx) {
       durationByID: lockouts_pickMapByIDs_(metricStateByID, discoveredMetricIDs.durationIDs),
       globalsByID: lockouts_pickMapByIDs_(metricStateByID, discoveredMetricIDs.globalMetricIDs)
     },
+    reminderState: {
+      byID: reminderStateByID
+    },
     metricIDGroups: discoveredMetricIDs,
     virtualDay: virtualDay,
     warnings: warnings
   };
+}
+
+/**
+ * Builds the reminder-facing subset of metric_state for every supplied metric.
+ * Keeping this path backed by the metric_state handler ensures reminders use
+ * identical completion, schedule, streak, points, and deadline semantics.
+ */
+function lockouts_buildReminderStateByID_(metricIDs, ctx) {
+  var response = lockouts_handleMetricState_({
+    data: {
+      metricIDs: metricIDs
+    }
+  }, ctx || {});
+  var entries = response && Array.isArray(response.metricsByID) ? response.metricsByID : [];
+  var byID = {};
+
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i] || {};
+    var metricID = entry.metricID;
+    if (typeof metricID !== 'string' || !metricID) {
+      continue;
+    }
+    byID[metricID] = {
+      metricID: metricID,
+      found: !!entry.found,
+      complete: !!entry.complete,
+      scheduledToday: !!entry.scheduledToday,
+      displayName: entry.displayName,
+      points: entry.points,
+      streak: entry.streak,
+      todayPoints: entry.todayPoints,
+      yesterdayPoints: entry.yesterdayPoints,
+      dueProperties: entry.dueProperties
+    };
+  }
+
+  return byID;
 }
 
 /**

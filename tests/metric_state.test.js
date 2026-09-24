@@ -171,3 +171,119 @@ test('builds metric responses with request totals and metric-specific deltas', (
   assert.equal('todayPoints' in response.metricsByID[0], false);
   assert.equal('cumulativePoints' in response.metricsByID[0], false);
 });
+
+test('builds reminder records from the corresponding metric_state fields', () => {
+  const context = loadAppsScript();
+  const dueProperties = {
+    hasDeadline: true,
+    dueAtISO: '2026-08-31T22:00:00.000Z',
+    dueTimeLocal: '10:00 PM',
+    minutesRemaining: 34,
+    status: 'upcoming'
+  };
+  const metricStateRecords = [
+    {
+      metricID: 'complete', found: true, complete: true, scheduledToday: true,
+      displayName: 'Complete', points: 2, streak: 14, todayPoints: 41.5,
+      yesterdayPoints: 55, dueProperties, value: 1, dueState: -34,
+      currMultiplier: 2, error: null, warnings: []
+    },
+    {
+      metricID: 'unscheduled', found: true, complete: false, scheduledToday: false,
+      displayName: 'Not Today', points: 1, streak: 3, todayPoints: 41.5,
+      yesterdayPoints: 55, dueProperties: {
+        hasDeadline: false, dueAtISO: null, dueTimeLocal: null,
+        minutesRemaining: null, status: 'none'
+      }
+    },
+    {
+      metricID: 'missing', found: false, complete: false, scheduledToday: false,
+      displayName: null, points: null, streak: null, todayPoints: 41.5,
+      yesterdayPoints: 55, dueProperties: {
+        hasDeadline: false, dueAtISO: null, dueTimeLocal: null,
+        minutesRemaining: null, status: 'none'
+      }
+    }
+  ];
+  let requestedIDs;
+  context.lockouts_handleMetricState_ = payload => {
+    requestedIDs = payload.data.metricIDs;
+    return { metricsByID: metricStateRecords };
+  };
+
+  const byID = context.lockouts_buildReminderStateByID_(
+    ['complete', 'unscheduled', 'missing'],
+    {}
+  );
+
+  assert.deepEqual(Array.from(requestedIDs), ['complete', 'unscheduled', 'missing']);
+  for (const record of metricStateRecords) {
+    assert.deepEqual(JSON.parse(JSON.stringify(byID[record.metricID])), {
+      metricID: record.metricID,
+      found: record.found,
+      complete: record.complete,
+      scheduledToday: record.scheduledToday,
+      displayName: record.displayName,
+      points: record.points,
+      streak: record.streak,
+      todayPoints: record.todayPoints,
+      yesterdayPoints: record.yesterdayPoints,
+      dueProperties: record.dueProperties
+    });
+  }
+});
+
+test('config_snapshot includes reminder state for every snapshot metric and preserves existing sections', () => {
+  const context = loadAppsScript();
+  const now = new Date('2026-08-31T12:00:00.000Z');
+  const config = {
+    globals: { cumulativeScreentimeID: 'screen_total' },
+    blocks: [{
+      id: 'focus',
+      typeSpecific: {
+        task_block_IDs: ['task'],
+        firstXMinutes: { timestampID: 'wake' },
+        duration: { screenTimeID: 'social_time' }
+      }
+    }]
+  };
+  const trackingSheet = {};
+  context.getAppConfig = () => ({
+    metricSettings: [
+      { metricID: 'task', type: 'number' },
+      { metricID: 'habit_only', type: 'number' }
+    ]
+  });
+  context.lockouts_readMetricStateMapByID_ = ids => Object.fromEntries(
+    Array.from(ids, id => [id, { found: true, value: id }])
+  );
+  context.lockouts_resolveSnapshotTimezone_ = () => ({
+    serverTimezone: 'GMT', clientTimezone: '', source: 'server',
+    virtualEnabled: false, timezoneOffset: '', timezoneOffsetRFC2822: '', clientNow: ''
+  });
+  let reminderIDs;
+  context.lockouts_buildReminderStateByID_ = ids => {
+    reminderIDs = Array.from(ids);
+    return Object.fromEntries(reminderIDs.map(id => [id, { metricID: id }]));
+  };
+
+  const snapshot = context.lockouts_handleConfigSnapshot_({}, {
+    now, config, trackingSheet, todayCol: 9
+  });
+
+  assert.deepEqual(reminderIDs, ['screen_total', 'task', 'wake', 'social_time', 'habit_only']);
+  assert.deepEqual(Object.keys(snapshot.reminderState.byID), reminderIDs);
+  assert.equal(snapshot.ok, true);
+  assert.equal(snapshot.schemaVersion, 'lockouts_cache_v1');
+  assert.equal(snapshot.generatedAtISO, now.toISOString());
+  assert.equal(snapshot.lastUpdated, now.toISOString());
+  assert.equal(snapshot.config, config);
+  assert.equal(snapshot.configLastUpdated, now.toISOString());
+  assert.equal(snapshot.todayCol, 9);
+  assert.deepEqual(Object.keys(snapshot.metricState.allByID), reminderIDs);
+  assert.deepEqual(Array.from(snapshot.metricIDGroups.taskBlockIDs), ['task']);
+  assert.deepEqual(Array.from(snapshot.metricIDGroups.timestampIDs), ['wake']);
+  assert.deepEqual(Array.from(snapshot.metricIDGroups.durationIDs), ['social_time']);
+  assert.deepEqual(Array.from(snapshot.metricIDGroups.globalMetricIDs), ['screen_total']);
+  assert.deepEqual(Array.from(snapshot.warnings), []);
+});
