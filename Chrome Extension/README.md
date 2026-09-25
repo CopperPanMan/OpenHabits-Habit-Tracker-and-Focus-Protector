@@ -31,7 +31,7 @@
    - `facebook.com`
 2. (Optional) Add your `.../exec` Apps Script URL in **Lockouts server URL**.
 3. Add the same shared secret you stored in Apps Script as `OPENHABITS_SECRET`.
-4. (Optional) Enable screentime logging and enter your `start_timer` / `stop_timer` metric IDs.
+4. (Optional) Enable screentime logging and enter a `duration` metric ID configured with `recordType: "add"`.
 5. Set **Illegal unlock wait (seconds)** and **Legitimate unlock wait (seconds)** if you want values other than 30/60.
 6. Leave **Metric logging key** as `record_metric_iOS` unless you use a different metric endpoint key.
 7. Click **Save settings**.

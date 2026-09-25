@@ -130,7 +130,7 @@ These Shortcuts are shared as working examples, not as a managed support product
 If you do not want to install every example Shortcut, duplicate the templates instead:
 
 - **Metric Logger Template** for one-off logs, ratings, timestamps, and due-by metrics.
-- **Toggle Timer Template** for work, personal work, meditation duration, or other timers.
+- **Client-owned Timer Shortcut** for work, personal work, meditation, or other activities; it submits elapsed time to an additive duration metric.
 - **Metric Logger for Screen Time** for the lockout screen-time start/stop flow.
 
 This takes longer but gives you fewer inherited assumptions.

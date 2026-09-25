@@ -10,23 +10,22 @@ function load() {
   return context;
 }
 
-test('validates config IDs and timer requirements', () => {
+test('validates config IDs and data types', () => {
   const c = load();
   const result = c.openHabitsValidateConfig_({ trackingSheetName: 'Tracking Data', metricSettings: [
-    { metricID: 'same', displayName: 'One', type: 'number' },
-    { metricID: 'same', displayName: 'Two', type: 'start_timer', ifTimer_Settings: {} }
+    { metricID: 'same', displayName: 'One', dataType: 'number' },
+    { metricID: 'same', displayName: 'Two', dataType: 'timer' }
   ] });
   assert.equal(result.ok, false);
   assert.match(result.errors.join(' '), /Duplicate metricID/);
-  assert.match(result.errors.join(' '), /timer rows are incomplete/);
+  assert.match(result.errors.join(' '), /dataType must be text, number, duration, or timestamp/);
 });
 
-test('allows add record type for stop timers but not other non-addable metrics', () => {
+test('allows add only for number and duration data', () => {
   const c = load();
-  const timerSettings = { timerStartMetricID: 'timer_started', timerDurationMetricID: 'timer_duration' };
   const result = c.openHabitsValidateConfig_({ trackingSheetName: 'Tracking Data', metricSettings: [
-    { metricID: 'stop', displayName: 'Stop', type: 'stop_timer', recordType: 'add', ifTimer_Settings: timerSettings },
-    { metricID: 'start', displayName: 'Start', type: 'start_timer', recordType: 'add', ifTimer_Settings: timerSettings }
+    { metricID: 'duration', displayName: 'Duration', dataType: 'duration', recordType: 'add' },
+    { metricID: 'note', displayName: 'Note', dataType: 'text', recordType: 'add' }
   ] });
 
   assert.equal(result.ok, false);
@@ -34,9 +33,20 @@ test('allows add record type for stop timers but not other non-addable metrics',
   assert.match(result.errors.join(' '), /metricSettings\[1\] can only use add/);
 });
 
-test('config editor allows add record type for stop timers', () => {
+test('validates due-by as a timestamp write mode', () => {
+  const c = load();
+  const result = c.openHabitsValidateConfig_({ trackingSheetName: 'Tracking Data', metricSettings: [
+    { metricID: 'medicine', displayName: 'Medicine', dataType: 'timestamp', recordType: 'keep_first', timestampSettings: { writeMode: 'due_by' }, dates: [['Monday', '']] }
+  ] });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(' '), /requires a due-by time in HH:MM format/);
+});
+
+test('config editor presents data types without server timer types', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
-  assert.match(source, /\['number', 'duration', 'stop_timer'\]\.includes\(m\.type\)/);
+  assert.match(source, /\{ value: 'text', label: 'Text' \}/);
+  assert.match(source, /\['number', 'duration'\]\.includes\(m\.dataType\)/);
+  assert.doesNotMatch(source, /value: 'start_timer'|value: 'stop_timer'/);
 });
 
 test('config editor presents beginner-friendly metric fields and keeps implementation controls advanced', () => {
@@ -62,10 +72,10 @@ test('config editor presents beginner-friendly metric fields and keeps implement
 test('collects every primary, derived, points, and lockout row once', () => {
   const c = load();
   const rows = c.openHabitsCollectRequiredRows_({
-    dailyPointsID: 'daily', cumulativePointsID: 'all', metricSettings: [{ metricID: 'focus_start', displayName: 'Focus', streaks: { streaksID: 'streak' }, points: { pointsID: 'points' }, ifTimer_Settings: { timerStartMetricID: 'timer_started', timerDurationMetricID: 'timer_minutes' } }],
+    dailyPointsID: 'daily', cumulativePointsID: 'all', metricSettings: [{ metricID: 'focus_duration', displayName: 'Focus', dataType: 'duration', streaks: { streaksID: 'streak' }, points: { pointsID: 'points' } }],
     lockouts: { globals: { cumulativeScreentimeID: 'screen_all', timeOpenedID: 'opened' }, blocks: [{ id: 'social', typeSpecific: { duration: { screenTimeID: 'social_time' }, task_block_IDs: ['focus_start'], firstXMinutes: { timestampID: 'wake' } } }] }
   });
-  assert.deepEqual(Array.from(rows, row => row.id).sort(), ['all','daily','focus_start','opened','points','screen_all','social_time','streak','timer_minutes','timer_started','wake']);
+  assert.deepEqual(Array.from(rows, row => row.id).sort(), ['all','daily','focus_duration','focus_start','opened','points','screen_all','social_time','streak','wake']);
 });
 
 test('reconciliation appends only missing rows, reports duplicates, and retains history', () => {

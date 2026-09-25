@@ -7,8 +7,8 @@
 3. Choose **OpenHabits → Setup Status** and resolve any red checks.
 4. Choose **OpenHabits → Install Starter Metrics**. This creates the hidden, protected `_OpenHabits Config` tab, saves a revision, and appends all missing rows to `Tracking Data`.
 5. Deploy the Apps Script web app once. Configuration edits after this point do **not** require redeployment.
-6. Install Insights and the starter Metric Logger / Toggle Timer Shortcuts. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Metrics/settings.json`; individual loggers only pass metric text to Insights.
-7. Try `started_work`, add a value to `glasses_of_water`, and toggle `focus_session_start` / `focus_session_stop`.
+6. Install Insights and the starter Metric Logger Shortcut. Timer Shortcuts keep their own start state and submit elapsed values through the same logger. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Metrics/settings.json`.
+7. Try `started_work`, add a value to `glasses_of_water`, and submit a duration to `focus_session_minutes`.
 8. Choose **OpenHabits → Edit Configuration** to add metrics from recipes, edit settings in forms, preview row changes, and use **Save and Apply**. You never need to edit JSON or redeploy for configuration changes, and the previous valid revision remains restorable.
 
 The V2 script creates `_OpenHabits Config` itself; do not create or edit that tab manually. The tracking tab defaults to `Tracking Data`, with `Metric ID` in column A and the friendly label in column B. Existing unreferenced rows and their history are retained, never deleted.
@@ -105,9 +105,9 @@ You can find the Sheet ID in the Sheet URL between `/d/` and `/edit`.
 The normal configuration workflow is entirely graphical:
 
 1. In your Sheet, choose **OpenHabits → Edit Configuration**.
-2. Use **Metrics → Add from recipe** for a completion habit, additive or replacement number, timestamp, duration, start/stop timer, or due-by task.
+2. Use **Metrics → Add from recipe** for a completion habit, additive or replacement number, timestamp, duration, text, or due-by timestamp.
 3. Give the metric a friendly name. The editor generates its ID; you can still customize it before saving.
-4. Open the collapsed **Advanced** sections only when you need schedules, streaks, points, insights, or timer details.
+4. Open the collapsed **Advanced** sections only when you need schedules, streaks, points, or insights.
 5. Add optional focus rules under **Focus rules**. Installation-wide and optional Notion settings are under **Settings**.
 6. Choose **Preview Sheet changes**, then **Save and Apply**. OpenHabits validates the complete configuration, creates missing rows, retains historical rows, and activates the new revision immediately.
 
@@ -189,8 +189,8 @@ Compared with a normal habit tracker, OpenHabits can:
 For habit tracking, import or build these Shortcuts:
 
 - **Shortcut QR Code Generator** — use the always-available panel below Export in the online Config Editor to create a QR code that launches any installed habit logger Shortcut. Enter the Shortcut name exactly as it appears in Apple Shortcuts, then download or scan the generated code.
-- **Metric Logger Template** — duplicatable template for non-timer metrics such as checkboxes, numbers, ratings, timestamps, and notes.
-- **Toggle Timer Template** — duplicatable template for timer metrics. Tapping the same Shortcut toggles between starting and stopping.
+- **Metric Logger Template** — duplicatable template for text, numbers, durations, and timestamps.
+- **Timer client** — a Shortcut may toggle a timer locally, but when it stops it sends only the elapsed value to an additive duration metric.
 - **Insights** — optional UX helper that reads and displays the return message generated after a metric logger Shortcut records something.
 - **Remember!** — optional helper that fetches the current status of a metric.
 
@@ -213,7 +213,7 @@ The QR generator runs in your browser and encodes only the Shortcut launch URL. 
 ```js
 {
   metricID: 'meditationDuration',
-  type: 'duration',
+  dataType: 'duration',
   displayName: 'Meditation',
   recordType: 'overwrite',
   dates: [
@@ -252,7 +252,7 @@ The QR generator runs in your browser and encodes only the Shortcut launch URL. 
 | Key | What it means |
 | --- | --- |
 | `metricID` | Unique row ID in column A of `Tracking Data`. |
-| `type` | Metric kind. Common values: `number`, `duration`, `timestamp`, `due_by`, `start_timer`, `stop_timer`. |
+| `dataType` | Stored value type: `text`, `number`, `duration`, or `timestamp`. |
 | `displayName` | Human-readable name used in output messages. |
 | `recordType` | How writes behave: `overwrite`, `keep_first`, or `add`. |
 | `dates` | Days/times when this metric is expected or eligible for prompts/streaks. |
@@ -261,7 +261,7 @@ The QR generator runs in your browser and encodes only the Shortcut launch URL. 
 | `insights` | Controls comparison/performance messages after logging. |
 | `ppnMessage` | Text fragments used by positive push notification prompts. |
 | `writeToNotion` | Per-metric Notion sync preference. Global `writeToNotion` must also be enabled. |
-| `ifTimer_Settings` | Timer-specific settings for start/stop timer metric pairs. |
+| `timestampSettings` | Timestamp-only write policy. Use `writeMode: 'due_by'` to gate writes by each matching date rule’s due time. |
 
 # 6) Lockouts Setup
 
