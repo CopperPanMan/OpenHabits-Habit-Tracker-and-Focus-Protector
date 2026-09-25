@@ -34,13 +34,6 @@
     return `[${entries.join(',')}]`;
   }
 
-  function buildTimerShortcutText(startMetricID, stopMetricID) {
-    return {
-      startText: buildShortcutMetricText([{ metricID: startMetricID }]),
-      stopText: buildShortcutMetricText([{ metricID: stopMetricID }])
-    };
-  }
-
   function init() {
     if (typeof document === 'undefined') return;
     const metricSelect = document.getElementById('qrMetricSelect');
@@ -256,5 +249,5 @@
     else init();
   }
 
-  return { normalizeShortcutName, buildShortcutUrl, buildInsightsUrl, buildShortcutMetricText, buildTimerShortcutText };
+  return { normalizeShortcutName, buildShortcutUrl, buildInsightsUrl, buildShortcutMetricText };
 }));

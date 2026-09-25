@@ -250,8 +250,8 @@ test('config_snapshot includes reminder state for every snapshot metric and pres
   const trackingSheet = {};
   context.getAppConfig = () => ({
     metricSettings: [
-      { metricID: 'task', type: 'number' },
-      { metricID: 'habit_only', type: 'number' }
+      { metricID: 'task', dataType: 'number' },
+      { metricID: 'habit_only', dataType: 'number' }
     ]
   });
   context.lockouts_readMetricStateMapByID_ = ids => Object.fromEntries(

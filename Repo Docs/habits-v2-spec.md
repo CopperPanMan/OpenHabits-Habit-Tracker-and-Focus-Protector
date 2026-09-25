@@ -127,12 +127,12 @@ Optional global config (used only if Notion enabled):
 Each metric object:
 
 ```jsx
-{metricID:"weightNumber",// requiredtype:"number",// required enum: number | duration | timestamp | due_by | start_timer | stop_timerdisplayName:"Weight: ",// required (used in output messaging)recordType:"overwrite",// required enum: overwrite | keep_first | add// dates controls scheduling, streak-counting, and PPN filteringdates: [// [dayOfWeek, dueByTime, [[startHour, endHour], ...]]
+{metricID:"weightNumber",// requireddataType:"number",// required enum: text | number | duration | timestampdisplayName:"Weight: ",// required (used in output messaging)recordType:"overwrite",// required enum: overwrite | keep_first | add// dates controls scheduling, streak-counting, and PPN filteringdates: [// [dayOfWeek, dueByTime, [[startHour, endHour], ...]]
     ["Sunday","10:15",[[12,17]]],
     ["Tuesday","15:43",[[9,12],[14,17]]],
     ["Friday","15:45",[[1,24]]]
   ],// streak row target + display unitstreaks: {unit:"days",streaksID:"weightNumberStreak" },// points configurationpoints: {value:1,multiplierDays:4,maxMultiplier:1.2,pointsID:"weightPoints"
-  },// performance insight configuration (used by existing function)insights: {/* passed to findPerformanceInsightsV2_ (ex: {insightChance:1, streakProb:0.8, dayToDayChance:1, dayToAvgChance:0.5, rawValueChance:1, increaseGood:-1, firstWords:"Time Completed:", insightUnits:"minutes"}) */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timer-specific settings (used when type is start_timer or stop_timer)ifTimer_Settings: {stopTimerMessage:"Added {addedTimeLong}! (addedTimeDec)\nNew Score: {totalTimeLong}",timerStartMetricID:null,timerDurationMetricID:null,muteOutput:false
+  },// performance insight configuration (used by existing function)insights: {/* passed to findPerformanceInsightsV2_ (ex: {insightChance:1, streakProb:0.8, dayToDayChance:1, dayToAvgChance:0.5, rawValueChance:1, increaseGood:-1, firstWords:"Time Completed:", insightUnits:"minutes"}) */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timestamp-only write policytimestampSettings: {writeMode:"now" // enum: now | due_by
   }
 }
 ```
@@ -226,28 +226,12 @@ Records one or more metrics and returns quickly without running Notion sync.
 - `0` counts as complete (it is non-empty).
 - No boolean values are stored anywhere.
 
-## 6.3 Allowed metric value inputs by type
+## 6.3 Allowed metric value inputs by data type
 
-- `number`:
-    - Must parse as a number (optional negative sign, optional decimal).
-    - No commas.
-- `duration`:
-    - Input may be `"MM:SS"` or `"HH:MM:SS"`.
-    - Stored format is always `"HH:MM:SS"`.
-    - Max hours = 99.
-- `timestamp`:
-    - Input value is ignored.
-    - System writes current timestamp string into the metric’s today cell.
-- `due_by`:
-    - Input value ignored.
-    - If on-time: write current timestamp.
-    - If late:
-        - `recordType: "overwrite"`: clear today cell and recompute today points as 0 (including daily/cumulative delta updates).
-        - `recordType: "keep_first"` or `recordType: "add"`: write nothing and award no points.
-- `start_timer` / `stop_timer`:
-    - Input value ignored.
-    - They do not write to their own `metricID` row; see Timer section.
-    - If `ifTimer_Settings.muteOutput` is `true`, timer-specific strings are omitted from `messages`.
+- `text`: must be a string and is stored verbatim. Text supports `overwrite` and `keep_first`, not `add`; performance insights are disabled.
+- `number`: must parse as a number (optional negative sign and decimal; no commas).
+- `duration`: input may be `MM:SS` or `HH:MM:SS`, is normalized to `HH:MM:SS`, and is limited to 99 hours.
+- `timestamp`: the input value is ignored and the server writes the current timestamp. When `timestampSettings.writeMode` is `due_by`, the configured date rule gates the write.
 
 ## 6.4 RecordType rules
 
@@ -271,8 +255,7 @@ Records one or more metrics and returns quickly without running Notion sync.
 
 - `number`: add numeric value to existing numeric cell (empty treated as 0).
 - `duration`: add durations (empty treated as 00:00:00), store normalized HH:MM:SS.
-- `stop_timer`: accept `add`; the timer workflow adds the newly elapsed duration to `timerDurationMetricID` rather than writing to the stop metric's own row. When points are configured, `add` also records the points-row value calculated from the cumulative timer duration.
-- For unsupported types (`timestamp`, `due_by`, `start_timer`):
+- For unsupported data types (`text`, `timestamp`):
     - Silently ignore add behavior (do not write); log a warning.
 
 ---
@@ -285,7 +268,7 @@ Log an error and skip that metric entry if:
 
 - `metricID` not found in config
 - value fails type validation
-- required per-type config is missing (examples: timer IDs missing, due_by date entry missing if required)
+- required data-type configuration is missing (for example, a due-by timestamp has no date rule)
 - duration > 99 hours after normalization
 
 ## 7.2 Config validation failures
@@ -300,7 +283,7 @@ The `dates` array drives:
 
 - whether a metric is considered “scheduled” on a given day (for streak/multiplier logic),
 - positive push notification filtering,
-- due_by “time” meaning (only relevant for `due_by` metrics).
+- due-by time meaning (only relevant when `timestampSettings.writeMode` is `due_by`).
 
 Each entry: `[dayOfWeek, dueByTime, excludedWindows]` where `excludedWindows` is optional and can be one of:
 
@@ -315,7 +298,7 @@ Rules:
     - Log an error/warning.
 - `dueByTime`:
     - 24h `HH:MM`
-    - Optional unless `type == "due_by"` (see assumptions list for exact requirement)
+    - Optional unless `timestampSettings.writeMode == "due_by"` (see assumptions list for exact requirement)
 - PPN hour windows (`excludedWindows` in the new format):
     - Each pair is `[startHour, endHour]` with integer hours in 0–23 space.
     - **Inclusive** (simple mental model): `startHour <= hour <= endHour`.
@@ -367,9 +350,9 @@ Let `basePoints = metric.points.value`.
     - Points = `minutes * basePoints * multiplier`
 - `number`:
     - Points = `numericValue * basePoints * multiplier`
-- `timestamp` / on-time `due_by`:
+- `timestamp` / on-time due-by timestamp:
     - Points = `basePoints * multiplier`
-- late `due_by`:
+- late due-by timestamp:
     - `overwrite`: clear the metric cell, set points-today for that metric to 0, and apply negative points delta if needed.
     - `keep_first` / `add`: write nothing; points = 0
 
@@ -436,49 +419,20 @@ Maxes out once `streakCountPrior >= multiplierDays`.
 
 ---
 
-# 12) Timers
+# 12) Client-owned timers
 
-Timers are implemented using metrics of type `start_timer` and `stop_timer`.
+Timers are not a server metric type. A client owns its start time, pause/resume behavior, and elapsed-time calculation. When a timer stops, it submits the elapsed value to a `duration` metric configured with `recordType: "add"`.
 
-## 12.1 Storage model
+For every successful duration addition, the per-metric response includes a deterministic `writeMessage` describing the delta, new total, and points when configured. The optional `insight` remains a separate property. For example:
 
-Timers do not write to their own `metricID` row. They write to two other rows specified by config:
+```json
+{
+  "writeMessage": "Added +22min! (0.37h) Work total: 3h 47min (+2.2pts = 24.7)",
+  "insight": "Worked +36% vs yesterday!"
+}
+```
 
-- `timerStartMetricID`: stores the “started at” timestamp for today
-- `timerDurationMetricID`: stores cumulative duration for today (HH:MM:SS)
-
-## 12.2 Canonical workflow
-
-- `start_timer`:
-    - Writes current timestamp to `timerStartMetricID` (today cell), subject to its recordType (typically `keep_first`).
-    - If `ifTimer_Settings.muteOutput` is `true`, it contributes no timer-specific text to `messages`.
-- `stop_timer`:
-    - Reads timestamp from `timerStartMetricID`.
-    - If missing/empty: error (cannot stop timer).
-    - Compute delta = now - startTime.
-    - Add delta duration to `timerDurationMetricID` (as HH:MM:SS).
-    - Clear `timerStartMetricID` cell (set to empty).
-    - Return a message generated from `stopTimerMessage` token replacement unless `ifTimer_Settings.muteOutput` is `true`.
-
-## 12.3 Token replacement for stopTimerMessage
-
-Supported tokens:
-
-- `{addedTimeLong}` → e.g., `1h 24min` (duration added this stop)
-- `{addedTimeDec}` → e.g., `1.4h` (duration added this stop)
-- `{totalTimeLong}` → e.g., `1h 24min` (new total cumulative duration)
-- `{totalTimeDec}` → e.g., `1.4h`
-
-Rules:
-
-- Unknown tokens remain unchanged.
-- Replacement is single-pass.
-- Replacement happens after determining which timer action occurred.
-
-## 12.4 Timer points behavior
-
-- Points should be awarded primarily on `stop_timer`.
-- For `stop_timer`, points are computed using **only the newly added duration**, in rounded minutes, times point value, times multiplier.
+Timer state is never stored or cleared by the server.
 
 ---
 
@@ -606,8 +560,8 @@ If configured in Script Properties:
 
 - unknown metricID
 - wrong type value
-- missing required fields for a type (e.g., timer IDs missing)
-- due_by logged late (treated as a handled condition: `overwrite` clears completion/points; non-overwrite does no write/no points; may be warning rather than error)
+- missing or invalid `dataType` / timestamp write-mode configuration
+- a due-by timestamp logged late (treated as a handled condition: `overwrite` clears completion/points; non-overwrite does no write/no points; may be warning rather than error)
 
 ## 17.2 Where errors go
 

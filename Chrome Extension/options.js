@@ -1,8 +1,7 @@
 const blockedDomainsEl = document.getElementById('blockedDomains');
 const lockoutsServerUrlEl = document.getElementById('lockoutsServerUrl');
 const lockoutsSecretEl = document.getElementById('lockoutsSecret');
-const startTimerMetricIDEl = document.getElementById('startTimerMetricID');
-const stopTimerMetricIDEl = document.getElementById('stopTimerMetricID');
+const screenTimeDurationMetricIDEl = document.getElementById('screenTimeDurationMetricID');
 const illegalUnlockMetricIDEl = document.getElementById('illegalUnlockMetricID');
 const illegalUnlockWaitSecondsEl = document.getElementById('illegalUnlockWaitSeconds');
 const legitimateUnlockWaitSecondsEl = document.getElementById('legitimateUnlockWaitSeconds');
@@ -23,8 +22,7 @@ async function loadOptions() {
   blockedDomainsEl.value = (cfg.blockedDomains || []).join('\n');
   lockoutsServerUrlEl.value = cfg.lockoutsServerUrl || '';
   lockoutsSecretEl.value = cfg.lockoutsSecret || '';
-  startTimerMetricIDEl.value = cfg.startTimerMetricID || '';
-  stopTimerMetricIDEl.value = cfg.stopTimerMetricID || '';
+  screenTimeDurationMetricIDEl.value = cfg.screenTimeDurationMetricID || '';
   illegalUnlockMetricIDEl.value = cfg.illegalUnlockMetricID || '';
   illegalUnlockWaitSecondsEl.value = cfg.illegalUnlockWaitSeconds || 30;
   legitimateUnlockWaitSecondsEl.value = cfg.legitimateUnlockWaitSeconds || 60;
@@ -38,8 +36,7 @@ async function saveOptions() {
     blockedDomains: blockedDomainsEl.value,
     lockoutsServerUrl: lockoutsServerUrlEl.value,
     lockoutsSecret: lockoutsSecretEl.value,
-    startTimerMetricID: startTimerMetricIDEl.value,
-    stopTimerMetricID: stopTimerMetricIDEl.value,
+    screenTimeDurationMetricID: screenTimeDurationMetricIDEl.value,
     illegalUnlockMetricID: illegalUnlockMetricIDEl.value,
     illegalUnlockWaitSeconds: illegalUnlockWaitSecondsEl.value,
     legitimateUnlockWaitSeconds: legitimateUnlockWaitSecondsEl.value,

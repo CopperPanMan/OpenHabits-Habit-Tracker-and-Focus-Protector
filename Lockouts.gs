@@ -1675,7 +1675,7 @@ function lockouts_buildEffectiveDayWindow_(dayKey, extensionHours, timezone, off
 }
 
 function lockouts_isTimestampMetricType_(metricType) {
-  return metricType === 'timestamp' || metricType === 'due_by' || metricType === 'start_timer' || metricType === 'stop_timer';
+  return metricType === 'timestamp';
 }
 
 function lockouts_buildVirtualTaskState_(taskBlockIDs, ctx) {
@@ -2131,7 +2131,7 @@ function lockouts_buildMetricStateEntryFromRow_(metricID, lookup, rowValues, hea
   var todayIndex = Math.max(0, todayCol - dataColumn);
   var value = Array.isArray(rowValues) && todayIndex < rowValues.length ? rowValues[todayIndex] : null;
   var settingLookup = getMetricSettingById(metricID);
-  var metricType = settingLookup && settingLookup.setting ? (settingLookup.setting.type || settingLookup.setting.unitType || null) : null;
+  var metricType = settingLookup && settingLookup.setting ? (settingLookup.setting.dataType || null) : null;
   var promptFields = lockouts_buildMetricPromptFieldsFromRow_(metricID, rowValues, headerValues, opts);
 
   return {
@@ -2271,7 +2271,7 @@ function lockouts_buildHabitsMetricTypesByID_() {
     if (!metricID || Object.prototype.hasOwnProperty.call(out, metricID)) {
       continue;
     }
-    out[metricID] = metric.type || metric.unitType || null;
+    out[metricID] = metric.dataType || null;
   }
 
   return out;
@@ -2304,7 +2304,7 @@ function lockouts_normalizeMetricValueForCache_(metricType, value) {
     return value;
   }
 
-  if (type === 'timestamp' || type === 'due_by' || type === 'start_timer' || type === 'stop_timer') {
+  if (type === 'timestamp') {
     var asDate = value instanceof Date ? value : new Date(value);
     if (asDate instanceof Date && !isNaN(asDate.getTime())) {
       return asDate.toISOString();

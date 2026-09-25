@@ -8,8 +8,7 @@ const DEFAULTS = {
   lockoutsServerUrl: '',
   lockoutsSecret: '',
   metricLogKey: 'record_metric_iOS',
-  startTimerMetricID: '',
-  stopTimerMetricID: '',
+  screenTimeDurationMetricID: '',
   illegalUnlockMetricID: '',
   screenTimeLoggingEnabled: false,
   notificationsEnabled: true
@@ -270,8 +269,7 @@ async function saveOptions(payload) {
     lockoutsServerUrl: String(payload.lockoutsServerUrl || '').trim(),
     lockoutsSecret: String(payload.lockoutsSecret || '').trim(),
     metricLogKey: String(payload.metricLogKey || '').trim() || DEFAULTS.metricLogKey,
-    startTimerMetricID: String(payload.startTimerMetricID || '').trim(),
-    stopTimerMetricID: String(payload.stopTimerMetricID || '').trim(),
+    screenTimeDurationMetricID: String(payload.screenTimeDurationMetricID || '').trim(),
     illegalUnlockMetricID: String(payload.illegalUnlockMetricID || '').trim(),
     illegalUnlockWaitSeconds: parseUnlockWaitSeconds(payload.illegalUnlockWaitSeconds, UNLOCK_WINDOWS.illegal.defaultWaitSeconds),
     legitimateUnlockWaitSeconds: parseUnlockWaitSeconds(payload.legitimateUnlockWaitSeconds, UNLOCK_WINDOWS.legitimate.defaultWaitSeconds),
@@ -459,7 +457,7 @@ async function isStableCandidateStillCurrent(candidateToken, tabId, url, cfg) {
 async function startScreenTimeSessionIfEligible(tab, cfg, candidateToken) {
   await clearSessionCandidate(candidateToken);
 
-  if (!cfg.screenTimeLoggingEnabled || !cfg.startTimerMetricID) {
+  if (!cfg.screenTimeLoggingEnabled || !cfg.screenTimeDurationMetricID) {
     return;
   }
 
@@ -475,7 +473,6 @@ async function startScreenTimeSessionIfEligible(tab, cfg, candidateToken) {
   };
 
   await chrome.storage.local.set({ activeScreenTimeSession: session });
-  await sendMetricIfConfigured(cfg.startTimerMetricID, cfg);
 }
 
 async function endScreenTimeSessionIfNeeded(details, cfgOverride) {
@@ -487,11 +484,21 @@ async function endScreenTimeSessionIfNeeded(details, cfgOverride) {
   const cfg = cfgOverride || await getConfig();
   await chrome.storage.local.set({ activeScreenTimeSession: null });
 
-  if (!cfg.screenTimeLoggingEnabled || !cfg.stopTimerMetricID) {
+  if (!cfg.screenTimeLoggingEnabled || !cfg.screenTimeDurationMetricID) {
     return;
   }
 
-  await sendMetricIfConfigured(cfg.stopTimerMetricID, cfg);
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - Number(session.startedAt || Date.now())) / 1000));
+  if (elapsedSeconds > 0) {
+    await sendMetricIfConfigured(cfg.screenTimeDurationMetricID, cfg, secondsToDuration(elapsedSeconds));
+  }
+}
+
+function secondsToDuration(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':');
 }
 
 function isTrackedDistractingTab(tab, cfg) {
@@ -623,13 +630,14 @@ async function fetchServerDecisionForKey(cfg, decisionKey) {
   }
 }
 
-async function sendMetricIfConfigured(metricID, cfg) {
+async function sendMetricIfConfigured(metricID, cfg, value) {
   if (!cfg.lockoutsServerUrl || !metricID) {
     return;
   }
 
   try {
-    await postServerJson(cfg, cfg.metricLogKey || DEFAULTS.metricLogKey, [[metricID]]);
+    const tuple = value === undefined ? [metricID] : [metricID, value];
+    await postServerJson(cfg, cfg.metricLogKey || DEFAULTS.metricLogKey, [tuple]);
   } catch (error) {
     // best effort metric logging
   }

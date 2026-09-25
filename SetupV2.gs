@@ -38,8 +38,17 @@ function openHabitsValidateConfig_(config) {
     else if (ids[id] !== undefined) errors.push('Duplicate metricID: ' + id + '.');
     else ids[id] = index;
     if (!metric.displayName) errors.push(label + '.displayName is required.');
-    if (metric.recordType === 'add' && ['number', 'duration', 'stop_timer'].indexOf(metric.type) < 0) errors.push(label + ' can only use add with number, duration, or stop_timer.');
-    if ((metric.type === 'start_timer' || metric.type === 'stop_timer') && (!metric.ifTimer_Settings || !metric.ifTimer_Settings.timerStartMetricID || !metric.ifTimer_Settings.timerDurationMetricID)) errors.push(label + ' timer rows are incomplete.');
+    if (['text', 'number', 'duration', 'timestamp'].indexOf(metric.dataType) < 0) errors.push(label + '.dataType must be text, number, duration, or timestamp.');
+    if (metric.recordType === 'add' && ['number', 'duration'].indexOf(metric.dataType) < 0) errors.push(label + ' can only use add with number or duration.');
+    var timestampWriteMode = metric.timestampSettings && metric.timestampSettings.writeMode || 'now';
+    if (metric.dataType !== 'timestamp' && timestampWriteMode !== 'now') errors.push(label + ' timestamp write modes require timestamp data.');
+    if (timestampWriteMode !== 'now' && timestampWriteMode !== 'due_by') errors.push(label + ' has an invalid timestamp write mode.');
+    if (timestampWriteMode === 'due_by' && (!Array.isArray(metric.dates) || metric.dates.length === 0)) errors.push(label + ' due-by timestamps require at least one date rule.');
+    if (timestampWriteMode === 'due_by') {
+      (metric.dates || []).forEach(function (dateRule, dateIndex) {
+        if (!Array.isArray(dateRule) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(dateRule[1] || ''))) errors.push(label + '.dates[' + dateIndex + '] requires a due-by time in HH:MM format.');
+      });
+    }
   });
   var blockIds = {};
   var blocks = ((config.lockouts || {}).blocks) || [];
@@ -71,8 +80,6 @@ function openHabitsCollectRequiredRows_(config) {
     add(metric.metricID, name, 'metric');
     add(metric.streaks && metric.streaks.streaksID, name + ' streak');
     add(metric.points && metric.points.pointsID, name + ' points');
-    add(metric.ifTimer_Settings && metric.ifTimer_Settings.timerStartMetricID, name + ' timer start');
-    add(metric.ifTimer_Settings && metric.ifTimer_Settings.timerDurationMetricID, name + ' timer duration');
   });
   add(config.dailyPointsID, 'Points today');
   add(config.cumulativePointsID, 'Points all time');
@@ -256,10 +263,9 @@ function openHabitsImportCodeConfig() { return openHabitsSaveAndApply(getCodeBac
 function openHabitsStarterConfig() {
   var config = JSON.parse(JSON.stringify(getCodeBackedAppConfig()));
   config.metricSettings = [
-    { metricID: 'started_work', displayName: 'Started Work', type: 'timestamp', recordType: 'overwrite', timezoneMode: 'floating', dates: [] },
-    { metricID: 'glasses_of_water', displayName: 'Glasses of Water', type: 'number', recordType: 'add', timezoneMode: 'floating', dates: [] },
-    { metricID: 'focus_session_start', displayName: 'Start Focus Session', type: 'start_timer', recordType: 'overwrite', timezoneMode: 'floating', dates: [], ifTimer_Settings: { timerStartMetricID: 'focus_session_started_at', timerDurationMetricID: 'focus_session_minutes', stopTimerMessage: '', muteOutput: true } },
-    { metricID: 'focus_session_stop', displayName: 'Stop Focus Session', type: 'stop_timer', recordType: 'overwrite', timezoneMode: 'floating', dates: [], ifTimer_Settings: { timerStartMetricID: 'focus_session_started_at', timerDurationMetricID: 'focus_session_minutes', stopTimerMessage: 'Focus session complete.', muteOutput: false } }
+    { metricID: 'started_work', displayName: 'Started Work', dataType: 'timestamp', recordType: 'overwrite', timezoneMode: 'floating', timestampSettings: { writeMode: 'now' }, dates: [] },
+    { metricID: 'glasses_of_water', displayName: 'Glasses of Water', dataType: 'number', recordType: 'add', timezoneMode: 'floating', dates: [] },
+    { metricID: 'focus_session_minutes', displayName: 'Focus Session', dataType: 'duration', recordType: 'add', timezoneMode: 'floating', dates: [] }
   ];
   return config;
 }

@@ -199,7 +199,7 @@ The copyable Sheet/config package should ship with three understandable, fully w
 
 1. A timestamp metric.
 2. A number metric using additive recording.
-3. A start/stop timer metric with all required supporting rows.
+3. An additive duration metric exercised by a client-owned timer.
 
 The downloadable starter Shortcuts must use IDs that exactly match these bundled examples. Treat those IDs as stable public starter contracts.
 
@@ -253,7 +253,7 @@ Add recipe-based metric creation. Initial recipes may include:
 - number that replaces;
 - timestamp;
 - duration;
-- start/stop timer;
+- client-owned timer feeding a duration metric;
 - due-by task;
 - advanced/custom.
 
@@ -291,7 +291,7 @@ After saving a metric, provide a success screen with:
 
 ### 11.1 Shortcut-ready metric text
 
-The editor should remove the need for users to hand-author the list syntax expected by the existing Metric Logger and Toggle Timer Shortcuts. Provide a **Copy Shortcut Metric Text** action that:
+The editor should remove the need for users to hand-author the list syntax expected by the Metric Logger and client-owned Timer Shortcuts. Provide a **Copy Shortcut Metric Text** action that:
 
 - opens with the metric from which it was invoked already selected;
 - allows one or more metrics to be selected from a searchable multi-select control;
@@ -304,14 +304,7 @@ For metrics that do not take a supplied value, each selected metric should be em
 
 Metrics that require data are a guided exception. Generate an entry such as `["metricID", <Provided Input>]` and clearly explain that `<Provided Input>` is a placeholder which the user must replace with the appropriate Apple Shortcuts magic variable. Do not describe this output as ready to run until that variable is connected. For the initial implementation, prefer one input-bearing metric at a time rather than generating an ambiguous multi-metric template with several unlabeled magic variables.
 
-Start/stop timers are the other special case. A timer setup should generate two separately labeled, complete values in the existing Toggle Timer format:
-
-- **Start Timer Text:** `[["startMetricID"]]`
-- **Stop Timer Text:** `[["stopMetricID"]]`
-
-Provide a copy button and destination instruction for each value. Do not combine the IDs into a new comma-delimited or positional mini-format, and do not switch timer setup to bare IDs if doing so would require users to add or rewire Shortcut actions. The generated values should contain the timer's loggable `start_timer` and `stop_timer` metric IDs, not its supporting `timerStartMetricID` or `timerDurationMetricID` Sheet-row references.
-
-The generated text is allowed to look like code because it is an opaque copy/paste artifact. The usability requirement is that users never have to understand, compose, or repair the syntax themselves. This feature should preserve the existing Shortcut and server payload contract rather than introduce a second wire format.
+Timers are client-owned. The editor should generate the duration metric text with a Provided Input placeholder and explain that the Shortcut must calculate elapsed time locally before submitting that value. No start/stop metric pair or supporting timer rows are generated.
 
 ## 12. Setup status instead of a large wizard
 
@@ -404,7 +397,7 @@ This phase can improve the existing hosted editor without changing runtime confi
 
 - Finalize stable example metrics and matching Shortcuts.
 - Add direct Insights QR input generation.
-- Add Shortcut-ready metric text generation, including Provided Input guidance and paired timer outputs.
+- Add Shortcut-ready metric text generation, including Provided Input guidance for client-calculated durations.
 - Add post-save “use this metric” guidance.
 - Optionally provide a Quick Log menu Shortcut.
 - Rewrite onboarding documentation and demos around the new happy path.
@@ -432,7 +425,7 @@ A user should be able to create and log:
 - a metric with points or a schedule in 5–10 minutes.
 
 For a normal addition, one Save and Apply action should leave configuration and required Sheet rows consistent.
-The editor should provide paste-ready Shortcut metric text without requiring the user to build list or payload-formatting actions. Timer setup should provide separately copyable start and stop text, and value-bearing metrics should clearly identify the one required magic-variable replacement step.
+The editor should provide paste-ready Shortcut metric text without requiring the user to build list or payload-formatting actions. Timer setup should identify the duration metric and the required Provided Input replacement step.
 
 ### Maintenance
 

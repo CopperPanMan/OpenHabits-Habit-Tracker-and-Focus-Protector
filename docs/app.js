@@ -75,9 +75,8 @@
     trackingSheetName: 'Name of sheet tab used for tracking data.',
     writeToNotion: 'Enable/disable Notion sync globally.',
     comparisonArray: 'Pairs of [days back, human label] used for insight comparisons.',
-    metricType: 'Choose the kind of value you want to track. Number or value: counts, ratings, amounts, or short text. Duration: elapsed time. Time completed: when something happened. Due-by task: completion against a schedule. Start/stop timer: the two actions for a timed activity.',
+    metricType: 'Choose the kind of value stored in the Sheet. Timer clients should calculate elapsed time and send it to a duration metric.',
     recordType: 'Controls what happens when this metric is logged more than once on the same day. Replace keeps the newest value, Keep first preserves the earliest value, and Add combines supported numbers or durations.',
-    ifTimer: 'Timer-only settings used when metric type is start_timer or stop_timer.',
     blockType: 'Determines which typeSpecific section is used for this block.',
     blockTimezoneMode: 'fixed keeps this block tied to the Apps Script/cache timezone. floating follows the current device/browser wall clock while traveling.',
     defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. fixed is backward-compatible; floating follows the device/browser local wall clock.',
@@ -266,7 +265,7 @@
 
   function newMetric() {
     return {
-      metricID: '', type: 'number', displayName: '', recordType: 'overwrite', timezoneMode: 'floating',
+      metricID: '', dataType: 'number', displayName: '', recordType: 'overwrite', timezoneMode: 'floating',
       dates: [],
       streaks: { unit: 'days', streaksID: '' },
       points: { value: 0, multiplierDays: 5, maxMultiplier: 1, pointsID: '' },
@@ -275,7 +274,7 @@
         rawValueChance: 1, increaseGood: 1, firstWords: '', insightUnits: ''
       },
       writeToNotion: false,
-      ifTimer_Settings: { stopTimerMessage: '', timerStartMetricID: '', timerDurationMetricID: '', muteOutput: false }
+      timestampSettings: { writeMode: 'now' }
     };
   }
 
@@ -284,21 +283,17 @@
   }
 
   const METRIC_TYPES = [
-    { value: 'number', label: 'Number or value' },
+    { value: 'text', label: 'Text' },
+    { value: 'number', label: 'Number' },
     { value: 'duration', label: 'Duration' },
-    { value: 'timestamp', label: 'Time completed' },
-    { value: 'due_by', label: 'Due-by task' },
-    { value: 'start_timer', label: 'Start a timer' },
-    { value: 'stop_timer', label: 'Stop a timer' }
+    { value: 'timestamp', label: 'Timestamp' }
   ];
 
   const METRIC_TYPE_HINTS = {
-    number: 'Track a count, amount, rating, or short supplied value—for example 3 glasses of water or mood 8.',
+    text: 'Store a note, journal entry, name, or other text.',
+    number: 'Track a count, amount, or rating—for example 3 glasses of water or mood 8.',
     duration: 'Track elapsed time—for example 45 minutes of exercise.',
-    timestamp: 'Track when something happened—for example when you woke up or took medication.',
-    due_by: 'Track whether something was completed by a scheduled time—for example medication by 9:00 AM.',
-    start_timer: 'Save the starting time for an activity such as a focus session.',
-    stop_timer: 'End a previously started timer and calculate its duration.'
+    timestamp: 'Track when something happened; optionally require it to be recorded by a scheduled time.'
   };
 
   const RECORD_TYPES = {
@@ -309,7 +304,7 @@
 
   function recordTypeOptions(metricType) {
     const values = ['overwrite', 'keep_first'];
-    if (['number', 'duration', 'stop_timer'].includes(metricType)) values.push('add');
+    if (['number', 'duration'].includes(metricType)) values.push('add');
     return values.map(value => RECORD_TYPES[value]);
   }
 
@@ -322,22 +317,26 @@
     const metric = newMetric();
     const defaults = {
       completion: ['Completion', 'number', 'keep_first'],
+      text: ['Daily Note', 'text', 'overwrite'],
       number_add: ['Number', 'number', 'add'], number_replace: ['Number', 'number', 'overwrite'],
       timestamp: ['Timestamp', 'timestamp', 'overwrite'], duration: ['Duration', 'duration', 'add'],
-      due_by: ['Due-by Task', 'due_by', 'keep_first']
+      due_by: ['Due-by Task', 'timestamp', 'keep_first']
     }[recipe] || ['Custom Metric', 'number', 'overwrite'];
-    [metric.displayName, metric.type, metric.recordType] = defaults;
+    [metric.displayName, metric.dataType, metric.recordType] = defaults;
     metric.metricID = normalizedMetricId(metric.displayName);
-    if (recipe === 'due_by') metric.dates = [['Sunday', '22:00', 0, 24]];
+    if (recipe === 'due_by') {
+      metric.timestampSettings.writeMode = 'due_by';
+      metric.dates = [['Sunday', '22:00', 0, 24]];
+    }
     generatedMetricIds.add(metric);
     return metric;
   }
 
   function applyMetricTypeDefaults(metric) {
-    if (metric.type === 'duration') {
+    if (metric.dataType === 'duration') {
       if (!metric.insights.insightUnits) metric.insights.insightUnits = 'minutes';
     }
-    if (metric.type === 'timestamp') {
+    if (metric.dataType === 'timestamp') {
       if (!metric.insights.firstWords) metric.insights.firstWords = 'Time Completed:';
       if (!metric.insights.insightUnits) metric.insights.insightUnits = 'minutes';
     }
@@ -506,28 +505,35 @@
 
     const typeGroup = document.createElement('div');
     typeGroup.className = 'field-group';
-    field(typeGroup, 'What are you tracking?', makeSelect(METRIC_TYPES, metric.type, v => {
-      metric.type = v;
-      if (metric.recordType === 'add' && !['number', 'duration', 'stop_timer'].includes(v)) metric.recordType = 'overwrite';
+    field(typeGroup, 'What are you tracking?', makeSelect(METRIC_TYPES, metric.dataType, v => {
+      metric.dataType = v;
+      if (metric.recordType === 'add' && !['number', 'duration'].includes(v)) metric.recordType = 'overwrite';
+      if (v !== 'timestamp') metric.timestampSettings.writeMode = 'now';
       applyMetricTypeDefaults(metric);
       renderAll();
     }), HELP.metricType);
-    typeGroup.appendChild(fieldHint(METRIC_TYPE_HINTS[metric.type] || 'Choose the kind of value this metric stores.'));
+    typeGroup.appendChild(fieldHint(METRIC_TYPE_HINTS[metric.dataType] || 'Choose the kind of value this metric stores.'));
     g.appendChild(typeGroup);
 
     const recordGroup = document.createElement('div');
     recordGroup.className = 'field-group';
     const recordHint = fieldHint((RECORD_TYPES[metric.recordType] || RECORD_TYPES.overwrite).hint);
-    field(recordGroup, 'When today already has a value', makeSelect(recordTypeOptions(metric.type), metric.recordType, v => {
+    field(recordGroup, 'When today already has a value', makeSelect(recordTypeOptions(metric.dataType), metric.recordType, v => {
       metric.recordType = v;
       recordHint.textContent = RECORD_TYPES[v].hint;
     }), HELP.recordType);
     recordGroup.appendChild(recordHint);
     g.appendChild(recordGroup);
+    if (metric.dataType === 'timestamp') {
+      field(g, 'Timestamp write behavior', makeSelect([
+        { value: 'now', label: 'Record when logged' },
+        { value: 'due_by', label: 'Only record by the configured due time' }
+      ], metric.timestampSettings.writeMode, v => { metric.timestampSettings.writeMode = v; renderAll(); }), 'Due-by timestamps reject writes after the matching date rule’s deadline.');
+    }
     card.appendChild(g);
 
-    const advancedSummary = [`Advanced`, metricTypeLabel(metric.type)];
-    if (['timestamp', 'due_by', 'start_timer', 'stop_timer'].includes(metric.type) || metric.dates.length > 0) {
+    const advancedSummary = [`Advanced`, metricTypeLabel(metric.dataType)];
+    if (metric.dataType === 'timestamp' || metric.dates.length > 0) {
       advancedSummary.push(metric.timezoneMode === 'fixed' ? 'spreadsheet timezone' : 'local time');
     }
     const advanced = toggleSection(advancedSummary.join(' · '), `metric-${i}-advanced`, false);
@@ -538,7 +544,7 @@
       if (Number.isInteger(v) && v > 0) metric.rowNumber = v;
       else delete metric.rowNumber;
     } }), 'Normally OpenHabits finds the row by Metric ID. Enter a positive row number only when you intentionally need to override that lookup.');
-    const usesTimeSettings = ['timestamp', 'due_by', 'start_timer', 'stop_timer'].includes(metric.type) || metric.dates.length > 0;
+    const usesTimeSettings = metric.dataType === 'timestamp' || metric.dates.length > 0;
     if (usesTimeSettings) {
       field(advancedGrid, 'Timezone Behavior', makeSelect([
         { value: 'floating', label: 'Follow the device’s local time' },
@@ -594,6 +600,7 @@
     advanced.appendChild(points);
 
     const insights = toggleSection('Insights Properties', `metric-${i}-insights`, false);
+    if (metric.dataType === 'text') insights.hidden = true;
     const ig = document.createElement('div');
     ig.className = 'grid';
     [['Insight Chance', 'insightChance'], ['Streak Probability', 'streakProb'], ['Day-to-Day Chance', 'dayToDayChance'], ['Day-to-Average Chance', 'dayToAvgChance'], ['Raw Value Chance', 'rawValueChance']].forEach(([label, key]) => {
@@ -605,18 +612,6 @@
     insights.appendChild(ig);
     advanced.appendChild(insights);
 
-    if (metric.type === 'start_timer' || metric.type === 'stop_timer') {
-      const timer = toggleSection('Timer Settings', `metric-${i}-timer`, false);
-      const tg = document.createElement('div');
-      tg.className = 'grid';
-      field(tg, 'Stop Timer Message', makeInput({ value: metric.ifTimer_Settings.stopTimerMessage, onChange: v => metric.ifTimer_Settings.stopTimerMessage = v }), HELP.ifTimer);
-      field(tg, 'Timer Start Metric ID', makeInput({ value: metric.ifTimer_Settings.timerStartMetricID || '', onChange: v => metric.ifTimer_Settings.timerStartMetricID = v || null }), HELP.ifTimer);
-      field(tg, 'Timer Duration Metric ID', makeInput({ value: metric.ifTimer_Settings.timerDurationMetricID || '', onChange: v => metric.ifTimer_Settings.timerDurationMetricID = v || null }), HELP.ifTimer);
-      field(tg, 'Mute Output', makeCheck(metric.ifTimer_Settings.muteOutput, v => metric.ifTimer_Settings.muteOutput = v), HELP.ifTimer);
-      timer.appendChild(tg);
-      advanced.appendChild(timer);
-    }
-
     card.appendChild(advanced);
 
     return card;
@@ -627,15 +622,16 @@
     root.innerHTML = '';
     const tools = document.createElement('div'); tools.className = 'metric-tools';
     const search = makeInput({ value: '', onChange: () => {}, required: false }); search.placeholder = 'Search metrics by name or ID';
-    search.addEventListener('input', () => document.querySelectorAll('.metric-card').forEach((card, index) => { const m = state.metricSettings[index]; card.hidden = !`${m.displayName} ${m.metricID} ${m.type}`.toLowerCase().includes(search.value.toLowerCase()); }));
+    search.addEventListener('input', () => document.querySelectorAll('.metric-card').forEach((card, index) => { const m = state.metricSettings[index]; card.hidden = !`${m.displayName} ${m.metricID} ${m.dataType}`.toLowerCase().includes(search.value.toLowerCase()); }));
     tools.append(search, button('Expand All', 'secondary', () => document.querySelectorAll('#tab-metrics details').forEach(d => d.open = true), { trackHistory: false }), button('Collapse All', 'secondary', () => document.querySelectorAll('#tab-metrics details').forEach(d => d.open = false), { trackHistory: false }));
     root.appendChild(tools);
     const nav = document.createElement('nav'); nav.className = 'metric-navigator'; nav.setAttribute('aria-label', 'Metric navigator');
-    state.metricSettings.forEach((m, i) => { const link = document.createElement('a'); link.href = `#metric-card-${i}`; link.textContent = `${m.displayName || 'Unnamed'} · ${m.metricID || 'missing ID'} · ${m.type}`; nav.appendChild(link); });
+    state.metricSettings.forEach((m, i) => { const link = document.createElement('a'); link.href = `#metric-card-${i}`; link.textContent = `${m.displayName || 'Unnamed'} · ${m.metricID || 'missing ID'} · ${m.dataType}`; nav.appendChild(link); });
     root.appendChild(nav);
     state.metricSettings.forEach((m, i) => root.appendChild(renderMetric(m, i)));
     const recipe = makeSelect([
       { value: 'completion', label: 'Done / not done' },
+      { value: 'text', label: 'Text / daily note' },
       { value: 'number_add', label: 'Count or amount — add logs together' },
       { value: 'number_replace', label: 'Count or amount — keep newest log' },
       { value: 'timestamp', label: 'Time something happened' },
@@ -802,7 +798,15 @@
       { text: ' Points', color: 'default', ...(pointSegments[1] || {}) }
     ];
     merged.metricSettings = (raw.metricSettings || []).map((m) => {
-      const normalized = { ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, ifTimer_Settings: { ...newMetric().ifTimer_Settings, ...(m.ifTimer_Settings || {}) } };
+      if (m.type && !m.dataType) {
+        if (m.type === 'start_timer' || m.type === 'stop_timer') {
+          throw new Error(`Timer metric "${m.metricID || 'unnamed'}" must be migrated to a client-owned timer and additive duration metric before import.`);
+        }
+        m = { ...m, dataType: m.type === 'due_by' ? 'timestamp' : m.type };
+        if (m.type === 'due_by') m.timestampSettings = { ...(m.timestampSettings || {}), writeMode: 'due_by' };
+        delete m.type;
+      }
+      const normalized = { ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, timestampSettings: { ...newMetric().timestampSettings, ...(m.timestampSettings || {}) } };
       normalizeMetricInsights(normalized);
       applyMetricTypeDefaults(normalized);
       return normalized;
@@ -828,16 +832,13 @@
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
       if (m.rowNumber !== undefined && (!Number.isInteger(m.rowNumber) || m.rowNumber <= 0)) errors.push(`Metric ${i + 1}: Row Number must be a positive whole number.`);
       if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) errors.push(`Metric ${i + 1}: timezoneMode must be fixed or floating.`);
-      if (m.recordType === 'add' && !['number', 'duration', 'stop_timer'].includes(m.type)) errors.push(`Metric ${i + 1}: add record type is only supported for number, duration, and stop_timer metrics.`);
-      if (m.type === 'due_by' && m.dates.length === 0) errors.push(`Metric ${i + 1}: due_by metrics require at least one date rule.`);
-      if (m.type === 'start_timer' || m.type === 'stop_timer') {
-        if (!m.ifTimer_Settings.timerStartMetricID) errors.push(`Metric ${i + 1}: Timer Start Metric ID is required for timer metrics.`);
-        if (!m.ifTimer_Settings.timerDurationMetricID) errors.push(`Metric ${i + 1}: Timer Duration Metric ID is required for timer metrics.`);
-      }
+      if (!['text', 'number', 'duration', 'timestamp'].includes(m.dataType)) errors.push(`Metric ${i + 1}: invalid data type.`);
+      if (m.recordType === 'add' && !['number', 'duration'].includes(m.dataType)) errors.push(`Metric ${i + 1}: add record type is only supported for number and duration metrics.`);
+      if (m.timestampSettings.writeMode === 'due_by' && m.dates.length === 0) errors.push(`Metric ${i + 1}: due-by timestamps require at least one date rule.`);
       m.dates.forEach((d, di) => {
         if (!DAYS.includes(d[0])) errors.push(`Metric ${i + 1}, date ${di + 1}: invalid day.`);
         const hasDueBy = String(d[1] || '').trim() !== '';
-        if (m.type === 'due_by' && !hasDueBy) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by is required for due_by metrics.`);
+        if (m.timestampSettings.writeMode === 'due_by' && !hasDueBy) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by is required for due-by timestamps.`);
         if (hasDueBy && !/^\d{2}:\d{2}$/.test(d[1])) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by must be HH:MM.`);
         if (typeof d[2] !== 'number' || typeof d[3] !== 'number') errors.push(`Metric ${i + 1}, date ${di + 1}: start/end must be numbers.`);
       });

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildShortcutUrl, normalizeShortcutName, buildInsightsUrl, buildShortcutMetricText, buildTimerShortcutText } = require('../docs/shortcut-qr.js');
+const { buildShortcutUrl, normalizeShortcutName, buildInsightsUrl, buildShortcutMetricText } = require('../docs/shortcut-qr.js');
 
 test('buildShortcutUrl URL-encodes an exact Shortcut name', () => {
   assert.equal(
@@ -30,8 +30,7 @@ test('builds paste-ready no-value and Provided Input metric text', () => {
   assert.throws(() => buildShortcutMetricText([{ metricID: 'water', requiresInput: true }, { metricID: 'other' }]), /one at a time/);
 });
 
-test('builds separate timer text and a credential-free direct Insights URL', () => {
-  assert.deepEqual(buildTimerShortcutText('focus_start', 'focus_stop'), { startText: '[["focus_start"]]', stopText: '[["focus_stop"]]' });
+test('builds a credential-free direct Insights URL', () => {
   const url = buildInsightsUrl(['focus_start']);
   assert.match(url, /^shortcuts:\/\/run-shortcut\?name=Insights&input=text&text=/);
   assert.equal(url.includes('secret'), false);
