@@ -5,8 +5,13 @@
     <section class="launcher-hero">
       <span class="eyebrow">OPENHABITS</span>
       <h1>Edit your configuration</h1>
-      <p>Your current configuration will be copied before the graphical editor opens.</p>
-      <button id="openEditor" class="launcher-primary" type="button" disabled>Open Editor with Current Config</button>
+      <p>First copy your current configuration, then open the graphical editor.</p>
+      <div class="launcher-handoff-actions">
+        <button id="copyCurrent" class="launcher-primary" type="button" disabled>1. Copy Current Configuration</button>
+        <a id="openEditor" class="launcher-primary secondary disabled" target="_blank" aria-disabled="true">2. Open Config Editor</a>
+      </div>
+      <label id="copyFallbackLabel" class="launcher-copy-fallback" for="currentConfigFallback" hidden>Clipboard access was blocked. Copy the selected configuration manually:</label>
+      <textarea id="currentConfigFallback" class="launcher-copy-fallback" rows="6" readonly hidden></textarea>
       <p id="handoffStatus" class="status">Loading your configuration…</p>
     </section>
 
@@ -30,7 +35,6 @@
     <details class="panel">
       <summary>Troubleshooting and preferences</summary>
       <div class="launcher-actions">
-        <button id="copyCurrent" class="secondary" type="button">Copy Current Configuration</button>
         <button id="repair" class="secondary" type="button">Check and Repair Metric Rows</button>
         <button id="undo" class="danger" type="button" disabled>Undo Last Configuration Change</button>
         <label class="preference"><input id="autoOpen" type="checkbox"> Open OpenHabits automatically with this Sheet</label>
@@ -44,7 +48,10 @@
   const json = document.getElementById('configJson');
   const result = document.getElementById('result');
   const save = document.getElementById('save');
+  const copyCurrent = document.getElementById('copyCurrent');
   const openEditor = document.getElementById('openEditor');
+  const currentConfigFallback = document.getElementById('currentConfigFallback');
+  const copyFallbackLabel = document.getElementById('copyFallbackLabel');
   const handoffStatus = document.getElementById('handoffStatus');
   const advancedStatus = document.getElementById('advancedStatus');
   let currentJson = '';
@@ -59,9 +66,11 @@
 
   function copyText(text, statusTarget) {
     return navigator.clipboard.writeText(text).then(() => true).catch(() => {
-      json.value = text;
-      json.focus();
-      json.select();
+      currentConfigFallback.value = text;
+      currentConfigFallback.hidden = false;
+      copyFallbackLabel.hidden = false;
+      currentConfigFallback.focus();
+      currentConfigFallback.select();
       statusTarget.textContent = 'Clipboard access was blocked. Copy the selected configuration manually.';
       return false;
     });
@@ -100,7 +109,10 @@
 
   google.script.run.withSuccessHandler(data => {
     currentJson = data.configJson;
-    openEditor.disabled = false;
+    copyCurrent.disabled = false;
+    openEditor.href = editorUrl + '#from-sheet';
+    openEditor.classList.remove('disabled');
+    openEditor.removeAttribute('aria-disabled');
     document.getElementById('undo').disabled = !data.hasPreviousConfig;
     document.getElementById('autoOpen').checked = data.autoOpen;
     document.getElementById('savedAt').textContent = data.updatedAt
@@ -116,19 +128,10 @@
     handoffStatus.textContent = 'Ready.';
   }).withFailureHandler(error => { handoffStatus.textContent = 'Error: ' + error.message; }).openHabitsGetConfigBridgeData();
 
-  openEditor.addEventListener('click', async () => {
+  copyCurrent.addEventListener('click', async () => {
     handoffStatus.textContent = 'Copying configuration…';
-    // Open the destination while this click still has an active user gesture.
-    // Navigating an about:blank popup after awaiting the clipboard can be
-    // blocked by the Apps Script sidebar sandbox, leaving a blank tab behind.
-    const editor = window.open(editorUrl + '#from-sheet', '_blank');
     const copied = await copyText(currentJson, handoffStatus);
-    if (!editor) handoffStatus.textContent = 'The editor popup was blocked. Allow popups, then try again.';
-    if (copied && editor) handoffStatus.textContent = 'Configuration copied. Load it in the editor, then return here when finished.';
-  });
-
-  document.getElementById('copyCurrent').addEventListener('click', async () => {
-    if (await copyText(currentJson, advancedStatus)) advancedStatus.textContent = 'Current configuration copied.';
+    if (copied) handoffStatus.textContent = 'Configuration copied. Now open the editor and load the copied configuration.';
   });
 
   let validationTimer;

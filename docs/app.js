@@ -1137,7 +1137,7 @@
   } catch (_) {}
 
   if (window.location.hash === '#from-sheet') {
-    $('importInstructions').textContent = 'Your Sheet copied its current configuration. Load it to begin editing.';
+    $('importInstructions').textContent = 'Load the configuration you copied from your Sheet to begin editing.';
     $('loadClipboardBtn').focus();
     history.replaceState(null, '', window.location.pathname + window.location.search);
   }
