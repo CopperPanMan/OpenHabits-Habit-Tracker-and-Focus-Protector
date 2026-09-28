@@ -151,6 +151,8 @@ test('Sheet menu opens an owner-authorized import bridge to the canonical editor
   assert.doesNotMatch(source, /Install Starter Metrics|openHabitsStarterConfig/);
   assert.match(launcher, /target="_blank"/);
   assert.match(launcher, /Open Editor with Current Config/);
+  assert.match(launcher, /window\.open\(editorUrl \+ '#from-sheet', '_blank'\)/);
+  assert.doesNotMatch(launcher, /window\.open\('', '_blank'\)/);
   assert.match(launcher, /openHabitsPreviewConfig/);
   assert.match(launcher, /openHabitsSaveAndApply/);
   assert.match(launcher, /Undo Last Configuration Change/);
