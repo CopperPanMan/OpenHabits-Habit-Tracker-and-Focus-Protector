@@ -142,6 +142,9 @@ button.danger { border-color: var(--danger); background: var(--danger); }
 .section summary {
   cursor:pointer;
   font-weight:600;
+  display: flex;
+  align-items: center;
+  gap: .2rem;
 }
 .help {
   display:inline-flex;
@@ -154,11 +157,15 @@ button.danger { border-color: var(--danger); background: var(--danger); }
   color: var(--help-text);
   font-size:.75rem;
   margin-left:.35rem;
-  cursor:help;
+  cursor:pointer;
   position:relative;
+  border: 0;
+  padding: 0;
+  flex: 0 0 auto;
 }
 .help:hover::after,
-.help:focus::after {
+.help:focus::after,
+.help.open::after {
   content: attr(data-help);
   position:absolute;
   z-index:10;
@@ -172,6 +179,20 @@ button.danger { border-color: var(--danger); background: var(--danger); }
   font-size:.78rem;
   line-height:1.2;
 }
+.notice, .empty-state {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .75rem;
+  color: var(--muted);
+  background: var(--section-bg);
+}
+.empty-state { border-style: dashed; text-align: center; }
+.check-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+.check-option { flex-direction: row; align-items: center; color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: .35rem .6rem; }
+.chip-list { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .6rem; }
+.chip { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--border); border-radius: 999px; padding: .2rem .25rem .2rem .6rem; }
+button.chip-remove { border: 0; border-radius: 999px; padding: 0; width: 1.35rem; height: 1.35rem; line-height: 1; }
+.reference-select { width: 100%; }
 .card {
   border:1px solid var(--border);
   border-radius:8px;

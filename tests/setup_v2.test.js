@@ -165,6 +165,23 @@ test('GitHub editor is the sole visual editor and exports first-class JSON', () 
   assert.match(githubEditor, /Copy JSON/);
 });
 
+test('config editor exposes newcomer help, duplication, preset assignment, and safe metric references', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'docs', 'styles.css'), 'utf8');
+
+  for (const sectionHelp of ['datesSection', 'streaksSection', 'pointsSection', 'insightsSection']) {
+    assert.match(app, new RegExp(`${sectionHelp}:`));
+  }
+  assert.match(app, /function duplicateMetric\(/);
+  assert.match(app, /function duplicateBlock\(/);
+  assert.match(app, /Technical Block ID/);
+  assert.match(app, /metricReferenceSelect\(id/);
+  assert.match(app, /Preset Modes/);
+  assert.match(app, /first rule that blocks access wins/);
+  assert.match(app, /Insight Frequency \(%\)/);
+  assert.match(styles, /\.help\.open::after/);
+});
+
 test('Shortcut metric text uses a searchable configured-metric multi-select', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
