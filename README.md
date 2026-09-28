@@ -1,57 +1,86 @@
-# OpenHabits
-## What is this?
+# OpenHabits Metrics
 
-OpenHabits is an open source habit tracker and focus protection system built around Apple Shortcuts, Google Sheets, and Google Apps Script. It is for people who want more than a checklist app or a simple app blocker: it lets your habit data become the thing that shapes what your phone and computer allow you to do next. It aslo allows you to build custom dashboards with a composite daily point score, to motivate positive behavior and see how you are doing over time.
+**OpenHabits Metrics lets you track the things you do each day, then use that data to measure progress, motivate behavior, and control distractions.**
 
-It has two main parts, and you can use either one without the other:
+Track habits, tasks, ratings, timestamps, durations, and other metrics from your iPhone, Notion, or automations. Your tracked data is stored in a Google Sheet you own, where you can chart it, summarize it with formulas, build dashboards around it, and use it to power streaks, points, performance insights, and optional app or website lockouts.
 
-- **Metric Logger** — log habits, tasks, durations, timestamps, ratings, and other personal metrics into a Google Sheet from iPhone Shortcuts. OpenHabits can calculate streaks, points, and insight messages, and can optionally sync habit status back to Notion.
-- **App/Website Locker** — block or allow distracting apps and websites based on time windows, completed tasks, cooldowns, screen time budgets, and presets. It can run on iOS through Shortcuts automations and on desktop Chrome through the included extension.
+For example, you might rate your mood from 1–10 each day, record when you went to sleep, and track your focused work hours to see how the three relate over time. You might keep YouTube and Reddit blocked across your phone and computer until you've planned the day's tasks, then award yourself points for doing so. Or you might assign point values to the behaviors and tasks that matter to you, then chart a daily composite score to see how you're doing over time according to the priorities you chose.
 
-## What Can This Do?
+That's what makes OpenHabits Metrics different from a typical habit tracker or screen-time blocker: **the data you track doesn't have to stop at a checkmark.** It can drive charts, points, streaks, reminders, performance feedback, Notion state, and whether distracting apps or websites are currently available.
 
-- **Scan a QR code, tap an NFC tag, or launch a shortcut to Log Metrics/Tasks/Habits**  
-  Scan a code after meditating, working out, reading, cleaning, or practicing. OpenHabits can ask for a duration, score, or note, write it to your Sheet, and return a message like how today compares with last week.
+The same focus rules can apply to apps on your iPhone and websites in Google Chrome on your computer, so your rules don't disappear just because you switch devices.
 
-- **Block Apps Based on Task Completion**  
-  If YouTube, Instagram, Reddit, or another app opens before you completed a task like "plann your day", OpenHabits can immediately redirect you, show what is missing, and tell you what would unlock the app.
+## How Does This Work?
 
-- **Block Apps Based on Screentime**  
-  Let yourself use a distracting app for a certain amount of time, then block it until tomorrow or until a cooldown/rationing rule says it is reasonable again.
+OpenHabits revolves around logging metrics to your Google Sheet from your iPhone or Notion. Each metric is something you want to track over time, stored as one row, with a new column added automatically for each day.
 
-- **Build your own productivity OS**  
-  Because your data is in a Google Sheet you own, you can build custom dashboards and charts, and use AI or traditional analysis to find insights. For instance, find the correlation between hours slept and productive hours worked, or between meal times and mood. It can even two-way sync tasks with Notion.
+A metric can be:
 
-- **Fully Customizeable**  
-  Because this is open source, you can code changes or use codex/claude to add features where desired. Give an AI the link to this repo and you can use it for troubleshooting, ideation, config creation, all sorts of stuff. It works surprisingly well.
+- a number
+- text
+- a timestamp
+- a duration
 
-## How do I Use it?
+On your iPhone, you log these metrics using the provided **Metric(s) Logger Template** Apple Shortcut. A single Shortcut can log one metric or many at once, and can be run directly, triggered by an NFC tag or QR code, or launched automatically via iOS automations.
 
-0. Copy the Sheet. Its starter configuration and matching metric rows are already included.
-1. Deploy once, connect Insights, then log tasks or other data from your iPhone or Notion.
-2. Display that data on a Google Sheets dashboard that lives on your desk
-3. Use that data to inform your decisions and motivate behavior
-4. App Lockouts act as bumpers through your day to guide you to the "right" behaviors, and prevent doomscrolling.
+You can also optionally log metrics from Notion by linking a Notion database entry to a configured metric.
 
-Configuration is stored as JSON in the copied Sheet. The OpenHabits panel opens with the Sheet and is always available from **OpenHabits → Open OpenHabits**. Choose **Open Editor with Current Config**, load the copied configuration in the [browser Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/), then use **Finish and Copy for OpenHabits**. Paste it into the still-open Sheet panel; OpenHabits validates it automatically before **Save and Apply**. This creates missing rows without editing source or redeploying, and the public editor never receives access to the Sheet.
+OpenHabits can then use that data for points, streaks, performance insights, Notion syncing, dashboards, reminders, and focus rules.
 
+Subsequent loggings of the same metric can be set to keep the first value, keep the most recent value, or add to the existing value. OpenHabits stores one resulting value per metric per day, keeping the data in an easy-to-chart time series rather than a log of individual entries.
 
-Uncategorized
-- example usage (my specific habit chain through the day)
-- habit chains in general (you can make logging one thing prompt you to log another thing)
-- how calendar alarms for iOS integrates, and can then create habit "stacks" like the following
--   wakeup alarm goes off, and requires a code scan. Upon scanning the code, it launches "log weight", thus prompting me to input my weight (example of logging data). That is now displayed on the weight over time graph on my dashboard, which lives on a galaxy tab a9 on my desk at home and at work. I could even put one in my kitchen. Alarms guide me through my morning routine with verbal callouts, and then a QR alarm goes off to choose my work tasks at 9:10AM, gated to only work and home. Alarms will keep looping every 15 minutes until I have logged that I completed that task. Work is valued at 3 points per minute.
+For example, you could create metrics for `Exercise`, `Weight`, `Focused Work`, `Mood`, and `Planned Workday`. `Planned Workday` could appear in a dashboard, earn points, contribute to a streak, sync with Notion, and keep distracting apps and websites blocked until it has been logged.
 
-- the greater theory, "why", and setup explanation behind the entire productivity system I have built and use. I can cover this in the videos, but do I need more here on that?
+## What Am I Installing?
 
-### Next Step >> [Setup and Usage Guide](Repo%20Docs/setup.md)
+OpenHabits Metrics is not an app. Instead, it is a system built with tools you control:
 
-## Why?
+- **Google Sheets** stores your metrics, history, configuration, and any dashboards or charts you choose to build.
+- **Google Apps Script** is attached to your Sheet and handles the underlying logging, calculations, integrations, and focus rules in the background.
+- **Apple Shortcuts** provide the main iPhone interface.
+- **Scriptable** handles the more complex local logic used by iOS focus protection.
+- **A Chrome extension** optionally applies the same focus rules to websites on your computer.
+- **Notion** is optional and can sync selected tasks and metrics with OpenHabits.
 
-OpenHabits was created to help users take back control over their lives and attention while still owning the system themselves.
+You do not need every part.
 
-Most habit trackers only record what happened. Most app blockers only say “no” on a fixed schedule. OpenHabits tries to connect the two: if you already know the behaviors that make your day work, your devices should be able to help protect those behaviors before attention gets spent somewhere else.
+If you only want to track habits, work, or other data, you can use the logging side without any lockouts. If you primarily want focus protection, you can configure only the metrics needed for your rules. Or you can use both together so your phone and computer respond to the same underlying data.
 
-I (the author) recommend you also get [Calendar Alarms for iOS](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/tree/main). It works with OpenHabits to create one cohesive productivity OS.
+**You do not need to write code to install, configure, or use OpenHabits Metrics.** Configuration is managed from your Google Sheet using the OpenHabits Config Editor, which provides a graphical interface for changing metrics, points, streaks, lockouts, and other settings.
 
-*Dev Note*: OpenHabits is currently primarily iOS focused because the Shortcut clients were built first. Android equivalents could likely be built with Tasker or similar tools, and community help would be welcome.
+## Feature Highlights
+
+- **Track what matters**
+
+  Track tasks and behaviors, numbers, ratings, timestamps, durations, and start/stop timers. Data can come from Apple Shortcuts, QR codes, NFC tags, Siri, Notion, automations, or other clients.
+- **Chart your progress and motivate behavior**
+
+  Your data lives in a normal Google Sheet, so you can chart it, summarize it with formulas, conditionally format it, or create custom dashboards for anything you track. Log a task, and watch a chart satisfyingly update in real time.
+- **Motivate further with points and streaks**
+
+  Give different metrics different point values, calculate daily and cumulative scores, and track streaks automatically. Plus, upon logging a habit from your iPhone, get a performance insight notification that compares today’s value to yesterday, previous periods, or even recent averages.
+- **Take back your attention**
+
+  Make access to distracting apps depend on completing tasks, total screen time, the first X minutes after a task is completed, or even a ration that unlocks screen time through the day. And the same blocks can sync across your iPhone, iPad, and desktop Chrome, so rules are always consistent. OpenHabits can guide you to better behaviors.
+- **Sync with Notion**
+
+  Complete something from your phone and its state can update in both Google Sheets and Notion. Complete it in Notion and OpenHabits can reflect that state back on your phone for things like reminders and focus rules.
+- **Track work as easily as personal habits**
+
+  Metrics can represent exercise or flossing just as easily as focused work, customer outreach, sales activity, or another business measure.
+
+## You Can Go Much Further Than the Editor
+
+OpenHabits can be fully installed, configured, and used without writing code.
+
+But the cool thing is that your configuration is ultimately structured JSON text. That makes OpenHabits easy to customize with AI.
+
+For example, you can give an LLM a link to this repository and describe what you want to track, how you want points or streaks to work, what apps and websites you want protected, or how you want the system to behave, and it can then help you design configurations, Sheet formulas, dashboards, Apple Shortcuts, integrations, or modifications to the underlying OpenHabits code.
+
+## Ready to Install?
+
+The setup guide walks through copying the OpenHabits Sheet, completing the one-time setup, installing the starter Apple Shortcuts, logging your first metrics, and optionally enabling focus protection on iOS and Chrome.
+
+You do not need to configure the entire system at once.
+
+### [**→ Setup & Usage Guide**](Repo%20Docs/setup.md)
