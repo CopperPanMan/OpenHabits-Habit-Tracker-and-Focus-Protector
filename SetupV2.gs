@@ -9,7 +9,7 @@ var OPENHABITS_CONFIG_SHEET = '_OpenHabits Config';
 var OPENHABITS_CONFIG_SCHEMA = 2;
 var OPENHABITS_CONFIG_CACHE_KEY = 'openhabits-config-v2';
 var OPENHABITS_CONFIG_EDITOR_URL = 'https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/';
-var OPENHABITS_STARTER_IDS = ['started_work', 'glasses_of_water', 'focus_session_start', 'focus_session_stop'];
+var OPENHABITS_AUTO_OPEN_PROPERTY = 'openhabits-auto-open';
 
 function openHabitsLoadAppConfig_() {
   var fallback = getCodeBackedAppConfig();
@@ -251,26 +251,14 @@ function openHabitsFillBlankLabels_(tracking, config, requiredRows) {
   });
 }
 
-function openHabitsRestorePreviousRevision() {
+function openHabitsUndoLastConfigChange() {
   var sheet = openHabitsEnsureConfigSheet_();
   var json = String(sheet.getRange('B7').getValue() || '');
-  if (!json) return { ok: false, errors: ['No previous revision is available.'] };
+  if (!json) return { ok: false, errors: ['There is no previous configuration to restore.'] };
   return openHabitsSaveAndApply(json, { reconcile: true });
 }
 
 function openHabitsImportCodeConfig() { return openHabitsSaveAndApply(getCodeBackedAppConfig(), { reconcile: true }); }
-
-function openHabitsStarterConfig() {
-  var config = JSON.parse(JSON.stringify(getCodeBackedAppConfig()));
-  config.metricSettings = [
-    { metricID: 'started_work', displayName: 'Started Work', dataType: 'timestamp', recordType: 'overwrite', timezoneMode: 'floating', timestampSettings: { writeMode: 'now' }, dates: [] },
-    { metricID: 'glasses_of_water', displayName: 'Glasses of Water', dataType: 'number', recordType: 'add', timezoneMode: 'floating', dates: [] },
-    { metricID: 'focus_session_minutes', displayName: 'Focus Session', dataType: 'duration', recordType: 'add', timezoneMode: 'floating', dates: [] }
-  ];
-  return config;
-}
-
-function openHabitsInstallStarterConfig() { return openHabitsSaveAndApply(openHabitsStarterConfig(), { reconcile: true }); }
 
 function openHabitsGetEditorBootstrap() {
   var stored = openHabitsReadStoredConfig_();
@@ -279,10 +267,14 @@ function openHabitsGetEditorBootstrap() {
 
 function openHabitsGetConfigBridgeData() {
   var stored = openHabitsReadStoredConfig_();
+  var sheet = openHabitsSpreadsheet_().getSheetByName(OPENHABITS_CONFIG_SHEET);
   return {
     configJson: JSON.stringify(stored ? stored.config : getCodeBackedAppConfig(), null, 2),
-    revision: stored ? stored.revision : 0,
-    editorUrl: OPENHABITS_CONFIG_EDITOR_URL
+    updatedAt: stored ? stored.updatedAt : '',
+    editorUrl: OPENHABITS_CONFIG_EDITOR_URL,
+    autoOpen: openHabitsShouldAutoOpen_(),
+    hasPreviousConfig: !!(sheet && String(sheet.getRange('B7').getValue() || '').trim()),
+    status: openHabitsSetupStatus()
   };
 }
 
@@ -290,7 +282,7 @@ function openHabitsSetupStatus() {
   var checks = [];
   var spreadsheet = openHabitsSpreadsheet_();
   var stored;
-  try { stored = openHabitsReadStoredConfig_(); checks.push({ id: 'config', state: stored ? 'pass' : 'warning', message: stored ? 'Stored config revision ' + stored.revision + ' is valid.' : 'Using Config.gs fallback. Import it to enable no-redeploy editing.' }); }
+  try { stored = openHabitsReadStoredConfig_(); checks.push({ id: 'config', state: stored ? 'pass' : 'warning', message: stored ? 'The saved configuration is valid.' : 'Using the bundled configuration until your first save.' }); }
   catch (error) { checks.push({ id: 'config', state: 'fail', message: error.message }); }
   var config = stored ? stored.config : getCodeBackedAppConfig();
   var tracking = spreadsheet.getSheetByName(config.trackingSheetName);
@@ -299,10 +291,6 @@ function openHabitsSetupStatus() {
     var rows = openHabitsReadIdAndLabelRows_(tracking, config).slice(1);
     var plan = openHabitsPlanReconciliation_(config, rows);
     checks.push({ id: 'rows', state: plan.duplicates.length ? 'fail' : plan.missing.length ? 'warning' : 'pass', message: plan.duplicates.length ? 'Duplicate IDs: ' + plan.duplicates.join(', ') : plan.missing.length ? plan.missing.length + ' required rows are missing.' : 'All required rows are present.' });
-    var configuredIds = {};
-    (config.metricSettings || []).forEach(function (metric) { configuredIds[metric.metricID] = true; });
-    var missingStarters = OPENHABITS_STARTER_IDS.filter(function (id) { return !configuredIds[id]; });
-    checks.push({ id: 'starters', state: missingStarters.length ? 'warning' : 'pass', message: missingStarters.length ? 'Starter examples are not installed. Use OpenHabits → Install Starter Metrics for a guided first test.' : 'All starter examples are configured.' });
   }
   checks.push({ id: 'timezone', state: Session.getScriptTimeZone() ? 'pass' : 'fail', message: 'Script timezone: ' + (Session.getScriptTimeZone() || 'not set') });
   checks.push({ id: 'secret', state: PropertiesService.getScriptProperties().getProperty('OPENHABITS_SECRET') ? 'pass' : 'warning', message: PropertiesService.getScriptProperties().getProperty('OPENHABITS_SECRET') ? 'Request secret is configured.' : 'Add OPENHABITS_SECRET before connecting clients.' });
@@ -311,22 +299,36 @@ function openHabitsSetupStatus() {
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OpenHabits')
-    .addItem('Edit Configuration', 'openHabitsShowEditor').addItem('Add a Metric', 'openHabitsShowAddMetric')
-    .addSeparator().addItem('Setup Status', 'openHabitsShowSetupStatus')
-    .addItem('Sync Metric Rows', 'openHabitsSyncMetricRows').addItem('Install Starter Metrics', 'openHabitsInstallStarterConfigFromMenu')
-    .addItem('Restore Previous Revision', 'openHabitsRestorePreviousRevisionFromMenu').addToUi();
+    .addItem('Open OpenHabits', 'openHabitsShowLauncher').addToUi();
+  if (openHabitsShouldAutoOpen_()) openHabitsShowLauncher();
 }
 
 function openHabitsInclude_(filename) { return HtmlService.createHtmlOutputFromFile(filename).getContent(); }
-function openHabitsShowEditor() { openHabitsShowLauncher_('edit'); }
-function openHabitsShowAddMetric() { openHabitsShowLauncher_('add'); }
-function openHabitsShowLauncher_(suggestedAction) {
+function openHabitsShowLauncher() {
   var template = HtmlService.createTemplateFromFile('SetupV2Launcher');
-  template.suggestedAction = suggestedAction || 'edit';
   template.editorUrl = OPENHABITS_CONFIG_EDITOR_URL;
   SpreadsheetApp.getUi().showSidebar(template.evaluate().setTitle('OpenHabits'));
 }
-function openHabitsShowSetupStatus() { var status = openHabitsSetupStatus(); SpreadsheetApp.getUi().alert(status.checks.map(function (c) { return c.state.toUpperCase() + ': ' + c.message; }).join('\n')); }
-function openHabitsSyncMetricRows() { var stored = openHabitsReadStoredConfig_(); if (!stored) return SpreadsheetApp.getUi().alert('Import or save a configuration first.'); var result = openHabitsSaveAndApply(stored.config, { reconcile: true }); SpreadsheetApp.getUi().alert(result.ok ? 'Synced rows. Added ' + result.addedRows.length + '.' : result.errors.join('\n')); }
-function openHabitsRestorePreviousRevisionFromMenu() { var result = openHabitsRestorePreviousRevision(); SpreadsheetApp.getUi().alert(result.ok ? 'Restored as revision ' + result.revision + '.' : result.errors.join('\n')); }
-function openHabitsInstallStarterConfigFromMenu() { var ui = SpreadsheetApp.getUi(); if (ui.alert('Install starter metrics?', 'This saves the starter configuration; your current config remains available as the previous revision.', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return; var result = openHabitsInstallStarterConfig(); ui.alert(result.ok ? 'Starter metrics installed. Added ' + result.addedRows.length + ' rows.' : result.errors.join('\n')); }
+
+function openHabitsShouldAutoOpen_() {
+  try { return PropertiesService.getUserProperties().getProperty(OPENHABITS_AUTO_OPEN_PROPERTY) !== 'false'; }
+  catch (ignore) { return true; }
+}
+
+function openHabitsSetAutoOpen(enabled) {
+  PropertiesService.getUserProperties().setProperty(OPENHABITS_AUTO_OPEN_PROPERTY, enabled ? 'true' : 'false');
+  return { ok: true, autoOpen: !!enabled };
+}
+
+function openHabitsRepairMetricRows() {
+  var stored = openHabitsReadStoredConfig_();
+  var config = stored ? stored.config : getCodeBackedAppConfig();
+  var preview = openHabitsPreviewConfig(config);
+  if (!preview.ok) return preview;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var added = openHabitsApplyReconciliation_(config, preview.plan);
+    return { ok: true, addedRows: added, retainedUnreferenced: preview.plan.retainedUnreferenced };
+  } finally { lock.releaseLock(); }
+}
