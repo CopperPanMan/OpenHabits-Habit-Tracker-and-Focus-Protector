@@ -56,6 +56,7 @@
       metricSettings: [],
       lockouts: {
         globals: { cumulativeScreentimeID: 'cumulative_app_opened', timeOpenedID: 'timeOpenedID', barLength: 20, presetCalendarName: 'App Lockout Settings', defaultBlockTimezoneMode: 'fixed', cacheTimezoneMode: 'script' },
+        presets: [],
         blocks: []
       }
     };
@@ -66,6 +67,7 @@
   const undoStack = [];
   const redoStack = [];
   const generatedMetricIds = new WeakSet();
+  const generatedBlockIds = new WeakSet();
   const HISTORY_LIMIT = 150;
   const DRAFT_KEY = 'openhabits-config-editor-draft-v2';
   let cleanSnapshot = JSON.stringify(state);
@@ -82,7 +84,11 @@
     defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. fixed is backward-compatible; floating follows the device/browser local wall clock.',
     cacheTimezoneMode: 'script preserves legacy config_snapshot task-state reads. client lets config_snapshot use a valid request timezone to build virtual task-block state from adjacent existing sheet columns.',
     dateRule: 'Per-day rule: due-by time and allowed tracking hours.',
-    presets: 'Preset names that must be active for this block to apply.'
+    presets: 'Named modes supplied by a Shortcut or calendar event. A block assigned to presets applies only when one of those presets is active.',
+    datesSection: 'Controls when this metric is expected and when it may be recorded. Add rules for the applicable days; due-by is the deadline, while start and end define the allowed tracking window.',
+    streaksSection: 'Optionally stores the number of consecutive days or sessions this metric was completed. Leave the Streak Metric ID empty to disable separate streak storage.',
+    pointsSection: 'Optionally awards points for completing this metric. A continuing streak increases the base award up to the maximum multiplier. Leave Points Metric ID empty to disable per-metric point storage.',
+    insightsSection: 'Controls optional feedback after logging, such as a streak update or a comparison with an earlier day or recent average. A probability of 0% means never and 100% means always.'
   };
 
   const $ = (id) => document.getElementById(id);
@@ -116,10 +122,19 @@
     wrapper.style.gap = '.25rem';
     const span = document.createElement('span');
     span.textContent = text;
-    const help = document.createElement('span');
+    const help = document.createElement('button');
+    help.type = 'button';
     help.className = 'help';
     help.textContent = '?';
     help.dataset.help = helpText || 'No description provided yet.';
+    help.setAttribute('aria-label', `Help for ${text}`);
+    help.setAttribute('aria-expanded', 'false');
+    help.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const isOpen = help.classList.toggle('open');
+      help.setAttribute('aria-expanded', String(isOpen));
+    });
     wrapper.append(span, help);
     return wrapper;
   }
@@ -172,7 +187,7 @@
     return hint;
   }
 
-  function toggleSection(title, key, defaultOpen = true) {
+  function toggleSection(title, key, defaultOpen = true, helpText = '') {
     const details = document.createElement('details');
     details.className = 'section';
     details.open = key && sectionOpenState.has(key) ? sectionOpenState.get(key) : defaultOpen;
@@ -182,7 +197,10 @@
       });
     }
     const summary = document.createElement('summary');
-    summary.textContent = title;
+    const titleText = document.createElement('span');
+    titleText.textContent = title;
+    summary.appendChild(titleText);
+    if (helpText) summary.appendChild(labelWithHelp(title, helpText).lastElementChild);
     details.appendChild(summary);
     return details;
   }
@@ -352,7 +370,7 @@
 
   function newBlock() {
     return {
-      id: '',
+      id: '', name: '',
       type: 'duration_block',
       timezoneMode: 'fixed',
       presets: [],
@@ -370,6 +388,51 @@
     const j = i + dir;
     if (j < 0 || j >= arr.length) return;
     [arr[i], arr[j]] = [arr[j], arr[i]];
+    renderAll();
+  }
+
+  function uniqueId(base, existingIds) {
+    const root = normalizedMetricId(base) || 'item';
+    if (!existingIds.has(root)) return root;
+    let suffix = 2;
+    while (existingIds.has(`${root}_${suffix}`)) suffix += 1;
+    return `${root}_${suffix}`;
+  }
+
+  function metricReferenceOptions(currentValue) {
+    const options = [{ value: '', label: 'None / disabled' }];
+    state.metricSettings.forEach(metric => options.push({
+      value: metric.metricID,
+      label: `${metric.displayName || 'Unnamed metric'} — ${metric.metricID || 'missing ID'}`
+    }));
+    if (currentValue && !state.metricSettings.some(metric => metric.metricID === currentValue)) {
+      options.push({ value: currentValue, label: `${currentValue} — not found in configured metrics` });
+    }
+    return options;
+  }
+
+  function metricReferenceSelect(value, onChange) {
+    const select = makeSelect(metricReferenceOptions(value), value, onChange);
+    select.classList.add('reference-select');
+    return select;
+  }
+
+  function duplicateMetric(metric, index) {
+    const copy = cloneState(metric);
+    copy.displayName = `${metric.displayName || 'Unnamed Metric'} Copy`;
+    copy.metricID = uniqueId(`${metric.metricID || normalizedMetricId(copy.displayName)}_copy`, new Set(state.metricSettings.map(item => item.metricID)));
+    if (copy.streaks) copy.streaks.streaksID = '';
+    if (copy.points) copy.points.pointsID = '';
+    state.metricSettings.splice(index + 1, 0, copy);
+    generatedMetricIds.add(copy);
+    renderAll();
+  }
+
+  function duplicateBlock(block, index) {
+    const copy = cloneState(block);
+    copy.name = `${block.name || block.id || 'Block'} Copy`;
+    copy.id = uniqueId(`${block.id || normalizedMetricId(copy.name)}_copy`, new Set(state.lockouts.blocks.map(item => item.id)));
+    state.lockouts.blocks.splice(index + 1, 0, copy);
     renderAll();
   }
 
@@ -481,6 +544,7 @@
     ctr.className = 'controls';
     ctr.append(button('↑', 'secondary', () => move(state.metricSettings, i, -1)));
     ctr.append(button('↓', 'secondary', () => move(state.metricSettings, i, 1)));
+    ctr.append(button('Duplicate', 'secondary', () => duplicateMetric(metric, i)));
     ctr.append(button('Delete', 'danger', () => { state.metricSettings.splice(i, 1); renderAll(); }));
     head.append(name, ctr);
     card.appendChild(head);
@@ -556,7 +620,7 @@
     }
     advanced.appendChild(advancedGrid);
 
-    const dates = toggleSection('Date Rules', `metric-${i}-dates`, false);
+    const dates = toggleSection('Date Rules', `metric-${i}-dates`, false, HELP.datesSection);
     metric.dates.forEach((d, di) => {
       const dCard = document.createElement('div');
       dCard.className = 'card';
@@ -581,30 +645,36 @@
     dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '', 20, 2]); renderAll(); }));
     advanced.appendChild(dates);
 
-    const streaks = toggleSection('Streak Properties', `metric-${i}-streaks`, false);
+    const streaks = toggleSection('Streak Properties', `metric-${i}-streaks`, false, HELP.streaksSection);
     const streakGrid = document.createElement('div');
     streakGrid.className = 'grid';
     field(streakGrid, 'Unit', makeInput({ value: metric.streaks.unit, onChange: v => metric.streaks.unit = v }), 'Display unit for streak narration (days, sessions, etc).');
-    field(streakGrid, 'Streak Metric ID', makeInput({ value: metric.streaks.streaksID, onChange: v => metric.streaks.streaksID = v }), 'Metric row used to store streak count.');
+    field(streakGrid, 'Streak Metric ID', metricReferenceSelect(metric.streaks.streaksID, v => metric.streaks.streaksID = v), 'Metric row used to store the streak count. Choose None to disable separate streak storage.');
     streaks.appendChild(streakGrid);
     advanced.appendChild(streaks);
 
-    const points = toggleSection('Points Properties', `metric-${i}-points`, false);
+    const points = toggleSection('Points Properties', `metric-${i}-points`, false, HELP.pointsSection);
     const pointsGrid = document.createElement('div');
     pointsGrid.className = 'grid';
-    field(pointsGrid, 'Point Value', makeInput({ type: 'number', value: metric.points.value, onChange: v => metric.points.value = v }), 'Base points awarded per completion.');
-    field(pointsGrid, 'Multiplier Days', makeInput({ type: 'number', min: 0, value: metric.points.multiplierDays, onChange: v => metric.points.multiplierDays = v }), 'Days required to increase point multiplier.');
-    field(pointsGrid, 'Max Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.maxMultiplier, onChange: v => metric.points.maxMultiplier = v }), 'Upper limit for point multiplier.');
-    field(pointsGrid, 'Points Metric ID', makeInput({ value: metric.points.pointsID, onChange: v => metric.points.pointsID = v }), 'Metric row used to store per-metric points.');
+    field(pointsGrid, 'Base Points per Completion', makeInput({ type: 'number', value: metric.points.value, onChange: v => metric.points.value = v }), 'Points awarded before any streak multiplier is applied.');
+    field(pointsGrid, 'Days Until Maximum Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.multiplierDays, onChange: v => metric.points.multiplierDays = v }), 'The streak length at which the maximum multiplier is reached.');
+    field(pointsGrid, 'Maximum Streak Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.maxMultiplier, onChange: v => metric.points.maxMultiplier = v }), 'Largest multiplier that a continuing streak can earn.');
+    field(pointsGrid, 'Store This Metric’s Points In', metricReferenceSelect(metric.points.pointsID, v => metric.points.pointsID = v), 'Metric row used to store per-metric points. Choose None to disable separate storage.');
     points.appendChild(pointsGrid);
     advanced.appendChild(points);
 
-    const insights = toggleSection('Insights Properties', `metric-${i}-insights`, false);
+    const insights = toggleSection('Insights Properties', `metric-${i}-insights`, false, HELP.insightsSection);
     if (metric.dataType === 'text') insights.hidden = true;
     const ig = document.createElement('div');
     ig.className = 'grid';
-    [['Insight Chance', 'insightChance'], ['Streak Probability', 'streakProb'], ['Day-to-Day Chance', 'dayToDayChance'], ['Day-to-Average Chance', 'dayToAvgChance'], ['Raw Value Chance', 'rawValueChance']].forEach(([label, key]) => {
-      field(ig, label, makeInput({ type: 'number', min: 0, max: 1, step: '0.01', value: metric.insights[key], onChange: v => metric.insights[key] = v }), 'Probability-style setting from 0 to 1.');
+    [
+      ['Insight Frequency (%)', 'insightChance', 'Chance that logging produces any insight. 0% disables insights; 100% always attempts one.'],
+      ['Streak Insight Chance (%)', 'streakProb', 'When an insight is produced, chance that it reports the current streak instead of a performance comparison.'],
+      ['Individual-Day Comparison Chance (%)', 'dayToDayChance', 'If a streak is not selected, chance of comparing today with an earlier individual day. Lower values favor recent-average comparisons.'],
+      ['Today-to-Average Chance (%)', 'dayToAvgChance', 'Within an average-style comparison, chance of comparing today with a past average. Lower values compare one rolling average with another.'],
+      ['Difference as Amount Chance (%)', 'rawValueChance', 'Chance of showing a difference such as +12 minutes instead of a percentage.']
+    ].forEach(([label, key, help]) => {
+      field(ig, label, makeInput({ type: 'number', min: 0, max: 100, step: '1', value: Number(metric.insights[key]) * 100, onChange: v => metric.insights[key] = v / 100 }), help);
     });
     field(ig, 'Increase is Good', makeSelect(['1', '-1'], String(metric.insights.increaseGood), v => metric.insights.increaseGood = Number(v)), '1 means higher values are better; -1 means lower is better.');
     field(ig, 'First Words', makeInput({ value: metric.insights.firstWords, onChange: v => metric.insights.firstWords = v }), 'Opening phrase for insight text.');
@@ -662,51 +732,71 @@
     const head = document.createElement('div');
     head.className = 'card-head';
     const title = document.createElement('h3');
-    title.textContent = `${block.id || 'Unnamed Block'} (Block ${i + 1})`;
+    const typeLabels = {
+      duration_block: 'Screen-time limit',
+      task_block: 'Require completed metrics',
+      firstXMinutesAfterTimestamp_block: 'Block briefly after an event'
+    };
+    title.textContent = `${block.name || typeLabels[block.type] || 'Unnamed Block'} · ${block.times.beg}–${block.times.end}`;
     const ctr = document.createElement('div');
     ctr.className = 'controls';
     ctr.append(button('↑', 'secondary', () => move(state.lockouts.blocks, i, -1)));
     ctr.append(button('↓', 'secondary', () => move(state.lockouts.blocks, i, 1)));
+    ctr.append(button('Duplicate', 'secondary', () => duplicateBlock(block, i)));
     ctr.append(button('Delete', 'danger', () => { state.lockouts.blocks.splice(i, 1); renderAll(); }));
     head.append(title, ctr);
     card.appendChild(head);
 
     const g = document.createElement('div');
     g.className = 'grid';
-    field(g, 'Block ID', makeInput({ value: block.id, onChange: v => block.id = v }), 'Unique lockout block identifier.');
-    field(g, 'Type', makeSelect(['duration_block', 'task_block', 'firstXMinutesAfterTimestamp_block'], block.type, v => { block.type = v; renderAll(); }), HELP.blockType);
+    field(g, 'Block Name', makeInput({ value: block.name || '', onChange: v => {
+      block.name = v;
+      if (!block.id || generatedBlockIds.has(block)) {
+        block.id = uniqueId(v || `block_${i + 1}`, new Set(state.lockouts.blocks.filter(item => item !== block).map(item => item.id)));
+        generatedBlockIds.add(block);
+      }
+    } }), 'Friendly name used in this editor. The technical ID is generated automatically.');
+    field(g, 'Rule Type', makeSelect([
+      { value: 'duration_block', label: 'Screen-time limit' },
+      { value: 'task_block', label: 'Require completed metrics' },
+      { value: 'firstXMinutesAfterTimestamp_block', label: 'Block briefly after an event' }
+    ], block.type, v => { block.type = v; renderAll(); }), HELP.blockType);
     field(g, 'Timezone Mode', makeSelect(['fixed', 'floating'], block.timezoneMode || 'fixed', v => block.timezoneMode = v), HELP.blockTimezoneMode);
     field(g, 'Begin Time', makeInput({ type: 'time', value: block.times.beg, onChange: v => block.times.beg = v }), 'Block activation start time (24h).');
     field(g, 'End Time', makeInput({ type: 'time', value: block.times.end, onChange: v => block.times.end = v }), 'Block activation end time (24h).');
     card.appendChild(g);
 
-    const presetSec = toggleSection('Presets', `block-${i}-presets`);
-    block.presets.forEach((p, pi) => {
-      const pCard = document.createElement('div');
-      pCard.className = 'card';
-      const presetTitle = document.createElement('h4');
-      presetTitle.textContent = `Preset ${pi + 1}`;
-      pCard.appendChild(presetTitle);
-      const pg = document.createElement('div');
-      pg.className = 'grid';
-      field(pg, 'Preset Name', makeInput({ value: p, onChange: v => block.presets[pi] = v }), HELP.presets);
-      pCard.appendChild(pg);
-      const pCtr = document.createElement('div');
-      pCtr.className = 'controls';
-      pCtr.append(button('↑', 'secondary', () => move(block.presets, pi, -1)));
-      pCtr.append(button('↓', 'secondary', () => move(block.presets, pi, 1)));
-      pCtr.append(button('Delete', 'danger', () => { block.presets.splice(pi, 1); renderAll(); }));
-      pCard.appendChild(pCtr);
-      presetSec.appendChild(pCard);
+    const technical = toggleSection('Advanced · Technical identity', `block-${i}-technical`, false, 'The Block ID is included in diagnostics and client responses. Most users can leave the generated value unchanged.');
+    const technicalGrid = document.createElement('div');
+    technicalGrid.className = 'grid';
+    field(technicalGrid, 'Technical Block ID', makeInput({ value: block.id, onChange: v => { block.id = v; generatedBlockIds.delete(block); } }), 'Unique identifier used for diagnostics and integrations. Changing a saved ID can make older logs harder to match.');
+    technical.appendChild(technicalGrid);
+    card.appendChild(technical);
+
+    const presetSec = toggleSection('Preset Assignment', `block-${i}-presets`, true, HELP.presets);
+    presetSec.appendChild(fieldHint(block.presets.length ? 'This block applies only in the selected modes.' : 'No presets selected: this block applies whenever no preset is supplied.'));
+    const presetOptions = document.createElement('div');
+    presetOptions.className = 'check-list';
+    state.lockouts.presets.forEach(preset => {
+      const label = document.createElement('label');
+      label.className = 'check-option';
+      const check = makeCheck(block.presets.includes(preset), checked => {
+        if (checked) block.presets.push(preset);
+        else block.presets = block.presets.filter(item => item !== preset);
+        renderAll();
+      });
+      label.append(check, document.createTextNode(preset));
+      presetOptions.appendChild(label);
     });
-    presetSec.append(button('Add Preset', '', () => { block.presets.push(''); renderAll(); }));
+    if (!state.lockouts.presets.length) presetOptions.appendChild(fieldHint('Create a preset above the block list to assign one here.'));
+    presetSec.appendChild(presetOptions);
     card.appendChild(presetSec);
 
     const typeSec = toggleSection('Type-Specific Properties', `block-${i}-type-specific`);
     if (block.type === 'duration_block') {
       const d = document.createElement('div'); d.className = 'grid';
       field(d, 'Max Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.maxMinutes, onChange: v => block.typeSpecific.duration.maxMinutes = v }), 'Max minutes allowed before block message/shortcut.');
-      field(d, 'Screen Time Metric ID', makeInput({ value: block.typeSpecific.duration.screenTimeID, onChange: v => block.typeSpecific.duration.screenTimeID = v }), 'Metric ID used to read screentime.');
+      field(d, 'Screen Time Metric ID', metricReferenceSelect(block.typeSpecific.duration.screenTimeID, v => block.typeSpecific.duration.screenTimeID = v), 'Metric used to read accumulated screen time.');
       field(d, 'Rationing On', makeCheck(block.typeSpecific.duration.rationing.isON, v => block.typeSpecific.duration.rationing.isON = v), 'Enable gradual quota between beginning and end minutes.');
       field(d, 'Rationing Begin Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.rationing.begMinutes, onChange: v => block.typeSpecific.duration.rationing.begMinutes = v }), 'Initial allowance minutes.');
       field(d, 'Rationing End Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.rationing.endMinutes, onChange: v => block.typeSpecific.duration.rationing.endMinutes = v }), 'Ending allowance minutes.');
@@ -721,7 +811,7 @@
         reqTitle.textContent = `Required Metric ${ti + 1}`;
         tc.appendChild(reqTitle);
         const tg = document.createElement('div'); tg.className = 'grid';
-        field(tg, 'Required Metric ID', makeInput({ value: id, onChange: v => block.typeSpecific.task_block_IDs[ti] = v }), 'Completion of these metric IDs unlocks this block.');
+        field(tg, 'Required Metric ID', metricReferenceSelect(id, v => block.typeSpecific.task_block_IDs[ti] = v), 'Completion of every selected metric unlocks this block.');
         tc.appendChild(tg);
         const ctrs = document.createElement('div'); ctrs.className = 'controls';
         ctrs.append(button('↑', 'secondary', () => move(block.typeSpecific.task_block_IDs, ti, -1)));
@@ -736,7 +826,7 @@
     if (block.type === 'firstXMinutesAfterTimestamp_block') {
       const f = document.createElement('div'); f.className = 'grid';
       field(f, 'Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.firstXMinutes.minutes, onChange: v => block.typeSpecific.firstXMinutes.minutes = v }), 'Minutes after timestamp when block is active.');
-      field(f, 'Timestamp Metric ID', makeInput({ value: block.typeSpecific.firstXMinutes.timestampID, onChange: v => block.typeSpecific.firstXMinutes.timestampID = v }), 'Timestamp metric ID used as reference.');
+      field(f, 'Timestamp Metric ID', metricReferenceSelect(block.typeSpecific.firstXMinutes.timestampID, v => block.typeSpecific.firstXMinutes.timestampID = v), 'Timestamp metric used as the start of this temporary block.');
       typeSec.appendChild(f);
     }
     card.appendChild(typeSec);
@@ -755,8 +845,51 @@
   function renderBlocks() {
     const root = $('tab-blocks');
     root.innerHTML = '';
+    const intro = document.createElement('div');
+    intro.className = 'notice';
+    intro.textContent = 'Blocks are checked from top to bottom. If several rules apply, the first rule that blocks access wins.';
+    root.appendChild(intro);
+    const presets = toggleSection('Preset Modes', 'blocks-presets', true, 'Define modes once, then select them on each block. A Shortcut or all-day calendar event can activate a preset.');
+    presets.appendChild(fieldHint('Examples: workday, weekend, or entertainment. Names must match the value supplied by the client or calendar event.'));
+    const presetList = document.createElement('div');
+    presetList.className = 'chip-list';
+    state.lockouts.presets.forEach((preset, pi) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.append(document.createTextNode(preset), button('×', 'chip-remove', () => {
+        state.lockouts.presets.splice(pi, 1);
+        state.lockouts.blocks.forEach(block => { block.presets = block.presets.filter(item => item !== preset); });
+        renderAll();
+      }));
+      presetList.appendChild(chip);
+    });
+    presets.appendChild(presetList);
+    const presetRow = document.createElement('div');
+    presetRow.className = 'row gap';
+    const presetInput = makeInput({ value: '', onChange: () => {} });
+    presetInput.placeholder = 'New preset name';
+    presetRow.append(presetInput, button('Add preset', '', () => {
+      const value = presetInput.value.trim();
+      if (value && !state.lockouts.presets.includes(value)) state.lockouts.presets.push(value);
+      renderAll();
+    }));
+    presets.appendChild(presetRow);
+    root.appendChild(presets);
+    if (!state.lockouts.blocks.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty-state';
+      empty.textContent = 'No focus rules yet. Start with a screen-time limit, require a completed metric, or block briefly after an event.';
+      root.appendChild(empty);
+    }
     state.lockouts.blocks.forEach((b, i) => root.appendChild(renderBlock(b, i)));
-    root.append(button('Add Block', '', () => { state.lockouts.blocks.push(newBlock()); renderAll(); }));
+    root.append(button('Add Block', '', () => {
+      const block = newBlock();
+      block.name = `Block ${state.lockouts.blocks.length + 1}`;
+      block.id = uniqueId(block.name, new Set(state.lockouts.blocks.map(item => item.id)));
+      generatedBlockIds.add(block);
+      state.lockouts.blocks.push(block);
+      renderAll();
+    }));
   }
 
   function ensureShape(raw) {
@@ -792,6 +925,11 @@
         propertyNames: { ...base.notion.propertyNames, ...((raw.notion && raw.notion.propertyNames) || {}) }
       }
     };
+    const assignedPresets = [];
+    (((raw.lockouts || {}).blocks) || []).forEach(block => (block.presets || []).forEach(preset => {
+      if (preset && !assignedPresets.includes(preset)) assignedPresets.push(preset);
+    }));
+    merged.lockouts.presets = Array.isArray((raw.lockouts || {}).presets) ? raw.lockouts.presets.slice() : assignedPresets;
     const pointSegments = ((merged.notion.outputStyles.pointBlock || {}).segments || []).slice();
     merged.notion.outputStyles.pointBlock.segments = [
       { token: 'point_total', color: 'blue', ...(pointSegments[0] || {}) },
@@ -827,6 +965,9 @@
 
   function validateState() {
     const errors = [];
+    const metricIds = state.metricSettings.map(metric => metric.metricID).filter(Boolean);
+    const duplicateMetricIds = metricIds.filter((id, index) => metricIds.indexOf(id) !== index);
+    if (duplicateMetricIds.length) errors.push(`Duplicate Metric IDs: ${[...new Set(duplicateMetricIds)].join(', ')}.`);
     state.metricSettings.forEach((m, i) => {
       if (!m.metricID) errors.push(`Metric ${i + 1}: Metric ID is required.`);
       if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
@@ -845,10 +986,17 @@
     });
     if (!['fixed', 'floating'].includes(state.lockouts.globals.defaultBlockTimezoneMode)) errors.push('Lockouts defaultBlockTimezoneMode must be fixed or floating.');
     if (!['script', 'client'].includes(state.lockouts.globals.cacheTimezoneMode)) errors.push('Lockouts cacheTimezoneMode must be script or client.');
+    const blockIds = state.lockouts.blocks.map(block => block.id).filter(Boolean);
+    const duplicateBlockIds = blockIds.filter((id, index) => blockIds.indexOf(id) !== index);
+    if (duplicateBlockIds.length) errors.push(`Duplicate Block IDs: ${[...new Set(duplicateBlockIds)].join(', ')}.`);
     state.lockouts.blocks.forEach((b, i) => {
       if (!b.id) errors.push(`Block ${i + 1}: Block ID is required.`);
       if (b.timezoneMode && !['fixed', 'floating'].includes(b.timezoneMode)) errors.push(`Block ${i + 1}: timezoneMode must be fixed or floating.`);
       if (!/^\d{2}:\d{2}$/.test(b.times.beg) || !/^\d{2}:\d{2}$/.test(b.times.end)) errors.push(`Block ${i + 1}: begin/end time must be HH:MM.`);
+      const references = b.type === 'task_block' ? b.typeSpecific.task_block_IDs : b.type === 'duration_block' ? [b.typeSpecific.duration.screenTimeID] : [b.typeSpecific.firstXMinutes.timestampID];
+      references.filter(Boolean).forEach(id => {
+        if (!metricIds.includes(id)) errors.push(`Block ${i + 1}: referenced Metric ID "${id}" was not found.`);
+      });
     });
     return errors;
   }
