@@ -1033,6 +1033,16 @@
     }
   });
 
+  $('loadClipboardBtn').addEventListener('click', async () => {
+    try {
+      $('importText').value = await navigator.clipboard.readText();
+      if (!$('importText').value.trim()) throw new Error('The clipboard is empty.');
+      $('parseBtn').click();
+    } catch (err) {
+      $('importStatus').textContent = `Clipboard access failed: ${err.message} Open Manual import and recovery to paste it instead.`;
+    }
+  });
+
   $('importFile').addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -1062,15 +1072,22 @@
     undo();
   });
 
-  $('exportBtn').addEventListener('click', () => {
+  $('exportBtn').addEventListener('click', async () => {
     const errors = validateState();
     if (errors.length) {
       $('exportStatus').textContent = `Fix validation errors first: ${errors.slice(0, 3).join(' | ')}`;
       return;
     }
     $('exportText').value = JSON.stringify(state, null, 2);
-    markClean();
-    $('exportStatus').textContent = 'JSON ready. Copy or download it, then return to your Sheet.';
+    try {
+      await navigator.clipboard.writeText($('exportText').value);
+      markClean();
+      $('exportStatus').textContent = 'Configuration copied. Return to the OpenHabits panel in your Sheet, paste it, and choose Save and Apply.';
+    } catch (_) {
+      $('exportText').focus();
+      $('exportText').select();
+      $('exportStatus').textContent = 'Clipboard access was blocked. Open Backup and migration options and copy the selected configuration manually.';
+    }
   });
 
   $('legacyExportBtn').addEventListener('click', () => {
@@ -1118,6 +1135,12 @@
       });
     }
   } catch (_) {}
+
+  if (window.location.hash === '#from-sheet') {
+    $('importInstructions').textContent = 'Your Sheet copied its current configuration. Load it to begin editing.';
+    $('loadClipboardBtn').focus();
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
 
   window.addEventListener('beforeunload', (event) => {
     if (JSON.stringify(state) === cleanSnapshot) return;

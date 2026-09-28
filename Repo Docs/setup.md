@@ -4,14 +4,13 @@
 
 1. Copy the OpenHabits Sheet and its bound Apps Script, then reload the Sheet.
 2. Set the Apps Script project timezone and add the `OPENHABITS_SECRET` Script Property. Add `spreadsheetId` only when the script is not bound to the target Sheet.
-3. Choose **OpenHabits → Setup Status** and resolve any red checks.
-4. Choose **OpenHabits → Install Starter Metrics**. This creates the hidden, protected `_OpenHabits Config` tab, saves a revision, and appends all missing rows to `Tracking Data`.
-5. Deploy the Apps Script web app once. Configuration edits after this point do **not** require redeployment.
-6. Install Insights and the starter Metric Logger Shortcut. Timer Shortcuts keep their own start state and submit elapsed values through the same logger. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Metrics/settings.json`.
-7. Try `started_work`, add a value to `glasses_of_water`, and submit a duration to `focus_session_minutes`.
-8. Choose **OpenHabits → Edit Configuration** to add metrics from recipes, edit settings in forms, preview row changes, and use **Save and Apply**. You never need to edit JSON or redeploy for configuration changes, and the previous valid revision remains restorable.
+3. Review the status shown in the OpenHabits panel, which opens automatically and is also available from **OpenHabits → Open OpenHabits**.
+4. Deploy the Apps Script web app once. Configuration edits after this point do **not** require redeployment.
+5. Install Insights and the starter Metric Logger Shortcut. Timer Shortcuts keep their own start state and submit elapsed values through the same logger. Insights owns the deployment URL and secret in `Shortcuts/OpenHabits/OpenHabits Metrics/settings.json`.
+6. Try the starter metrics already included with the copied Sheet and configuration.
+7. Use **Open Editor with Current Config** in the OpenHabits panel to customize metrics and focus rules, then paste the editor's finished configuration back into the panel and choose **Save and Apply**.
 
-The V2 script creates `_OpenHabits Config` itself; do not create or edit that tab manually. The tracking tab defaults to `Tracking Data`, with `Metric ID` in column A and the friendly label in column B. Existing unreferenced rows and their history are retained, never deleted.
+The copied Sheet includes its managed configuration; do not create or edit the hidden `_OpenHabits Config` tab manually. The tracking tab defaults to `Tracking Data`, with `Metric ID` in column A and the friendly label in column B. Existing unreferenced rows and their history are retained, never deleted.
 
 ### Quick Links
 
@@ -102,16 +101,16 @@ You can find the Sheet ID in the Sheet URL between `/d/` and `/edit`.
 
 ## D) Configure OpenHabits in the Sheet
 
-The normal configuration workflow is entirely graphical:
+The normal configuration workflow uses the graphical browser editor and the Sheet's OpenHabits panel:
 
-1. In your Sheet, choose **OpenHabits → Edit Configuration**.
-2. Use **Metrics → Add from recipe** for a completion habit, additive or replacement number, timestamp, duration, text, or due-by timestamp.
-3. Give the metric a friendly name. The editor generates its ID; you can still customize it before saving.
-4. Open the collapsed **Advanced** sections only when you need schedules, streaks, points, or insights.
-5. Add optional focus rules under **Focus rules**. Installation-wide and optional Notion settings are under **Settings**.
-6. Choose **Preview Sheet changes**, then **Save and Apply**. OpenHabits validates the complete configuration, creates missing rows, retains historical rows, and activates the new revision immediately.
+1. Open the panel automatically or choose **OpenHabits → Open OpenHabits**.
+2. Choose **Open Editor with Current Config**, then use **Load Copied Configuration** in the browser editor.
+3. Add or edit metrics, focus rules, and settings graphically.
+4. Choose **Finish and Copy for OpenHabits**.
+5. Return to the still-open Sheet panel and paste the configuration. OpenHabits validates it and previews its Sheet changes automatically.
+6. Choose **Save and Apply**. OpenHabits creates missing rows, retains historical rows, and activates the configuration immediately.
 
-There is no config code to copy, no JSON to write, and no deployment step after a configuration change. The [standalone browser editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/) remains available for advanced migration and offline backup work; it is not the normal setup path.
+There is no config code to write and no deployment step after a configuration change. The [standalone browser editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/) never receives access to the Sheet; the clipboard handoff keeps configuration administration owner-authorized.
 
 Important shared fields:
 
@@ -140,9 +139,9 @@ Important shared fields:
 
 Do this after you have installed at least one logger Shortcut. Most users should not need curl, Postman, or any developer tool for the first test.
 
-1. Choose **OpenHabits → Install Starter Metrics**.
+1. Confirm the starter metrics are visible in the duplicated Sheet.
 2. Install Insights and the starter logger Shortcuts; configure the deployment URL and secret once in Insights' settings file.
-3. Run the Started Work logger, the Glasses of Water logger, and the Focus Session timer manually.
+3. Run the included starter loggers manually.
 4. Confirm today's cells update in the Sheet.
 
 If this works, your Sheet, Apps Script deployment, permissions, secret, and Shortcut path are connected. If it fails, fix this before building a full habit or lockout system.
@@ -330,7 +329,7 @@ Create Shortcuts automations for the distracting apps you want to protect:
 
 ## F) Configure lockout rules with the Config Editor
 
-Use **OpenHabits → Edit Configuration → Focus rules** for normal lockout rule creation.
+Use **OpenHabits → Open OpenHabits**, launch the Config Editor, and open **Focus rules** for normal lockout rule creation.
 
 The editor is the primary way to create blocks and choose rule types. Choose **Save and Apply** after each change; no source edit or redeployment is required. Then run **Update Lockout Cache** so your phone has the fresh rules and re-test one protected app.
 

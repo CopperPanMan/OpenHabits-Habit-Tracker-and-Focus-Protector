@@ -27,13 +27,13 @@ It has two main parts, and you can use either one without the other:
 
 ## How do I Use it?
 
-0. Copy the Sheet, open **OpenHabits → Setup Status**, and install the included starter metrics.
+0. Copy the Sheet. Its starter configuration and matching metric rows are already included.
 1. Deploy once, connect Insights, then log tasks or other data from your iPhone or Notion.
 2. Display that data on a Google Sheets dashboard that lives on your desk
 3. Use that data to inform your decisions and motivate behavior
 4. App Lockouts act as bumpers through your day to guide you to the "right" behaviors, and prevent doomscrolling.
 
-Configuration is stored as versioned JSON in the copied Sheet. Use **OpenHabits → Edit Configuration** to copy the current JSON, edit it in the [browser Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/), then import, preview, and **Save and Apply** it from the Sheet. This creates missing rows without editing source or redeploying; the public editor never receives access to the Sheet.
+Configuration is stored as JSON in the copied Sheet. The OpenHabits panel opens with the Sheet and is always available from **OpenHabits → Open OpenHabits**. Choose **Open Editor with Current Config**, load the copied configuration in the [browser Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/), then use **Finish and Copy for OpenHabits**. Paste it into the still-open Sheet panel; OpenHabits validates it automatically before **Save and Apply**. This creates missing rows without editing source or redeploying, and the public editor never receives access to the Sheet.
 
 
 Uncategorized

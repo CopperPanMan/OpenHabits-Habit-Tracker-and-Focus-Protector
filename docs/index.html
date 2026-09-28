@@ -15,7 +15,10 @@
   <main>
     <section class="panel">
       <h2>1. Get Started</h2>
-      <p>Copy the current JSON from <strong>OpenHabits → Edit Configuration</strong> in your Sheet, or load a JSON file. Your working draft is autosaved only in this browser.</p>
+      <p id="importInstructions">Open OpenHabits in your Sheet and use <strong>Open Editor with Current Config</strong>. Your working draft is autosaved only in this browser.</p>
+      <button id="loadClipboardBtn" type="button">Load Copied Configuration</button>
+      <details class="import-fallback">
+        <summary>Manual import and recovery</summary>
       <textarea id="importText" rows="10" placeholder="Paste configuration JSON (legacy Config.gs is also accepted)"></textarea>
       <div class="row gap">
         <button id="parseBtn">Load Pasted Config</button>
@@ -23,6 +26,7 @@
         <input id="importFile" class="visually-hidden" type="file" accept="application/json,.json">
         <button id="restoreDraftBtn" class="secondary" type="button" hidden>Restore Local Draft</button>
       </div>
+      </details>
       <p id="importStatus" class="status"></p>
     </section>
 
@@ -48,17 +52,20 @@
     </section>
 
     <section class="panel">
-      <h2>3. Return JSON to your Sheet</h2>
-      <p>Generate JSON, then copy it or download it. Return to the Sheet import panel to Preview Changes and Save and Apply. No deployment is required.</p>
-      <label for="exportText">Configuration JSON</label>
-      <textarea id="exportText" rows="14" placeholder="Generated output will appear here..."></textarea>
-      <div class="row gap">
-        <button id="exportBtn">Generate JSON</button>
-        <button id="copyBtn" class="secondary">Copy JSON</button>
-        <button id="downloadBtn" class="secondary">Download JSON</button>
-        <button id="legacyExportBtn" class="secondary">Generate Legacy Config.gs</button>
-      </div>
+      <h2>3. Finish editing</h2>
+      <p>Copy your finished configuration, return to the open OpenHabits Sheet panel, and paste it there to save and apply your changes.</p>
+      <button id="exportBtn">Finish and Copy for OpenHabits</button>
       <p id="exportStatus" class="status"></p>
+      <details class="export-advanced">
+        <summary>Backup and migration options</summary>
+        <label for="exportText">Configuration JSON</label>
+        <textarea id="exportText" rows="14" placeholder="Generated output will appear here..."></textarea>
+        <div class="row gap">
+          <button id="copyBtn" class="secondary">Copy Generated Output</button>
+          <button id="downloadBtn" class="secondary">Download JSON Backup</button>
+          <button id="legacyExportBtn" class="secondary">Generate Legacy Config.gs</button>
+        </div>
+      </details>
     </section>
 
     <section class="panel" aria-labelledby="metricTextHeading">

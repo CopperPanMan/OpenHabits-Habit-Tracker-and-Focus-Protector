@@ -1,73 +1,183 @@
 <!doctype html>
 <html><head><base target="_blank"><meta name="viewport" content="width=device-width,initial-scale=1"><?!= openHabitsInclude_('SetupV2Styles'); ?></head>
 <body class="launcher-body">
-  <main class="launcher-shell">
-    <h1>Configuration bridge</h1>
-    <p>Edit in the canonical browser editor, then return here to validate and apply the JSON to this Sheet.</p>
-    <section class="panel">
-      <h2>1. Export and edit</h2>
-      <div class="row gap">
-        <button id="copyCurrent" type="button">Copy Current Config</button>
-        <a class="button-link secondary" href="<?= editorUrl ?>">Open Config Editor ↗</a>
-      </div>
-      <p id="revision" class="status">Loading current configuration…</p>
+  <main class="launcher-main">
+    <section class="launcher-hero">
+      <span class="eyebrow">OPENHABITS</span>
+      <h1>Edit your configuration</h1>
+      <p>Your current configuration will be copied before the graphical editor opens.</p>
+      <button id="openEditor" class="launcher-primary" type="button" disabled>Open Editor with Current Config</button>
+      <p id="handoffStatus" class="status">Loading your configuration…</p>
     </section>
+
+    <section class="panel launcher-status-panel">
+      <h2>System status</h2>
+      <p id="savedAt" class="status">Checking OpenHabits…</p>
+      <div id="checks" class="setup-checks"></div>
+    </section>
+
     <section class="panel">
-      <h2>2. Import updated JSON</h2>
-      <label for="configJson">Paste JSON</label>
-      <textarea id="configJson" rows="14" placeholder="Paste the JSON copied or downloaded from the browser editor"></textarea>
-      <label class="file-label" for="configFile">Or choose a .json file</label>
+      <h2>Apply editor changes</h2>
+      <p>When you finish editing, return here and paste the configuration copied by the editor.</p>
+      <label for="configJson">Updated configuration</label>
+      <textarea id="configJson" rows="10" placeholder="Paste the updated configuration here"></textarea>
+      <label class="file-label" for="configFile">Or choose a configuration backup</label>
       <input id="configFile" type="file" accept="application/json,.json">
-      <div class="row gap"><button id="preview" class="secondary" type="button">Preview Changes</button><button id="save" type="button" disabled>Save and Apply</button></div>
-      <div id="result" class="status" aria-live="polite"></div>
+      <div id="result" class="notice status" aria-live="polite">Waiting for updated configuration.</div>
+      <button id="save" type="button" disabled>Save and Apply</button>
     </section>
-    <button id="restore" class="danger" type="button">Restore Previous Revision</button>
+
+    <details class="panel">
+      <summary>Troubleshooting and preferences</summary>
+      <div class="launcher-actions">
+        <button id="copyCurrent" class="secondary" type="button">Copy Current Configuration</button>
+        <button id="repair" class="secondary" type="button">Check and Repair Metric Rows</button>
+        <button id="undo" class="danger" type="button" disabled>Undo Last Configuration Change</button>
+        <label class="preference"><input id="autoOpen" type="checkbox"> Open OpenHabits automatically with this Sheet</label>
+      </div>
+      <p id="advancedStatus" class="status" aria-live="polite"></p>
+    </details>
   </main>
 <script>
 (() => {
+  const editorUrl = <?!= JSON.stringify(editorUrl) ?>;
   const json = document.getElementById('configJson');
   const result = document.getElementById('result');
   const save = document.getElementById('save');
+  const openEditor = document.getElementById('openEditor');
+  const handoffStatus = document.getElementById('handoffStatus');
+  const advancedStatus = document.getElementById('advancedStatus');
   let currentJson = '';
-  const server = (name, value, success) => google.script.run.withSuccessHandler(success).withFailureHandler(error => {
-    result.textContent = 'Error: ' + error.message;
+  let validationSequence = 0;
+
+  const callServer = (name, value, success, failureTarget = result) => {
+    google.script.run.withSuccessHandler(success).withFailureHandler(error => {
+      failureTarget.textContent = 'Error: ' + error.message;
+      save.disabled = true;
+    })[name](value);
+  };
+
+  function copyText(text, statusTarget) {
+    return navigator.clipboard.writeText(text).then(() => true).catch(() => {
+      json.value = text;
+      json.focus();
+      json.select();
+      statusTarget.textContent = 'Clipboard access was blocked. Copy the selected configuration manually.';
+      return false;
+    });
+  }
+
+  function renderPreview(preview) {
+    if (!preview.ok) {
+      result.textContent = 'Cannot apply: ' + (preview.errors || []).join(' ');
+      result.className = 'notice status warning';
+      save.disabled = true;
+      return;
+    }
+    const plan = preview.plan;
+    const parts = [plan.missing.length + ' required row(s) will be added'];
+    if (plan.retainedUnreferenced.length) parts.push(plan.retainedUnreferenced.length + ' historical row(s) will be retained');
+    if ((preview.warnings || []).length) parts.push('Warnings: ' + preview.warnings.join(' '));
+    result.textContent = 'Ready to apply. ' + parts.join('. ') + '. No existing rows will be deleted.';
+    result.className = 'notice status success';
+    save.disabled = false;
+  }
+
+  function validateInput() {
     save.disabled = true;
-  })[name](value);
+    const value = json.value.trim();
+    if (!value) {
+      result.textContent = 'Waiting for updated configuration.';
+      result.className = 'notice status';
+      return;
+    }
+    const sequence = ++validationSequence;
+    result.textContent = 'Validating…';
+    callServer('openHabitsPreviewConfig', value, preview => {
+      if (sequence === validationSequence) renderPreview(preview);
+    });
+  }
+
   google.script.run.withSuccessHandler(data => {
     currentJson = data.configJson;
-    document.getElementById('revision').textContent = data.revision ? 'Active revision ' + data.revision : 'Using the code-backed fallback (not yet imported).';
-  }).withFailureHandler(error => { result.textContent = 'Error: ' + error.message; }).openHabitsGetConfigBridgeData();
+    openEditor.disabled = false;
+    document.getElementById('undo').disabled = !data.hasPreviousConfig;
+    document.getElementById('autoOpen').checked = data.autoOpen;
+    document.getElementById('savedAt').textContent = data.updatedAt
+      ? 'Configuration last saved ' + new Date(data.updatedAt).toLocaleString() + '.'
+      : 'Using the configuration included with this Sheet.';
+    const checks = document.getElementById('checks');
+    checks.replaceChildren(...data.status.checks.map(check => {
+      const item = document.createElement('div');
+      item.className = 'setup-check ' + check.state;
+      item.textContent = (check.state === 'pass' ? '✓ ' : '! ') + check.message;
+      return item;
+    }));
+    handoffStatus.textContent = 'Ready.';
+  }).withFailureHandler(error => { handoffStatus.textContent = 'Error: ' + error.message; }).openHabitsGetConfigBridgeData();
+
+  openEditor.addEventListener('click', async () => {
+    const editor = window.open('', '_blank');
+    handoffStatus.textContent = 'Copying configuration…';
+    const copied = await copyText(currentJson, handoffStatus);
+    if (editor) editor.location = editorUrl + '#from-sheet';
+    else handoffStatus.textContent = 'The editor popup was blocked. Allow popups, then try again.';
+    if (copied && editor) handoffStatus.textContent = 'Configuration copied. Load it in the editor, then return here when finished.';
+  });
+
   document.getElementById('copyCurrent').addEventListener('click', async () => {
-    if (!currentJson) return;
-    try { await navigator.clipboard.writeText(currentJson); result.textContent = 'Current JSON copied. Paste it into the browser editor.'; }
-    catch (_) { json.value = currentJson; json.focus(); json.select(); result.textContent = 'Clipboard access was blocked. Copy the selected JSON below.'; }
+    if (await copyText(currentJson, advancedStatus)) advancedStatus.textContent = 'Current configuration copied.';
+  });
+
+  let validationTimer;
+  json.addEventListener('input', () => {
+    clearTimeout(validationTimer);
+    validationTimer = setTimeout(validateInput, 250);
   });
   document.getElementById('configFile').addEventListener('change', async event => {
     const file = event.target.files[0];
-    if (file) json.value = await file.text();
-    save.disabled = true;
-    result.textContent = file ? 'Loaded ' + file.name + '. Preview it before saving.' : '';
+    if (file) {
+      json.value = await file.text();
+      validateInput();
+    }
   });
-  json.addEventListener('input', () => { save.disabled = true; result.textContent = 'Preview required before saving.'; });
-  document.getElementById('preview').addEventListener('click', () => {
-    result.textContent = 'Validating…';
-    server('openHabitsPreviewConfig', json.value, preview => {
-      if (!preview.ok) { result.textContent = 'Cannot apply: ' + (preview.errors || []).join(' '); save.disabled = true; return; }
-      const plan = preview.plan;
-      result.textContent = 'Valid JSON. ' + plan.missing.length + ' row(s) will be added; ' + plan.retainedUnreferenced.length + ' historical row(s) will be retained.' + ((preview.warnings || []).length ? ' Warnings: ' + preview.warnings.join(' ') : '');
-      save.disabled = false;
-    });
-  });
+
   save.addEventListener('click', () => {
-    save.disabled = true; result.textContent = 'Saving…';
-    server('openHabitsSaveAndApply', json.value, response => {
-      result.textContent = response.ok ? 'Saved revision ' + response.revision + '. Added ' + response.addedRows.length + ' row(s).' : 'Cannot apply: ' + (response.errors || []).join(' ');
-      if (response.ok) currentJson = json.value;
+    save.disabled = true;
+    result.textContent = 'Saving and applying…';
+    callServer('openHabitsSaveAndApply', json.value, response => {
+      if (!response.ok) return renderPreview(response);
+      currentJson = json.value;
+      result.textContent = 'Configuration saved and applied. ' + response.addedRows.length + ' required row(s) added.';
+      result.className = 'notice status success';
+      json.value = '';
     });
   });
-  document.getElementById('restore').addEventListener('click', () => {
-    if (!confirm('Restore the previous configuration as a new active revision?')) return;
-    server('openHabitsRestorePreviousRevision', null, response => { result.textContent = response.ok ? 'Restored as revision ' + response.revision + '.' : (response.errors || []).join(' '); });
+
+  document.getElementById('repair').addEventListener('click', () => {
+    advancedStatus.textContent = 'Checking metric rows…';
+    callServer('openHabitsRepairMetricRows', null, response => {
+      advancedStatus.textContent = response.ok
+        ? (response.addedRows.length ? 'Repaired ' + response.addedRows.length + ' missing row(s).' : 'All required metric rows are present.')
+        : 'Could not repair rows: ' + (response.errors || []).join(' ');
+    }, advancedStatus);
+  });
+
+  document.getElementById('undo').addEventListener('click', () => {
+    if (!confirm('Undo the last configuration change? Your current configuration will remain available as the next undo.')) return;
+    advancedStatus.textContent = 'Restoring the previous configuration…';
+    callServer('openHabitsUndoLastConfigChange', null, response => {
+      advancedStatus.textContent = response.ok ? 'The last configuration change was undone.' : (response.errors || []).join(' ');
+      if (response.ok) document.getElementById('undo').disabled = false;
+    }, advancedStatus);
+  });
+
+  document.getElementById('autoOpen').addEventListener('change', event => {
+    callServer('openHabitsSetAutoOpen', event.target.checked, () => {
+      advancedStatus.textContent = event.target.checked
+        ? 'OpenHabits will open automatically with this Sheet.'
+        : 'Use OpenHabits → Open OpenHabits when you need this panel.';
+    }, advancedStatus);
   });
 })();
 </script></body></html>

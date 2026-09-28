@@ -147,11 +147,14 @@ test('Sheet menu opens an owner-authorized import bridge to the canonical editor
   assert.match(source, /openHabitsGetConfigBridgeData/);
   assert.doesNotMatch(source, /ScriptApp\.getService\(\)\.getUrl\(\)/);
   assert.doesNotMatch(main, /parameter\.openhabits === 'editor'/);
-  assert.match(source, /addItem\('Add a Metric', 'openHabitsShowAddMetric'\)/);
+  assert.match(source, /addItem\('Open OpenHabits', 'openHabitsShowLauncher'\)/);
+  assert.doesNotMatch(source, /Install Starter Metrics|openHabitsStarterConfig/);
   assert.match(launcher, /target="_blank"/);
-  assert.match(launcher, /Open Config Editor/);
+  assert.match(launcher, /Open Editor with Current Config/);
   assert.match(launcher, /openHabitsPreviewConfig/);
   assert.match(launcher, /openHabitsSaveAndApply/);
+  assert.match(launcher, /Undo Last Configuration Change/);
+  assert.doesNotMatch(launcher, /Preview Changes|Active revision/);
   assert.match(launcher, /accept="application\/json,\.json"/);
 });
 
@@ -162,7 +165,8 @@ test('GitHub editor is the sole visual editor and exports first-class JSON', () 
   }
   assert.match(githubEditor, /Import JSON File/);
   assert.match(githubEditor, /Download JSON/);
-  assert.match(githubEditor, /Copy JSON/);
+  assert.match(githubEditor, /Finish and Copy for OpenHabits/);
+  assert.match(githubEditor, /Load Copied Configuration/);
 });
 
 test('config editor exposes newcomer help, duplication, preset assignment, and safe metric references', () => {
