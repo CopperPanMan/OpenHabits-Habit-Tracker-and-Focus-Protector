@@ -42,6 +42,22 @@ test('validates due-by as a timestamp write mode', () => {
   assert.match(result.errors.join(' '), /requires a due-by time in HH:MM format/);
 });
 
+test('does not warn about configured supporting rows', () => {
+  const c = load();
+  const result = c.openHabitsValidateConfig_({
+    trackingSheetName: 'Tracking Data',
+    dailyPointsID: 'points_today',
+    cumulativePointsID: 'points_all_time',
+    metricSettings: [{
+      metricID: 'meditate', displayName: 'Meditate', dataType: 'duration',
+      streaks: { streaksID: 'meditate_streak' }, points: { pointsID: 'meditate_points' }
+    }]
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(Array.from(result.warnings), []);
+});
+
 test('config editor presents data types without server timer types', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'docs', 'app.js'), 'utf8');
   assert.match(source, /\{ value: 'text', label: 'Text' \}/);
@@ -158,6 +174,10 @@ test('Sheet menu opens an owner-authorized import bridge to the canonical editor
   assert.doesNotMatch(launcher, /json\.value = text/);
   assert.match(launcher, /openHabitsPreviewConfig/);
   assert.match(launcher, /openHabitsSaveAndApply/);
+  assert.match(launcher, /Configuration is ready to apply\./);
+  assert.match(launcher, /supporting.*will be created automatically/);
+  assert.match(launcher, /Configuration saved and applied\./);
+  assert.doesNotMatch(launcher, /historical row\(s\) will be retained|No existing rows will be deleted|Warnings:/);
   assert.match(launcher, /Undo Last Configuration Change/);
   assert.doesNotMatch(launcher, /Preview Changes|Active revision/);
   assert.match(launcher, /accept="application\/json,\.json"/);

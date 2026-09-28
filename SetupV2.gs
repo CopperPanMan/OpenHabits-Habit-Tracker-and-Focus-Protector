@@ -24,7 +24,6 @@ function openHabitsLoadAppConfig_() {
 
 function openHabitsValidateConfig_(config) {
   var errors = [];
-  var warnings = [];
   var ids = {};
   if (!config || typeof config !== 'object' || Array.isArray(config)) return { ok: false, errors: ['Configuration must be a JSON object.'], warnings: [] };
   if (!config.trackingSheetName || typeof config.trackingSheetName !== 'string') errors.push('trackingSheetName is required.');
@@ -62,11 +61,7 @@ function openHabitsValidateConfig_(config) {
     else if (blockIds[blockId]) errors.push('Duplicate lockout block ID: ' + blockId + '.');
     else blockIds[blockId] = true;
   });
-  var references = openHabitsCollectRequiredRows_(config);
-  references.forEach(function (row) {
-    if (!Object.prototype.hasOwnProperty.call(ids, row.id) && row.kind === 'reference') warnings.push(row.id + ' is a supporting Sheet row, not a loggable metric.');
-  });
-  return { ok: errors.length === 0, errors: errors, warnings: warnings };
+  return { ok: errors.length === 0, errors: errors, warnings: [] };
 }
 
 function openHabitsCollectRequiredRows_(config) {
