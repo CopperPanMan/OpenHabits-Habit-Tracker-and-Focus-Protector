@@ -84,10 +84,9 @@
       return;
     }
     const plan = preview.plan;
-    const parts = [plan.missing.length + ' required row(s) will be added'];
-    if (plan.retainedUnreferenced.length) parts.push(plan.retainedUnreferenced.length + ' historical row(s) will be retained');
-    if ((preview.warnings || []).length) parts.push('Warnings: ' + preview.warnings.join(' '));
-    result.textContent = 'Ready to apply. ' + parts.join('. ') + '. No existing rows will be deleted.';
+    result.textContent = plan.missing.length
+      ? 'Configuration is ready to apply. ' + plan.missing.length + ' supporting ' + (plan.missing.length === 1 ? 'row' : 'rows') + ' will be created automatically.'
+      : 'Configuration is ready to apply.';
     result.className = 'notice status success';
     save.disabled = false;
   }
@@ -153,7 +152,9 @@
     callServer('openHabitsSaveAndApply', json.value, response => {
       if (!response.ok) return renderPreview(response);
       currentJson = json.value;
-      result.textContent = 'Configuration saved and applied. ' + response.addedRows.length + ' required row(s) added.';
+      result.textContent = response.addedRows.length
+        ? 'Configuration saved and applied. ' + response.addedRows.length + ' supporting ' + (response.addedRows.length === 1 ? 'row' : 'rows') + ' created.'
+        : 'Configuration saved and applied.';
       result.className = 'notice status success';
       json.value = '';
     });
