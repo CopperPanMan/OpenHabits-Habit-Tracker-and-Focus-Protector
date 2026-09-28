@@ -117,11 +117,13 @@
   }).withFailureHandler(error => { handoffStatus.textContent = 'Error: ' + error.message; }).openHabitsGetConfigBridgeData();
 
   openEditor.addEventListener('click', async () => {
-    const editor = window.open('', '_blank');
     handoffStatus.textContent = 'Copying configuration…';
+    // Open the destination while this click still has an active user gesture.
+    // Navigating an about:blank popup after awaiting the clipboard can be
+    // blocked by the Apps Script sidebar sandbox, leaving a blank tab behind.
+    const editor = window.open(editorUrl + '#from-sheet', '_blank');
     const copied = await copyText(currentJson, handoffStatus);
-    if (editor) editor.location = editorUrl + '#from-sheet';
-    else handoffStatus.textContent = 'The editor popup was blocked. Allow popups, then try again.';
+    if (!editor) handoffStatus.textContent = 'The editor popup was blocked. Allow popups, then try again.';
     if (copied && editor) handoffStatus.textContent = 'Configuration copied. Load it in the editor, then return here when finished.';
   });
 
