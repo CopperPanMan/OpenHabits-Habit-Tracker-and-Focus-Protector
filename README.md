@@ -118,11 +118,13 @@ OpenHabits Metrics currently does everything I built it to do, so I don't have a
 
 ### Android support
 
-There is currently no Android version. If a community member wants to build one, I'd be happy to link to it here!
+There is currently no Android version. Contributions toward Android support are welcome, whether as part of this project or as a compatible client built around OpenHabits.
 
 ### Licensing
 
 OpenHabits Metrics is open source under the **[Apache License 2.0](LICENSE)**. The source is publicly available and may be used, modified, and shared subject to that license.
+
+Bug fixes, improvements, integrations, documentation, and other contributions are welcome. If you build something useful around OpenHabits, feel free to open an issue or pull request.
 
 Third-party services should make clear that they are independent and should not imply that they are official OpenHabits products or services.
 
