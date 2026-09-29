@@ -9,7 +9,7 @@ For example, each day you might:
 - Keep YouTube and Reddit blocked across your phone and computer until you've planned the day's tasks.
 - Assign point values to the behaviors and tasks that matter to you, then chart a daily composite score to see how you're doing over time based on the priorities you chose.
 
-OpenHabits Metrics is free and combines capabilities normally spread across habit trackers, mood and metric trackers, and screen-time blockers — along with capabilities those apps generally can’t provide because they don’t share the same underlying data.
+OpenHabits Metrics is free and open source, and combines capabilities normally spread across habit trackers, mood and metric trackers, and screen-time blockers — along with capabilities those apps generally can’t provide because they don’t share the same underlying data.
 
 ## How Does This Work?
 
@@ -120,9 +120,7 @@ There is currently no Android version. If a community member wants to build one,
 
 ### Licensing
 
-OpenHabits Metrics is licensed under the **PolyForm Perimeter 1.0.1** license. The source is publicly available and may be used, modified, and shared subject to that license. OpenHabits Metrics is free and source-available, rather than OSI-defined open source.
-
-**Paid services around OpenHabits Metrics are welcome.** Consulting, installation, configuration, training, and support are all encouraged. The restriction is intended to prevent OpenHabits Metrics itself (or a derivative of it) from being repackaged and offered as a competing product without separate permission.
+OpenHabits Metrics is open source under the **Apache 2.0** license. The source is publicly available and may be used, modified, and shared subject to that license.
 
 Third-party services should make clear that they are independent and should not imply that they are official OpenHabits products or services.
 
