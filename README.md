@@ -7,7 +7,7 @@
 Log text, numbers, timestamps, and durations from your iPhone (using Apple Shortcuts) or Notion straight to a Google Sheet you own. You can then chart it, block apps based on it, instantly get feedback on performance, award points for each task, track streaks, and build your own dashboards.
 
 For example, each day you might:
-- Rate your mood from 1–10, automatically record when you went to sleep with an iOS automation, and track your focused work hours to see how the three relate over time.
+- Rate your mood from 1–10, record when you went to sleep, and track your focused work hours to see how the three relate over time.
 - Keep YouTube and Reddit blocked across your phone and computer until you've planned the day's tasks.
 - Assign point values to the behaviors and tasks that matter to you, then chart a daily composite score to see how you're doing over time based on the priorities you chose.
 
