@@ -1,5 +1,7 @@
 # OpenHabits Metrics
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 **OpenHabits Metrics lets you track the things you do each day to Google Sheets, then use that data to measure progress, motivate behavior, and control distractions.**
 
 Log text, numbers, timestamps, and durations from your iPhone (using Apple Shortcuts) or Notion straight to a Google Sheet you own. You can then chart it, block apps based on it, instantly get feedback on performance, award points for each task, track streaks, and build your own dashboards.
@@ -120,9 +122,8 @@ There is currently no Android version. If a community member wants to build one,
 
 ### Licensing
 
-OpenHabits Metrics is open source under the **Apache 2.0** license. The source is publicly available and may be used, modified, and shared subject to that license.
+OpenHabits Metrics is open source under the **[Apache License 2.0](LICENSE)**. The source is publicly available and may be used, modified, and shared subject to that license.
 
 Third-party services should make clear that they are independent and should not imply that they are official OpenHabits products or services.
 
 </details>
-
