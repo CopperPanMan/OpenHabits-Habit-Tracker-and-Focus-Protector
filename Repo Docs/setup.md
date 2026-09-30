@@ -297,6 +297,8 @@ The **Locked** Shortcut uses a Scriptable script named `lockouts` for the heavie
 5. In Scriptable, create a file bookmark to the base `Shortcuts` folder. Name the bookmark exactly `Shortcuts`.
 6. Confirm the bookmark opens successfully before testing the **Locked** Shortcut.
 
+For the new local unlock/cache runtime and the exact **Locked**, **Allowed**, **Update Lockout Cache**, and **Insights** installer edits, see [Metrics runtime v1](runtime-v1.md). The existing shortcuts continue to work until explicitly rewired.
+
 > **Screenshot to add:** iCloud Drive showing `Shortcuts/OpenHabits/OpenHabits Metrics`, Scriptable showing the `lockouts` script, and Scriptable's bookmark list showing the base `Shortcuts` bookmark.
 
 ## D) Shortcuts you need
