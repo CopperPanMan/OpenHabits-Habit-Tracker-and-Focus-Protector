@@ -1,0 +1,17 @@
+{
+  "product": "OpenHabits Metrics",
+  "runtimeVersion": "1.1.1",
+  "inputFormat": "command_or_list",
+  "scripts": [
+    {
+      "name": "OpenHabits Runtime",
+      "filename": "OpenHabits Runtime.js",
+      "url": "https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/main/OpenHabits%20Runtime.js"
+    },
+    {
+      "name": "lockouts",
+      "filename": "lockouts.js",
+      "url": "https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/main/lockouts.js"
+    }
+  ]
+}

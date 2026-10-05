@@ -1,0 +1,167 @@
+- Toggle Timer Template
+
+    Comment:
+
+    This “Toggle Timer” template allows you to start and stop a timer from the same shortcut, and to optionally add that timed block to your calendar.
+
+    Mechanically, it toggles between sending your apps script a start_timer metric, and a stop_timer metric.
+
+    INSTRUCTIONS:
+
+    To use this template, duplicate it, and then follow the instructions of the other comment blocks (like this one) inside this shortcut.
+
+    You can also run this shortcut with input of “stop” or “start” to specifically do one or the other.
+
+    text: [["cumulative_work"]]
+
+    comment: Paste your duration type metricId above ^
+
+    replace [[” with nothing in formattedMetricId
+
+    replace “]] with nothing in updated text
+
+    get file from Shortcuts at path /OpenHabits/OpenHabits Metrics/timerStates.json
+
+    1
+
+    0
+
+    current date
+
+    if file path has any value
+
+    get dictionary from file
+
+    get value for metricId_startTime in originalFile
+
+    if all are true: startTime is not null or empty
+
+    if shortcut input is start
+
+    stop this shortcut
+
+    end if
+
+    get dates from startTime
+
+    if startTimeDate is in the last 5 minutes
+
+    otherwise
+
+    ask for Text with Task worked on:
+
+    Add calendar event: provided Input from startTime to now
+
+    comment:
+
+    If you wish to add the elapsed time as an event in your calendar, change which calendar is selected in the action above (you may need to click the arrow to open the options).
+
+    Otherwise, delete the “If startTimeDate is in the last 5 minutes” action, and all actions inside.
+
+    end if
+
+    get seconds between startTimeDate and now
+
+    get value for pendingSeconds in originalFile
+
+    elapsedTime + pendingSeconds
+
+    Set metricId_startTime to null in Dictionary
+
+    save Dictionary to Shortcuts at path /OpenHabits/OpenHabits Metrics/timerStates.json
+
+    set variable startingTimer to 0
+
+    otherwise
+
+    if Shortcut Input is stop
+
+    stop this shortcut
+
+    end if
+
+    set variable startingTimer to 1
+
+    set metricId_startTime to now in originalFile
+
+    save dictionary to Shortcuts at path /OpenHabits/OpenHabits Metrics/timerStates.json
+
+    end if
+
+    text: {"metricId_startTime": "now", "metricId_pendingSeconds": 0}
+
+    Append text to Shortcuts at path /OpenHabits/OpenHabits Metrics/timerStates.json
+
+    set variable startingTimer to 1
+
+    end if
+
+    if startingTimer is yes
+
+    comment:
+
+    All of the optional actions inside this “If” action run when the timer is started (ie everything at the same indent level before the “otherwise” action).
+
+    You can add, edit, or delete anything you’d like from here without impacting the basic time tracking of the timer itself.
+
+    Example uses include:
+
+    - starting a pomodoro timer (“start timer” action)
+    - changing focus modes (“set focus” action)
+    - switching wallpapers (“switch between wallpapers” action)
+    - or even other things, like setting smart light scenes or sending texts.
+
+    show notification: Timer Started!
+
+    Switch to Wallpaper 7
+
+    Turn Work On until turned off
+
+    start a timer for 50 minutes
+
+    otherwise
+
+    comment:
+
+    All of the optional actions inside this “Otherwise” action that are between this comment and the next run when the timer is stopped (ie everything at the same indent level before the “End If” action).
+
+    You can add, edit, or delete anything between these comments that you’d like without impacting the basic time tracking of the timer itself.
+
+    Example uses include:
+
+    - stop a pomodoro timer (“start timer” action)
+    - changing focus modes (“set focus” action)
+    - switching wallpapers (“switch between wallpapers” action)
+    - or even other things, like setting smart light scenes or sending texts.
+
+    Show notification Timer Stopped
+
+    Switch to wallpaper 2
+
+    Start a timer for 10 minutes
+
+    turn work off
+
+    comment: End of optional actions. DO NOT DELETE anything below this.
+
+    Calculate floor(duration/3600)
+
+    Calculate floor((duration%3600)/60)
+
+    Calculate duration%60
+
+    text: [["metricId", "hh:mm:ss"]] // magic variables
+
+    Run Insights with input = metricIDwithData
+
+    if shortcut result contains metricsByID
+
+    get file from /OpenHabits/OpenHabits Metrics/timerStates.json
+
+    set metricId_pendingSeconds to 0 in file
+
+    save Dictionary to Shortcuts at path /OpenHabits/OpenHabits Metrics/timerStates.json
+
+    end if
+
+    end if

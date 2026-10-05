@@ -1,0 +1,35 @@
+- Metric(s) Logger Template
+
+    vibrate device
+
+    text: [["example_metric"]]
+
+    comment:
+
+    SETUP
+
+    Duplicate this Shortcut for each metric (or group of metrics) you want to log. Replace the example in the Text action above with your own metric IDs.
+
+    One metric:
+
+    [["run_time"]]
+
+    Multiple metrics:
+
+    [["run_time"],["run_duration","03:23"],["run_intensity",10]]
+
+    Each entry uses ["metric_id"] or ["metric_id",value]. Put text values in quotes; leave numbers unquoted.
+
+    To request a value when the Shortcut runs, add an Ask for Input action above the Text action. Then replace the example value with that action’s Provided Input Magic Variable.
+
+    Text input:
+
+    [["run_duration","Provided Input"]]
+
+    Number input:
+
+    [["run_intensity",Provided Input]]
+
+    “Provided Input” should be a Magic Variable token, not manually typed text. Preserve all brackets, commas, and quotation marks.
+
+    Run Insights with metricId
