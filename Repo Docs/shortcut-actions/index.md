@@ -14,7 +14,8 @@ under source-transcriptions for provenance. The legacy installer uses Request
 and skips existing files; it is historical source, not the recommended installer.
 Use Inline Scriptable/Insights Installer.js and the continuous Insights action list.
 
-Only trailing whitespace was normalized in the source snapshots. Original
+Trailing whitespace was normalized in the source snapshots; repository URLs
+were updated after the repository rename. Other source content was retained. Original
 transcriptions may have omitted indentation, typos, or a missing branch.
 Their ambiguity is recorded in ../runtime-review-notes.md, not silently fixed.
 These documents are manual action specifications; there are no editable/signed

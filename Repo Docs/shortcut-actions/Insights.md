@@ -67,12 +67,12 @@ IF Shortcut Input does not have any value
         Overwrite If File Exists: On
     GET SHORTCUTS: All Shortcuts
     IF Shortcuts contains Locked
-        TEXT: https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/main/OpenHabits%20Runtime.js
+        TEXT: https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Metrics/main/OpenHabits%20Runtime.js
         GET CONTENTS OF URL: Text
             Method: GET
         GET TEXT FROM INPUT: Contents of URL
             -> RuntimeSource
-        TEXT: https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/main/lockouts.js
+        TEXT: https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Metrics/main/lockouts.js
         GET CONTENTS OF URL: Text
             Method: GET
         GET TEXT FROM INPUT: Contents of URL

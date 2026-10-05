@@ -8,7 +8,7 @@
 var OPENHABITS_CONFIG_SHEET = '_OpenHabits Config';
 var OPENHABITS_CONFIG_SCHEMA = 2;
 var OPENHABITS_CONFIG_CACHE_KEY = 'openhabits-config-v2';
-var OPENHABITS_CONFIG_EDITOR_URL = 'https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/';
+var OPENHABITS_CONFIG_EDITOR_URL = 'https://copperpanman.github.io/OpenHabits-Metrics/';
 var OPENHABITS_AUTO_OPEN_PROPERTY = 'openhabits-auto-open';
 
 function openHabitsLoadAppConfig_() {

@@ -8,7 +8,7 @@
     )
 
     const downloadURL =
-    "https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/main/lockouts.js"
+    "https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Metrics/main/lockouts.js"
 
     if (fileManager.fileExists(destinationPath)) {
     console.log("lockouts.js is already installed.")
