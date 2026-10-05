@@ -14,7 +14,7 @@
 - An empty evaluator allow message uses a nonempty fallback so Allowed does not
   accidentally open its empty-input unlock menu.
 - Compared with the original transcription, early-entry blocking also starts
-  Primary and pauses media, messages are reformatted, and remaining minutes round
+  the optional blocking-app session and pauses media, messages are reformatted, and remaining minutes round
   upward. Calendar notes were reconstructed for the described silent Home action
   and event creation explicitly invokes Calendar Alarm Engine to sync.
 
@@ -65,5 +65,7 @@ this checkpoint. No Insights/timer runtime commands are invented here.
 - Preserve native initial setup until the runtime exists; Scriptable must not be
   asked to perform the network download that installs its own runtime.
 
-No server endpoint or scoring changes, timer-state migrations, native Shortcut
-exports, or README edits are included in this checkpoint.
+These findings describe the runtime checkpoint preceding the documentation cleanup.
+The publication readouts now use optional blocking-app comments; installed native
+Shortcut exports still require their own update. Timer/Insights findings above
+remain open and do not describe functionality implemented by the new guides.

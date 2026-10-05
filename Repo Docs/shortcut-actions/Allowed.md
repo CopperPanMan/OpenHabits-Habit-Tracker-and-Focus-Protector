@@ -1,6 +1,7 @@
 # Allowed
 
-Status: complete runtime-based action readout implemented by the user. Empty input
+Status: runtime-based action readout adapted for publication with an optional
+blocking-app comment. This does not modify installed Shortcut exports. Empty input
 starts an unlock attempt; nonempty input handles an allowed session. This readout
 targets OpenHabits Runtime 1.1.1. Arrows label magic-variable outputs, not extra
 Set Variable actions. All Run Script actions use Run in App: Off.
@@ -21,7 +22,7 @@ IF Shortcut Input does not have any value
     SHOW NOTIFICATION: Dictionary Value
     STOP THIS SHORTCUT
 END IF
-STOP PRIMARY [Jomo]
+COMMENT: Optional — stop the blocking session in the blocking app of your choice.
 SHOW NOTIFICATION: Shortcut Input
 GET SHORTCUTS: All Shortcuts
 IF Shortcuts contains Start Screen Time Timer

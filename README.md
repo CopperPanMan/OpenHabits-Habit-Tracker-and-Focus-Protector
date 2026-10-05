@@ -87,7 +87,7 @@ You can then paste that config back into the Editor to adjust it visually.
 
 Basic installation is straightforward and takes approximately 15–20 minutes.
 
-The guide walks through each installation step, followed by an optional 10–15 minute tutorial and test event so you can learn the basic workflow and verify that everything is working correctly before relying on it. You do not need to configure the entire system at once.
+The guide walks through installation and a first test recording, then links to focused guides for the features you want. You do not need to configure the entire system at once.
 
 ### [**→ Setup & Usage Guide**](Repo%20Docs/setup.md)
 

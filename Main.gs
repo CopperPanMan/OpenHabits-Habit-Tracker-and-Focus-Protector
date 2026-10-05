@@ -1,43 +1,7 @@
-/* Code Explanation:
-  - this code is an amalgamation of a several features, added to over the course of 2 years. Primarily, it takes habit tracking information via webhook (run on my phone using apple shortcuts), adds it to the user's specified google sheet, and then returns various performance insights in the form of text a few seconds later.
-  - the exact info sent by the shortcut is a text "key" that lets this code know what colored block in the google sheet is being added to, and a list of all the metrics being added, separated (by the shortcut) by this character: (Ù).
-  - it can accept as many metrics as you want.
-  - thus, each habit tracked must have it's own unique apple shortcut containing it's own unique key as an identifier. 
-  - other features include methods of tracking habit streaks, creating dashboard views of those streaks, telling me what to do next, reminding me of when to leave an event to get to bed on time, syncing data with my Notion tasks database, appending to my notion inbox, timing work sessions and screentime, and locking me out of "bad apps" based on various conditions.
-
-  - overall, I am looking to simplify this and add functionality, using what I have learned through 2 years of usage.
-*/
-
-/* Future Features
-
-  OLD ADDITIONS (As of 2024)
-  - task point values ("+3 points. Total: 12") (estimate .5 days)
-    - adds a row to GS called "point total"
-    - adds a setting called %positive or something like that
-    - adds a property to tasks called "point_value"
-    - upon scan, it adds point_value* some random point muliplier (to casino-ify it) to point total and returns it to the user
-    - stretch goals:
-      - adds a second task property called "PointsPerMin" and adjusts calculator function to add PointsPerMinute*minutes completed of a task
-      - double XP weekends + strategic XP multipliers the day after a streak has ended to incentivize re-entry + extra points for "key decision point" habits like meditation
-
-  - recurring task reminders (estimate 2 days) - not high priority because I can more easily and usefully build this into Notion itself.
-    - example output (two times per day): "recurring tasks that need completed: - schedule haircut (last 10/2/22)") (Intention is that this prompts me to put it in my notion (except it's already there?))
-    - functionally adds a new type of task to code called recurring, with a property called recur invterval. When that task is completed, it looks at every recurring task that is overdue. checks off a 1 if completed.
-    - shortcut is triggered 2 times per day (during work for work recurs, after work for personal recurs)
-    - stretch features:
-      - takes another property called "allowable notification times" that enables overdue tasks to not be notified during certain times of day (for instance changing sheets while I'm at work)
-      - pull from Notion Database using API to sync fluidly b/w NFC system and Notion.
-
-  - message output features that would be nice to have but who knows if I will ever add them:
-    - track streaks
-    - estimate time until a goal is reached based on rate of change
-    - perhaps more conversational and less statistical/computational, EG "Your weight has increased 1.3 lbs vs yesterday"
-    - compare your percentile to that of your other countrymen
-    - "you completed 4/5 of today's tasks!"
-
-  - fix habits that feature multiple comparisons to only use one date range instead of a different one for each point.
-  
-*/
+/* OpenHabits Metrics server: authenticated JSON POST logging and integrations.
+ * Setup: Repo Docs/setup.md. API: Repo Docs/developer-keys.md.
+ * Configuration is loaded from the Sheet, with Config.gs as its fallback.
+ */
 
 // Establishing global variables used by Habits V2 / Lockouts.
 var key;

@@ -1,3 +1,5 @@
+> Historical design document. Parts describe earlier requirements or unimplemented proposals. For current setup and behavior, use [Setup](../setup.md), [Feature guides](../features.md), and the [Developer reference](../README.md).
+
 ## Habits V2 Specification (Codex-ready)
 
 This document rewrites and reorganizes the provided Habits V2 requirements to remove ambiguity while preserving intent. It is written as an implementation target for Google Apps Script, designed to fit alongside existing V1 code and shared functions. All V1 functionality should *always* remain unaffected; V2 should be built alongside V1.
@@ -126,14 +128,22 @@ Optional global config (used only if Notion enabled):
 
 Each metric object:
 
-```jsx
-{metricID:"weightNumber",// requireddataType:"number",// required enum: text | number | duration | timestampdisplayName:"Weight: ",// required (used in output messaging)recordType:"overwrite",// required enum: overwrite | keep_first | add// dates controls scheduling, streak-counting, and PPN filteringdates: [// [dayOfWeek, dueByTime, [[startHour, endHour], ...]]
-    ["Sunday","10:15",[[12,17]]],
-    ["Tuesday","15:43",[[9,12],[14,17]]],
-    ["Friday","15:45",[[1,24]]]
-  ],// streak row target + display unitstreaks: {unit:"days",streaksID:"weightNumberStreak" },// points configurationpoints: {value:1,multiplierDays:4,maxMultiplier:1.2,pointsID:"weightPoints"
-  },// performance insight configuration (used by existing function)insights: {/* passed to findPerformanceInsightsV2_ (ex: {insightChance:1, streakProb:0.8, dayToDayChance:1, dayToAvgChance:0.5, rawValueChance:1, increaseGood:-1, firstWords:"Time Completed:", insightUnits:"minutes"}) */ },// positive push notification text fragmentsppnMessage: ["part 1","part 2"],// per-metric override to allow/deny Notion updateswriteToNotion:true,// timestamp-only write policytimestampSettings: {writeMode:"now" // enum: now | due_by
-  }
+```json
+{
+  "metricID": "weight_number",
+  "dataType": "number",
+  "displayName": "Weight",
+  "recordType": "overwrite",
+  "dates": [
+    ["Sunday", "10:15", [[12, 17]]],
+    ["Tuesday", "15:43", [[9, 12], [14, 17]]],
+    ["Friday", "15:45", [[1, 24]]]
+  ],
+  "streaks": {"unit": "days", "streaksID": "weight_streak"},
+  "points": {"value": 1, "multiplierDays": 4, "maxMultiplier": 1.2, "pointsID": "weight_points"},
+  "insights": {"insightChance": 0},
+  "ppnMessage": ["Keep going:", "Record your weight."],
+  "writeToNotion": false
 }
 ```
 
@@ -378,10 +388,9 @@ Let `basePoints = metric.points.value`.
 - Each `metricsByID` entry retains its metric-specific `pointsDelta`; request-wide point totals are
   not repeated in those entries.
 
-## 10.5 Non-retroactive rule
+## 10.5 Superseded points requirement
 
-- “If a metric is overwritten, today’s points is not updated retroactively.”
-    - Interpretation captured in assumptions list; implementation must match your intended meaning.
+The earlier non-retroactive overwrite requirement was superseded. Current overwrite logging adjusts daily and cumulative totals by the difference between the new award and the previously stored metric points. See [Points and streaks](../guides/points-streaks.md).
 
 # 11) Point multipliers
 
