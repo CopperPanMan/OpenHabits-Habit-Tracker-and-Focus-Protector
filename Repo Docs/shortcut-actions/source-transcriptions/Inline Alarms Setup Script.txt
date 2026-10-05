@@ -1,0 +1,29 @@
+- inline alarms setup script
+
+    const fileManager = FileManager.iCloud()
+    const scriptDirectory = fileManager.documentsDirectory()
+    const destinationPath = fileManager.joinPath(
+    scriptDirectory,
+    "lockouts.js"
+    )
+
+    const downloadURL =
+    "https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/main/lockouts.js"
+
+    if (fileManager.fileExists(destinationPath)) {
+    console.log("lockouts.js is already installed.")
+    } else {
+    console.log("lockouts.js is missing. Downloading it...")
+
+    const request = new Request(downloadURL)
+    const sourceCode = await request.loadString()
+
+    if (!sourceCode.trim()) {
+    throw new Error("GitHub returned an empty lockouts.js file.")
+    }
+
+    fileManager.writeString(destinationPath, sourceCode)
+    console.log("lockouts.js was downloaded successfully.")
+    }
+
+    Script.complete()

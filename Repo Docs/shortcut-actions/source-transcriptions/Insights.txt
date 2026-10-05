@@ -1,0 +1,231 @@
+- Insights
+
+    get file from Shortcuts at path /OpenHabits/OpenHabits Metrics/settings.json
+
+    if shortcut input does not have any value
+
+    1
+
+    0
+
+    if file has any value
+
+    get dictionary from file (settings)
+
+    get value for openHabitsSecret in Settings
+
+    Set variable openHabitsSecret to Dictionary Value
+
+    get value for webAppId in settings
+
+    set variable webAppId to dictionary value
+
+    set variable fileFound to 1
+
+    otherwise
+
+    Show:
+
+    Welcome to OpenHabits Metrics!
+
+    There are a few simple questions to get set up.
+
+    You can change these settings at any time by running this shortcut again.
+
+    set variable fileFound to 0
+
+    end if
+
+    set variable endRepeat to 0
+
+    Repeat 10 times
+
+    if endRepeat is 0
+
+    choose from menu with: What would you like to setup or change?
+
+    - Secret
+    - Web App Id
+    - More Info
+    - I’m Finished
+
+    Secret
+
+    Ask for Text with Please enter your OpenHabits Metrics secret: //default is prefilled
+
+    Set variable openHabitsSecret to ProvidedInput
+
+    Web App Id
+
+    Ask for Text with Please enter your OpenHabits Metrics web app Id: //default is prefilled
+
+    Set variable webAppId to ProvidedInput
+
+    More Info
+
+    show:
+
+    Your Secret is the "password" you set in your Google Sheet’s settings.
+
+    Your web app ID is shown under your active Apps Script deployment. Think of it like the address to send a letter to, and in this case, the letter is a logging request from your phone.
+
+    I’m Finished
+
+    set variable endRepeat to 1
+
+    End Menu
+
+    end if
+
+    end repeat
+
+    Dictionary
+
+    - openHabitsSecret: [openHabitsSecret]
+    - webAppId: [webAppId]
+
+    save dictionary to Shortcuts at path /OpenHabits/OpenHabits Metrics/settings.json
+
+    get shortcuts from all shortcuts
+
+    if my shortcuts contains Locked
+
+    run inline alarms setup script
+
+    end if
+
+    show notification Settings Updated!
+
+    stop this shortcut
+
+    end if
+
+    if file has any value
+
+    get dictionary from file
+
+    get value for openHabitsSecret in Settings
+
+    get Value for webAppId in Settings
+
+    otherwise
+
+    Show notification: Warning: no OpenHabits settings found. Please run Insights and follow setup.
+
+    stop this shortcut
+
+    end if
+
+    set variable debug to false
+
+    text: https://script.google.com/macros/s/<WebAppId>/exec
+
+    text:
+
+    {
+    "key":"record_metric_iOS",
+    "secret": "<secret>",
+    "data": <Shortcut Input>
+    }
+
+    get contents of link method POST
+
+    if contents of URL does not contain metricsByID
+
+    show notification:
+
+    Error: unable to access Google Drive at this time. Please try again later.
+
+    Contents of URL
+
+    stop this shortcut
+
+    end if
+
+    get shortcuts from all shortcuts
+
+    if my shortcuts contains Update Lockout Cache
+
+    Run Update Lockout Cache with input = contents of URL
+
+    end if
+
+    if my shortcuts contains Calendar Alarm Engine
+
+    run Calendar Alarm Engine with input = contents of URL
+
+    end if
+
+    if debug is true //kind of an outdated holdover
+
+    get value for errors in Contents of URL
+
+    if Dictionary value has any value
+
+    show notification Dictionary Value
+
+    end if
+
+    show: contents of URL
+
+    end if
+
+    get value for metricsByID in contents of URL
+
+    get value for todayPoints in contents of URL
+
+    round todayPoints to Tenths
+
+    get value for pointsDelta in contents of URL
+
+    round pointsDelta to tenths
+
+    get value for messages in contents of URL
+
+    if messages has any value
+
+    if any are true: todayPoints is greater than 0, pointsDelta is greater than 0
+
+    show notification: <message> (+<Rounded Number>pts = <Rounded Number>)
+
+    otherwise
+
+    show notification: <message>
+
+    end if
+
+    end if
+
+    0
+
+    set variable updateNotion to 0 //we update notion afterwards so that insights aren’t super slow to return.
+
+    repeat with each item in metricsById
+
+    get value for writeToNotion in repeat item
+
+    if writeToNotion is yes
+
+    1
+
+    set variable updateNotion to 1
+
+    end if
+
+    end repeat
+
+    if updateNotion is Yes
+
+    text:
+
+    {
+    "key":"update_metric_notion",
+    "secret": "<secret>",
+    "data": <Shortcut Input>
+    }
+
+    get contents of link (method POST)
+
+    end if
+
+    stop and output contents of URL
