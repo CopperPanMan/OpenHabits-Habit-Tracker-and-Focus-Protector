@@ -1,7 +1,9 @@
 # Locked
 
-Status: complete runtime-based action readout implemented by the user. Version
-1.1.1 changes the runtime deadline only; the native sequence remains compatible.
+Status: runtime-based action readout adapted for publication. The original native
+sequence was implemented by the user; this version replaces blocking-app actions
+with optional comments. It does not update installed or shared Shortcut exports.
+Runtime 1.1.1 changes the deadline; the native sequence remains compatible.
 Arrows label magic-variable outputs. All Run Script actions use Run in App: Off.
 The ending calendar alarm uses `calendarEnd` directly, with zero offset; do not
 subtract another minute in the event notes or native actions.
@@ -47,7 +49,7 @@ IF Route is evaluate
         GET DICTIONARY VALUE: type from Block
             -> BlockType
         IF Shortcut Input is not task_block
-            START PRIMARY [Jomo]
+            COMMENT: Optional — start a blocking session in the blocking app of your choice.
             PAUSE MEDIA
             GET DICTIONARY VALUE: shortcut from Evaluation
                 -> BlockShortcut
@@ -91,7 +93,7 @@ IF Route is evaluate
                 Input: If Result
             STOP THIS SHORTCUT
         OTHERWISE
-            START PRIMARY [Jomo]
+            COMMENT: Optional — start a blocking session in the blocking app of your choice.
             PAUSE MEDIA
             GO TO HOME SCREEN
             SHOW NOTIFICATION: OpenHabits: lockout evaluation failed.
@@ -100,7 +102,7 @@ IF Route is evaluate
     END IF
 OTHERWISE
     IF Route is allow
-        STOP PRIMARY [Jomo]
+        COMMENT: Optional — stop the blocking session in the blocking app of your choice.
         GET DICTIONARY VALUE: calendarEnd from OpenResult
             -> CalendarEnd
         IF CalendarEnd has any value
@@ -149,7 +151,7 @@ OTHERWISE
             END IF
         END IF
     OTHERWISE
-        START PRIMARY [Jomo]
+        COMMENT: Optional — start a blocking session in the blocking app of your choice.
         PAUSE MEDIA
         GO TO HOME SCREEN
     END IF

@@ -8,7 +8,7 @@ not signed Shortcut exports; this PR cannot modify installed iOS Shortcuts.
 ## Responsibility boundary
 
 Scriptable owns state files, parsing, date arithmetic, cache decisions, and
-notification text. Shortcuts owns HTTP, menus, notifications, Jomo, calendar
+notification text. Shortcuts owns HTTP, menus, notifications, optional blocking-app actions, calendar
 queries/events, and calls to other Shortcuts. `lockouts.js` stays a pure evaluator
 with no file, network, or calendar access. The Metrics runtime does not depend
 on a Calendar Alarms runtime.
@@ -87,8 +87,8 @@ by the native Shortcut, and previously created events are not rewritten.
 ## Installation and verification
 
 `runtime-install-manifest.json` records managed filenames, URLs, and version.
-Main-branch download URLs work after merge. For testing this PR before merge,
-replace the `main` segment with its branch name in both download URLs.
+The published installer uses main-branch download URLs. When testing unmerged
+runtime changes, replace the `main` segment with the test branch in both URLs.
 
 `Inline Scriptable/Insights Installer.js` takes downloaded source strings and
 validates every supplied script before writing any. It always replaces valid
@@ -101,6 +101,6 @@ The user reported the 1.1.0 lockout sequences working on-device. Version 1.1.1's
 minute-aligned timing and the new inline installer still need on-device checks:
 grant both types at a nonzero second, confirm the Clock alarm/event deadline,
 and reopen at expiry under a blocking preset. Run setup twice and confirm managed
-scripts update without changing state. Automated tests cannot verify iOS/Jomo
+scripts update without changing state. Automated tests cannot verify native blocking-app
 permissions, Clock firing, Scriptable extension lifetime, or multi-device iCloud
 concurrency. No cross-device transaction mechanism is introduced.

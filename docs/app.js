@@ -83,11 +83,11 @@
     blockTimezoneMode: 'fixed keeps this block tied to the Apps Script/cache timezone. floating follows the current device/browser wall clock while traveling.',
     defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. fixed is backward-compatible; floating follows the device/browser local wall clock.',
     cacheTimezoneMode: 'script preserves legacy config_snapshot task-state reads. client lets config_snapshot use a valid request timezone to build virtual task-block state from adjacent existing sheet columns.',
-    dateRule: 'Per-day rule: due-by time and allowed tracking hours.',
-    presets: 'Named modes supplied by a Shortcut or calendar event. A block assigned to presets applies only when one of those presets is active.',
-    datesSection: 'Controls when this metric is expected and when it may be recorded. Add rules for the applicable days; due-by is the deadline, while start and end define the allowed tracking window.',
+    dateRule: 'Scheduled day, due-by deadline for due-by timestamps, and hours for optional what-next prompts. Ordinary logging is not restricted to these hours.',
+    presets: 'Named modes supplied by a Shortcut or calendar event. An active preset selects its assigned blocks. With no active preset, all blocks are eligible.',
+    datesSection: 'Choose days that count toward streaks and optional prompts. No rules means every day. Due-by timestamps enforce the deadline; start/end hours filter prompts, not ordinary logging.',
     streaksSection: 'Optionally stores the number of consecutive days or sessions this metric was completed. Leave the Streak Metric ID empty to disable separate streak storage.',
-    pointsSection: 'Optionally awards points for completing this metric. A continuing streak increases the base award up to the maximum multiplier. Leave Points Metric ID empty to disable per-metric point storage.',
+    pointsSection: 'Points are per numeric unit, per rounded duration minute, or per text/timestamp completion. A continuing streak can increase the award up to the maximum multiplier. Points Metric ID stores the metric’s daily award separately.',
     insightsSection: 'Controls optional feedback after logging, such as a streak update or a comparison with an earlier day or recent average. A probability of 0% means never and 100% means always.'
   };
 
@@ -612,8 +612,8 @@
     if (usesTimeSettings) {
       field(advancedGrid, 'Timezone Behavior', makeSelect([
         { value: 'floating', label: 'Follow the device’s local time' },
-        { value: 'fixed', label: 'Always use the spreadsheet timezone' }
-      ], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Following the device is useful while traveling. Spreadsheet timezone keeps today and scheduled times tied to Apps Script.');
+        { value: 'fixed', label: 'Always use the Apps Script timezone' }
+      ], metric.timezoneMode || 'floating', v => metric.timezoneMode = v), 'Following the device uses a supplied client timezone or offset. Fixed keeps scheduled times tied to Apps Script.');
     }
     if (state.writeToNotion) {
       field(advancedGrid, 'Sync This Metric to Notion', makeCheck(metric.writeToNotion, v => metric.writeToNotion = v), 'Include this metric when the global Notion integration is enabled.');
@@ -774,7 +774,7 @@
     card.appendChild(technical);
 
     const presetSec = toggleSection('Preset Assignment', `block-${i}-presets`, true, HELP.presets);
-    presetSec.appendChild(fieldHint(block.presets.length ? 'This block applies only in the selected modes.' : 'No presets selected: this block applies whenever no preset is supplied.'));
+    presetSec.appendChild(fieldHint(block.presets.length ? 'Eligible in these modes, and whenever no preset is supplied.' : 'Eligible when no preset is supplied; excluded when a preset is active.'));
     const presetOptions = document.createElement('div');
     presetOptions.className = 'check-list';
     state.lockouts.presets.forEach(preset => {

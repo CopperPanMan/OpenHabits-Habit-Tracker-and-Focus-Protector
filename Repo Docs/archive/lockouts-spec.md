@@ -1,3 +1,5 @@
+> Historical design document. Parts describe earlier requirements or unimplemented proposals. For current setup and behavior, use [Setup](../setup.md), [Feature guides](../features.md), and the [Developer reference](../README.md).
+
 ## LOCKOUTS V2 — Codex-Ready Spec (clarified + reorganized, intent-preserving)
 
 ### 0) Purpose and scope
