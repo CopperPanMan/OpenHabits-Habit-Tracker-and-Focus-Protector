@@ -1,6 +1,6 @@
 # Feature guides
 
-Finish the [basic setup](setup.md), then choose the features you want. Each guide covers the extra steps needed for that feature.
+Finish the [setup demos](setup.md#5-try-the-templates), then choose the features you want. For app protection, start with the [complete iOS setup and everyday-use guide](guides/ios-lockouts.md); it connects your metrics, rules, and app automations.
 
 | I want to… | Guide |
 | --- | --- |

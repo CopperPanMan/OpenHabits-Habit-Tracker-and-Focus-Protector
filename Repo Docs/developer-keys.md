@@ -7,7 +7,7 @@ For custom clients. Users of the provided shortcuts can start with [Setup](setup
 Send a JSON **POST** to your deployed `/exec` web app:
 
 ```json
-{"key":"record_metric_iOS","secret":"YOUR_SECRET","data":[["water",1]]}
+{"key":"record_metric_iOS","secret":"YOUR_SECRET","data":[["glass_of_water",1]]}
 ```
 
 `secret` (or `openHabitsSecret`) must match the required Apps Script property `OPENHABITS_SECRET` (legacy property name `openHabitsSecret` is also accepted). `key` and the secret can instead be supplied as URL query parameters. Apps Script does not expose custom request headers to `doPost(e)`; an `OpenHabits-Secret` header alone cannot authenticate a call. GET calls are intentionally unsupported.
@@ -37,7 +37,7 @@ Use JSON numbers for number metrics and strings for text/duration values. Number
 ```bash
 curl -L "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec" \
   -H "Content-Type: application/json" \
-  -d '{"key":"record_metric_iOS","secret":"YOUR_SECRET","data":[["focus_duration","00:10:00"]]}'
+  -d '{"key":"record_metric_iOS","secret":"YOUR_SECRET","data":[["time_working","00:10:00"]]}'
 ```
 
 Recording responses contain `ok`, `messages`, an **array** named `metricsByID`, `errors`, `warnings`, and point totals (`pointsDelta`, `todayPoints`, `cumulativePoints`). Match each entry by its `metricID` and inspect its `status`/errors. Top-level `ok: true` can include failures for individual metrics. Successful statuses include `written` and `kept_first`; due-by and skipped conditions have their own statuses. Do not treat the presence of `metricsByID` as acknowledgement.

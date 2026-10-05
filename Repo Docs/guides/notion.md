@@ -1,6 +1,6 @@
 # Notion sync
 
-Notion is optional. Start with one timestamp metric, such as Started Day, and test each direction separately.
+Notion is optional. Start with one timestamp metric, such as Last Drank, and test each direction separately.
 
 ## Prepare a database
 
@@ -8,7 +8,7 @@ Create an [internal connection](https://developers.notion.com/guides/get-started
 
 | Property | Notion type | Purpose |
 | --- | --- | --- |
-| `metricID` | Text | Exact OpenHabits metric ID, such as `started_day` |
+| `metricID` | Text | Exact OpenHabits metric ID, such as `last_drank` |
 | `Status` | Status, including an option named `Complete` | Completion sent from Sheets |
 | `Points` | Number | Metric's awarded points |
 | `Point Multiplier` | Number | Applied multiplier |
@@ -47,7 +47,7 @@ Use a database automation triggered when **Status becomes Complete**, with a **S
 The native property webhook identifies the metric without a value. Number metrics (including completion recipes), text, and durations require an explicit value; use a custom client that sends the standard JSON request, for example:
 
 ```json
-{"key":"record_metric_notion","secret":"YOUR_SECRET","data":[["water",1]]}
+{"key":"record_metric_notion","secret":"YOUR_SECRET","data":[["glass_of_water",1]]}
 ```
 
 Use a keep-first timestamp if you want repeated status changes on the same day to be harmless. An additive metric can count repeated custom webhook calls more than once.

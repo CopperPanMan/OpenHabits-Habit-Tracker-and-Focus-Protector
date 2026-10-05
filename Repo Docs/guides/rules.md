@@ -8,10 +8,10 @@ First install [iOS app protection](ios-lockouts.md) or [Chrome website protectio
 
 | Goal | Configuration |
 | --- | --- |
-| Block until Started Day is logged | **Task block**, required metric `started_day` |
+| Block until the day is planned | **Task block**, required timestamp metric `day_plan`; see the [complete setup example](ios-lockouts.md#1-require-a-day-plan-before-social-apps) |
 | Block after 60 minutes of protected app use | **Duration block**, duration metric `screen_time`, max minutes `60` |
 | Block every day from 09:00 to 12:00 | **Duration block**, valid duration metric `screen_time`, max minutes `0`, time window `09:00`–`12:00` |
-| Block for 30 minutes after Started Day | **First X minutes after timestamp**, timestamp metric `started_day`, minutes `30` |
+| Block for 30 minutes after planning | **First X minutes after timestamp**, timestamp metric `day_plan`, minutes `30` |
 | Release screen-time allowance gradually | **Duration block** with rationing enabled, described below |
 
 A task block remains active if **any** required metric is incomplete. Completion means a nonempty daily cell, including numeric zero; it does not mean a target count has been reached.
