@@ -1,65 +1,144 @@
 # OpenHabits Metrics Setup
 
-Start by logging one metric successfully. Add timers, reminders, or focus protection whenever you want them.
+This guide connects your Sheet and shortcuts, then lets you try recording values and timing a session. Afterward, you can customize your metrics or [set up iOS app protection](guides/ios-lockouts.md).
 
-You need a Google account and, for the provided phone interface, an iPhone with Apple Shortcuts. Scriptable is needed only for iOS focus protection. Notion, Calendar Alarms, desktop blocking, and third-party blocking apps are optional.
+You need a Google account and an iPhone with Apple Shortcuts. Scriptable is also used for iOS app protection and Calendar Alarms integration. Notion and third-party blocking apps are optional.
 
 ## 1. Copy the starter Sheet
 
-Open the **Starter Google Sheet** from [Downloads](downloads.md) and make your own copy. It includes the bound Apps Script and three example metrics:
+**Starter Google Sheet — copy link pending publication.** Make your own copy when the shared Sheet is available. It includes the bound Apps Script and these metrics, matching the preloaded templates:
 
-| Metric | Try it with |
+| Metric | What the demo records |
 | --- | --- |
-| Started Day | A tap that records the current time |
-| Glasses of Water | A tap that adds one glass |
-| Focused Work | A timer that adds the elapsed duration |
+| Glasses of Water (`glass_of_water`) | Adds one glass each time you run the logger |
+| Last Drank (`last_drank`) | Records the latest time you ran that same logger |
+| Time Working (`time_working`) | Adds elapsed time when you stop the timer |
 
-Use your own copy for tracking. The **Tracking Data** tab holds your history; **OpenHabits → Open OpenHabits** opens its settings panel.
+The **Tracking Data** tab holds your history. **OpenHabits → Open OpenHabits** opens its settings panel.
 
 <details>
-<summary>Install manually, or prepare the Sheet before the copy link is published</summary>
+<summary>Install the Sheet manually before its copy link is published</summary>
 
 1. Create a Google Sheet. Open **Extensions → Apps Script**.
-2. Create these script files and paste their complete repository sources: [Main.gs](../Main.gs), [Config.gs](../Config.gs), [Lockouts.gs](../Lockouts.gs), and [SetupV2.gs](../SetupV2.gs).
+2. Create script files and paste [Main.gs](../Main.gs), [Config.gs](../Config.gs), [Lockouts.gs](../Lockouts.gs), and [SetupV2.gs](../SetupV2.gs).
 3. Create HTML files named **SetupV2Launcher** and **SetupV2Styles**, using [SetupV2Launcher.html](../SetupV2Launcher.html) and [SetupV2Styles.html](../SetupV2Styles.html). Apps Script adds the `.html` extension.
-4. Save the project. Run **openHabitsShowLauncher** once and authorize it, then reload the Sheet.
-5. In the OpenHabits panel, select [starter-config.json](../Examples/starter-config.json) under **Or choose a configuration backup**, then choose **Save and Apply**. This creates the tracking tab and required metric/points/streak rows.
+4. Save, run **openHabitsShowLauncher** once, authorize it, and reload the Sheet.
+5. In the OpenHabits panel, choose [starter-config.json](../Examples/starter-config.json) under **Or choose a configuration backup**, then **Save and Apply**.
 
-The JSON is configuration for the Sheet; the starter Sheet itself is distributed through a Google Sheets copy link.
+The JSON configures the Sheet. The shared starter Sheet itself will be distributed through a Google Sheets copy link.
 
 </details>
 
-## 2. Connect the web app
+## 2. Deploy your web app
 
-1. Open **Extensions → Apps Script → Project Settings**. Set the project timezone to your local timezone.
-2. Under **Script properties**, add **OPENHABITS_SECRET** with a long random value. Keep it for the next step. A script bound to this Sheet does not need a spreadsheet ID property.
-3. Choose **Deploy → New deployment → Web app**. Set **Execute as** to **Me** and **Who has access** to **Anyone**, so Shortcuts can call it without an interactive Google sign-in. Authorize when prompted, then deploy.
-4. Copy the **deployment ID**. It is the portion between `/s/` and `/exec` in the web app URL:
+1. Open **Extensions → Apps Script → Project Settings**. Set its timezone to your local timezone.
+2. Under **Script properties**, add **OPENHABITS_SECRET** with a long random value. Keep it for the shortcut setup below.
+3. Choose **Deploy → New deployment → Web app**. Set **Execute as** to **Me** and **Who has access** to **Anyone**. Authorize and deploy.
+4. Copy the **deployment ID**, the portion between `/s/` and `/exec` in the URL:
 
    `https://script.google.com/macros/s/DEPLOYMENT_ID/exec`
 
-This secret is required. Each user deploys their own copy. See [Google's deployment instructions](https://developers.google.com/apps-script/guides/web) if the options differ for your account.
+Your secret lets your shortcuts call this deployment. A script bound to your Sheet does not need a separate spreadsheet ID property. [Google's deployment instructions](https://developers.google.com/apps-script/guides/web) explain the account-specific deployment options.
 
 ## 3. Install the phone shortcuts
 
-1. Install **Insights** and **Log Started Day** from the separate [iOS 27](downloads.md#ios-27-and-newer) or [iOS 26](downloads.md#ios-26) download section.
-2. Run **Insights** without input. Enter the same **Secret** and **Web App Id** from step 2, then choose **I'm Finished**.
-3. Open **Log Started Day** in the Shortcut editor. If its **Run Shortcut** action is not connected, reselect **Insights**. Imported shortcuts can display a name while retaining a stale connection.
+Open the toggle for your iOS version. There are six shared shortcuts; the logger and timer templates are also the demos.
 
-Insights submits recording requests and displays feedback. Its connection settings are shared by your loggers; you do not need to enter credentials in each one.
+**Publication note:** the final iCloud install links will be added directly to the tables below when the shared shortcuts are ready.
 
-## 4. Verify one recording
+<a id="ios-27-and-newer"></a>
+<details>
+<summary><strong>iOS 27 and newer</strong></summary>
 
-Run **Log Started Day**, approve the requested permissions, and check today's **Started Day** cell in the Sheet. It should contain a timestamp. This starter keeps the first timestamp of the day, so a second tap leaves it unchanged.
+**Install these shortcuts:**
 
-Next, install **Log Water** and tap it twice. Today's **Glasses of Water** value should become `2`. For the timer example, continue to [Track time](guides/timers.md).
+| Shortcut / install link | What it does and why you need it |
+| --- | --- |
+| **Insights** — link pending | Connects your loggers to the Sheet and displays feedback. Used by both templates. |
+| **Metric(s) Logger Template** — link pending | Records one or more metrics. Comes ready for the water demo; duplicate it later for your own loggers. |
+| **Toggle Timer Template** — link pending | Starts/stops a timer and records elapsed time. Used for the timer demo; keep it for anything you want to time. |
 
-If the cells do not update, use [Troubleshooting](guides/maintenance.md#troubleshooting) before adding more features.
+**Also using iOS app protection?** Install all three below. For Calendar Alarms integration alone, install **Update Lockout Cache**; you do not need Locked or Allowed.
 
-## Make it yours
+| Shortcut / install link | What it does and why you need it |
+| --- | --- |
+| **Locked** — link pending | Checks your rules when a protected app opens and redirects you when blocked. |
+| **Allowed** — link pending | Handles allowed access and lets you request a temporary unlock. |
+| **Update Lockout Cache** — link pending | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
 
-In the Sheet panel, choose **Copy Current Configuration**, then **Open Config Editor**. Choose **Load Copied Configuration** in the editor and customize your metrics. When finished, choose **Finish and Copy for OpenHabits**, paste the result into the Sheet panel, and choose **Save and Apply**.
+</details>
 
-New primary and supporting rows are created automatically. Configuration changes take effect without redeploying the web app. If you use iOS blocking, run **Update Lockout Cache** afterward.
+<a id="ios-26"></a>
+<details>
+<summary><strong>iOS 26</strong></summary>
 
-Choose what you want to do next in the [Feature guides](features.md). You can use logging alone indefinitely.
+**Install these shortcuts:**
+
+| Shortcut / install link | What it does and why you need it |
+| --- | --- |
+| **Insights** — link pending | Connects your loggers to the Sheet and displays feedback. Used by both templates. |
+| **Metric(s) Logger Template** — link pending | Records one or more metrics. Comes ready for the water demo; duplicate it later for your own loggers. |
+| **Toggle Timer Template** — link pending | Starts/stops a timer and records elapsed time. Used for the timer demo; keep it for anything you want to time. |
+
+**Also using iOS app protection?** Install all three below. For Calendar Alarms integration alone, install **Update Lockout Cache**; you do not need Locked or Allowed.
+
+| Shortcut / install link | What it does and why you need it |
+| --- | --- |
+| **Locked** — link pending | Checks your rules when a protected app opens and redirects you when blocked. |
+| **Allowed** — link pending | Handles allowed access and lets you request a temporary unlock. |
+| **Update Lockout Cache** — link pending | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
+
+</details>
+
+## 4. Connect Insights
+
+Run **Insights** without input. Enter the same **Secret** and **Web App Id** from step 2, then choose **I'm Finished**. Both templates use these connection settings.
+
+If an imported **Run Shortcut** action displays Insights but does not run it, open the action and reselect your installed Insights shortcut.
+
+<details>
+<summary>If you installed Update Lockout Cache: prepare Scriptable</summary>
+
+1. Install **Scriptable** and create a file bookmark named **Shortcuts** pointing to **iCloud Drive/Shortcuts**.
+2. Run **Insights** setup again after Update Lockout Cache is installed. Its published installer wiring downloads **OpenHabits Runtime** and **lockouts** to Scriptable.
+3. Run **Update Lockout Cache** without input once, with the phone unlocked, and approve its permissions.
+
+For an older Insights copy, use the [manual script installation](guides/ios-lockouts.md#install-and-connect). Follow [app protection](guides/ios-lockouts.md) to activate protection, or [Calendar Alarms integration](guides/calendar-alarms.md) to use reminders and task checks. Installing these shortcuts alone does not protect apps.
+
+</details>
+
+## 5. Try the templates
+
+### Record two metrics together
+
+Run **Metric(s) Logger Template**, approve its permissions, and check today's cells. **Glasses of Water** should be `1`, and **Last Drank** should contain the current time. Run it again: the count becomes `2` and Last Drank updates.
+
+The preloaded Text action is:
+
+```json
+[["glass_of_water",1],["last_drank"]]
+```
+
+The explicit `1` adds one glass. Timestamp metrics can record the current time without a supplied value.
+
+### Time a session
+
+Run **Toggle Timer Template** to start. Wait a minute, then run it again to stop. The elapsed time should appear in **Time Working**. A second completed session adds to the same daily total. Starting alone does not write a duration.
+
+The timer comes configured with `[["time_working"]]`. Its comment blocks explain optional calendar/Focus actions; you can leave those out of the demo.
+
+If either demo fails, use [Troubleshooting](guides/maintenance.md#troubleshooting) before continuing.
+
+## 6. Make it yours
+
+Open the Sheet's settings panel and use **Copy Current Configuration → Open Config Editor**. Load the copied configuration, customize it, then use **Finish and Copy for OpenHabits** and **Save and Apply** back in the Sheet panel.
+
+Duplicate the logger or timer template for your own metrics. See [logger input examples](guides/metrics.md) or [timers](guides/timers.md) when you need them. New rows are created when you apply the configuration; ordinary configuration changes do not need a new deployment.
+
+## 7. Set up app protection
+
+Use your metrics to make access depend on what you have done: require a day plan before opening social apps, limit accumulated app time, or protect a window after an event.
+
+[**Set up iOS app protection →**](guides/ios-lockouts.md) takes you through a complete first rule, app automation, verification, temporary unlocks, and everyday use. You can choose different rules and day presets afterward.
+
+For websites on your computer, use [Chrome website protection](guides/chrome.md). For reminders and task-based alarms, use [Calendar Alarms integration](guides/calendar-alarms.md). [More features](features.md) covers points, streaks, insights, Notion, and other ways to log.

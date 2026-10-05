@@ -93,9 +93,11 @@ runtime changes, replace the `main` segment with the test branch in both URLs.
 `Inline Scriptable/Insights Installer.js` takes downloaded source strings and
 validates every supplied script before writing any. It always replaces valid
 managed files, so rerunning setup updates them. It performs no HTTP and never
-touches user settings/cache/timer state. The current Insights readout retains
-its `Locked` condition so standalone Metrics does not gain a new dependency
-before the proposed Insights/timer refactors are implemented.
+touches user settings/cache/timer state. The current Insights publication readout
+checks for `Update Lockout Cache`, so Calendar Alarms-only users can install the
+scripts without Locked/Allowed. Logging-only users retain no Scriptable dependency.
+Apply this native installer edit to shared Shortcut exports before publication;
+the historical Insights transcription retains the earlier Locked condition.
 
 The user reported the 1.1.0 lockout sequences working on-device. Version 1.1.1's
 minute-aligned timing and the new inline installer still need on-device checks:

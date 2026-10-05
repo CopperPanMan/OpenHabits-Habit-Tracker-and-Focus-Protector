@@ -3,9 +3,10 @@
 Status: normalized logging/setup readout from the user, with the proposed
 installer wiring integrated below. The native installer edit is not an editable
 iOS Shortcut export and has not been applied on the user's phone by this PR.
-The logging path is still native, not a new runtime operation. Keep Scriptable
-optional for users without Locked until a separate Insights/timer refactor is
-implemented. The original action transcription (trailing whitespace normalized) is preserved alongside this
+The logging path is still native, not a new runtime operation. Scriptable remains
+optional for logging alone. Installer wiring now checks for Update Lockout Cache,
+supporting Calendar Alarms integration without requiring Locked or Allowed.
+The original action transcription (trailing whitespace normalized) is preserved alongside this
 readout. Arrows label magic-variable outputs; Set Variable lines are real actions.
 
 Run Inline Script below means paste the entire `Inline Scriptable/Insights
@@ -66,7 +67,7 @@ IF Shortcut Input does not have any value
         Ask Where to Save: Off
         Overwrite If File Exists: On
     GET SHORTCUTS: All Shortcuts
-    IF Shortcuts contains Locked
+    IF Shortcuts contains Update Lockout Cache
         TEXT: https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Metrics/main/OpenHabits%20Runtime.js
         GET CONTENTS OF URL: Text
             Method: GET

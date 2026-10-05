@@ -5,7 +5,7 @@
 ## Connect once
 
 1. Finish [Metrics setup](../setup.md) and install Calendar Alarms using its [Setup Guide](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/blob/main/Setup%20Guide.md).
-2. Install **Update Lockout Cache** from [Downloads](../downloads.md). It uses your existing Insights connection settings. Install the Metrics Scriptable runtime/evaluator and the **Shortcuts** bookmark as described in [iOS app protection](ios-lockouts.md#install-and-connect); you do not need app-open automations or blocking rules.
+2. Install **Update Lockout Cache** from the [Metrics shortcut toggles](../setup.md#3-install-the-phone-shortcuts) and follow the Scriptable steps under [Connect Insights](../setup.md#4-connect-insights). It uses your existing connection settings; Locked, Allowed, app-open automations, and blocking rules are not needed for this integration.
 3. Run **Update Lockout Cache** without input, then run **Calendar Alarms Actions** setup. Approve its permissions with your phone unlocked.
 
 The integration reads `Shortcuts/OpenHabits/OpenHabits Metrics/lockoutCache.json`. It does not need another web app deployment or a second secret.
@@ -17,7 +17,7 @@ In the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-fo
 For a custom call to **Calendar Alarms Actions**, pass one action object:
 
 ```json
-{"action":"openhabits_reminder","metricIDs":["started_day"],"mode":"both"}
+{"action":"openhabits_reminder","metricIDs":["last_drank"],"mode":"both"}
 ```
 
 See the [Actions reference](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/blob/main/Calendar%20Alarms%20Actions%20Schema.md#openhabits-reminder) for other modes.
@@ -26,7 +26,7 @@ See the [Actions reference](https://github.com/CopperPanMan/Calendar-Alarms-for-
 
 In an alarm's task settings, enter the required metric IDs, a positive **Task Loop Minutes** interval, and a reschedule limit. Enable the first-fire task check if you also want to skip an alarm whose task is already complete. All listed metrics must be complete to stop the loop.
 
-For example, require `started_day`, repeat every `30` minutes, and set a small reschedule limit while testing. Paste the alarm configuration into a test event's notes and run **Calendar Alarm Engine** to sync. Let it fire while Started Day is empty, log Started Day, and confirm that the follow-up is removed or stops repeating.
+For example, require `last_drank`, repeat every `30` minutes, and set a small reschedule limit while testing. On a day when Last Drank is empty, paste the alarm configuration into a test event's notes and run **Calendar Alarm Engine** to sync. Let it fire, run **Metric(s) Logger Template**, and confirm that the follow-up is removed or stops repeating. If you have already tried the water demo today, use a new timestamp metric and a copy of the logger template instead.
 
 Current Calendar Alarms Actions refreshes task state for task-loop resets; a separate **Task Alarm Resetter** shortcut is not required. When calling Calendar Alarm Engine after an iOS recording, pass the original recording response if your installed Insights has that integration hook. Updating the Sheet manually changes completion state but does not rerun Metrics scoring.
 

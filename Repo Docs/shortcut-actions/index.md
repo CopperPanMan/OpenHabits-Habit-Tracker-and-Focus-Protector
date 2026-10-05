@@ -5,9 +5,9 @@
 | Locked | Runtime 1.1.1 sequence in [Locked.md](Locked.md), adapted with optional blocking-app comments for publication |
 | Allowed | Runtime sequence in [Allowed.md](Allowed.md), adapted with an optional blocking-app comment |
 | Update Lockout Cache | Complete two-phase native HTTP sequence; implemented by the user |
-| Insights | Complete normalized readout with proposed installer wiring; logging remains native |
-| Toggle Timer Template | Full original action transcription in source-transcriptions/Toggle Timer Template.txt; reviewed, not refactored |
-| Metric(s) Logger Template | Full original action transcription in source-transcriptions/Metric(s) Logger Template.txt; retain native logger |
+| Insights | Normalized readout in [Insights.md](Insights.md); installer runs when Update Lockout Cache is present; logging remains native |
+| Toggle Timer Template | [Publication notes](Toggle%20Timer%20Template.md) preload time_working; historical transcription retained, timer not refactored |
+| Metric(s) Logger Template | [Publication readout](Metric%28s%29%20Logger%20Template.md) preloads the water/count and latest-timestamp demo; historical transcription retained |
 
 The original Insights transcription and its legacy installer are also preserved
 under source-transcriptions for provenance. The legacy installer uses Request

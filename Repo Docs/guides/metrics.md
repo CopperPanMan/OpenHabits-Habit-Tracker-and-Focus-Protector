@@ -6,29 +6,26 @@ A metric stores one resulting value each day. Repeated recordings replace, retai
 
 ## Create a metric
 
-1. Open the editor from the Sheet panel and choose **Metrics**.
-2. Add the appropriate recipe and give it a **Display Name**. Usually you can keep its generated **Metric ID**.
-3. Choose what should happen **When today already has a value**.
-4. Finish editing and **Save and Apply** in the Sheet panel.
+Use the Config Editor to choose the value type and how repeated recordings behave, then **Save and Apply** in the Sheet panel. Keep the generated Metric ID unless you want a different one; your logger uses that ID.
 
 | Track | Recipe/type | Example logger Text |
 | --- | --- | --- |
 | A task you completed | Completion | `[["flossed",1]]` |
 | A count or rating | Number | `[["mood",8]]` |
 | A note | Text | `[["daily_note","A good day"]]` |
-| When something happened | Timestamp | `[["started_day"]]` |
-| Elapsed time | Duration | `[["focus_duration","00:25:00"]]` |
+| When something happened | Timestamp | `[["last_drank"]]` |
+| Elapsed time | Duration | `[["time_working","00:25:00"]]` |
 
 The IDs in these examples must exist in your configuration. The completion recipe uses a number, so send `1` explicitly; the current server requires a numeric value. A timestamp records the current time without a supplied value. A duration value uses `HH:MM:SS` (hours:minutes:seconds).
 
 ## Make its logger
 
-1. Duplicate **Metric(s) Logger Template** from [Downloads](../downloads.md) and rename it.
+1. Duplicate your installed **Metric(s) Logger Template** and rename it.
 2. In the editor's **Shortcut-ready metric text**, select the metric and generate/copy its text.
 3. Paste it into the logger's **Text** action. For a completion recipe, make the entry `["metricID",1]`; generated no-value text must be given this explicit value. Confirm **Run Shortcut** calls **Insights**.
 4. Run it, then check the matching Sheet cell.
 
-For a value you enter each time, add **Ask for Input** before Text. Replace `<Provided Input>` with its actual magic-variable token. Numbers are unquoted; text and duration strings need JSON quotes around the token. For example, a rating has the structure `[["mood",8]]`; a duration has the structure `[["focus_duration","00:25:00"]]`.
+For a value you enter each time, add **Ask for Input** before Text. Replace `<Provided Input>` with its actual magic-variable token. Numbers are unquoted; text and duration strings need JSON quotes around the token. For example, a rating has the structure `[["mood",8]]`; a duration has the structure `[["time_working","00:25:00"]]`.
 
 For free-form text containing quotation marks, backslashes, or newlines, build the metric entries with native List actions and serialize them as JSON before passing them to Insights; interpolating that text into a JSON Text action does not escape it automatically.
 

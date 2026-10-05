@@ -1,53 +1,111 @@
-# iOS app protection
+# Set up and use iOS app protection
 
-Finish [basic setup](../setup.md) first. This feature redirects selected apps when a configured rule blocks them. It needs Scriptable and three additional shortcuts; a third-party blocking app is optional.
+Use your recorded metrics to decide when distracting apps are available. For example, social apps can stay blocked until you have planned your day, or close once you have used your daily allowance.
+
+When you open a protected app, **Locked** checks the rules. If blocked, it pauses media, shows your message, and sends you Home (or runs your configured shortcut). When the rules allow access, you can use the app normally. **Allowed** also lets you request a temporary unlock.
+
+Start with one app and the day-plan example below. After it works, expand the apps and rules you protect.
 
 ## Install and connect
 
-1. Install **Scriptable** from the App Store.
-2. Install **Locked**, **Allowed**, and **Update Lockout Cache** from your iOS section on [Downloads](../downloads.md). Keep those names unless you also update every referring action.
-3. In Scriptable, create a file bookmark named **Shortcuts** pointing to **iCloud Drive/Shortcuts**.
-4. Run **Insights** without input after installing Locked. Its setup installs **OpenHabits Runtime** and **lockouts** in Scriptable. Approve file/network permissions and reselect any imported Run Shortcut or Run Script actions that have lost their connections.
-5. Run **Update Lockout Cache** without input to fetch the configuration and today's metric state.
+Finish [Metrics setup and the two demos](../setup.md). Install **Locked**, **Allowed**, and **Update Lockout Cache** from the [shortcut toggles](../setup.md#3-install-the-phone-shortcuts), and complete the Scriptable steps under **Connect Insights**. Keep the shared shortcuts' names so their referring actions work.
 
-If your installed Insights predates the installer wiring in this repo, create Scriptable scripts named **OpenHabits Runtime** and **lockouts** by pasting [OpenHabits Runtime.js](../../OpenHabits%20Runtime.js) and [lockouts.js](../../lockouts.js). The [action readouts](../shortcut-actions/index.md) describe the intended shared shortcuts; the repo cannot update copies already installed on your phone.
+<details>
+<summary>Manual script installation for an older Insights shortcut</summary>
 
-Connection settings remain in `Shortcuts/OpenHabits/OpenHabits Metrics/settings.json`. Do not create a second set of credentials for these shortcuts.
+In Scriptable, create scripts named **OpenHabits Runtime** and **lockouts** by pasting [OpenHabits Runtime.js](../../OpenHabits%20Runtime.js) and [lockouts.js](../../lockouts.js). Create a **Shortcuts** bookmark pointing to **iCloud Drive/Shortcuts**, then run **Update Lockout Cache** without input.
 
-## Add a first rule
+The publication [Insights readout](../shortcut-actions/Insights.md) installs these scripts when Update Lockout Cache is present. A repository readout does not update a shortcut already installed on your phone.
 
-In the Config Editor, add a **task block** requiring `started_day`. Leave presets empty for this first test. Set its time window to cover the current time and its message to “Log Started Day to unlock.” Apply the configuration and run **Update Lockout Cache**.
+</details>
 
-In Shortcuts, create a personal automation for **App → Is Opened**, select the apps you want protected, and have it run **Locked** immediately. Allow its permissions while your phone is unlocked.
+## 1. Require a day plan before social apps
 
-On a day when Started Day is empty, opening a protected app should send you Home and show the block message. Log Started Day, then reopen the app: it should be allowed. If you've already logged it today, use a new test completion metric instead. Remove the test rule when finished.
+1. In the Config Editor, add a **Timestamp** metric called **Day Plan**, with ID `day_plan`, keeping the first recording of the day. Apply the configuration to the Sheet.
+2. Duplicate **Metric(s) Logger Template**, name it **Log Day Plan**, and replace its entire Text action with `[["day_plan"]]`. Confirm it calls Insights. Run this logger when you have finished planning; leave it unlogged for the first protection test.
+3. Add a block using **Require completed metrics**, selecting `day_plan`. For this first test, use a full-day window (`00:00`–`00:00`), leave preset assignments empty, and set the message to “Plan your day, then run Log Day Plan to unlock.”
+4. **Save and Apply**, then run **Update Lockout Cache** without input.
 
-Choose more rules in [Blocking rules and presets](rules.md).
+This uses a new metric so the earlier demos do not accidentally satisfy the rule. The extra logger is a copy you make from the included template; it is not another download. You can change the block's hours after testing.
 
-## Track protected app time
+## 2. Connect the apps you want to protect
 
-Duration rules need a recorded duration; OpenHabits does not read Apple's Screen Time totals.
+<a id="ios-27-app-automation"></a>
+<details>
+<summary><strong>iOS 27 and newer</strong></summary>
 
-1. Create a duration metric such as `screen_time`, with **Add** as its recording behavior.
-2. Duplicate **Toggle Timer Template** and configure it for `screen_time`, following [Track time](timers.md).
-3. Create a shortcut named **Start Screen Time Timer** that runs your timer with input `start`.
-4. Create a corresponding stop helper that runs it with input `stop`. Run that helper in an **App → Is Closed** automation for the same protected apps.
-5. Check that the **Allowed** shortcut calls **Start Screen Time Timer** when present. Test an allowed app session and confirm its elapsed duration reaches the Sheet after closing.
+Open **Locked** in the Shortcut editor. Expand its included **When App Is Opened** automation, select your protected apps, and enable it to run immediately. Start with one app you can safely use for testing.
 
-The documented temporary-unlock branch in **Locked** bypasses **Allowed**. If you want those sessions tracked too, add a call to **Start Screen Time Timer** in that grant branch. These are optional native shortcut hooks; they are not automatic OS-wide screen-time collection.
+If your installed copy has no included automation, create an **App → Is Opened → Run Immediately** personal automation that runs **Locked**, using the same steps described for iOS 26 below.
 
-## Temporary unlocks
+</details>
 
-Run **Allowed** without input to request an unlock. It offers a 60-second legitimate wait or a 30-second penalty wait. After waiting, reopen a protected app to complete the attempt. Early entry restarts the wait; an attempt expires after five minutes.
+<a id="ios-26-app-automation"></a>
+<details>
+<summary><strong>iOS 26</strong></summary>
 
-Runtime 1.1.1 grants a minute-aligned deadline: a legitimate session lasts up to 19 minutes and a penalty session up to 9 minutes. The actual interval can be almost one minute shorter. At expiry, opening an app reevaluates the normal rules.
+1. Open **Shortcuts → Automation** and create an **App** automation.
+2. Select your protected app, choose **Is Opened**, and **Run Immediately**.
+3. Have the automation run **Locked**.
 
-For penalty scoring, create a number/add metric with a negative point value, as described in [Points and streaks](points-streaks.md). Create **Log Screen Time Lock Off** to log one unit of it. Locked calls this optional shortcut on a penalty grant. A notification alone does not deduct points.
+Add more apps to this automation after your first test passes.
 
-For an expiry alarm that sends you Home, install [Calendar Alarms](calendar-alarms.md) and create the **App Lockout Settings** calendar used by Locked. Its event uses the runtime's `calendarEnd` with offset `0`; do not subtract another minute. Test a temporary session through expiry before relying on the alarm.
+</details>
+
+Open the protected app once with the phone unlocked and approve permissions. If an imported Run Shortcut or Run Script action has a stale connection, reselect the installed shortcut/script in that action.
+
+## 3. Verify both outcomes
+
+- **Before logging Day Plan:** open the protected app. It should send you Home and show your block message.
+- **After logging Day Plan:** run Log Day Plan, confirm its Sheet timestamp, then reopen the app. It should be allowed. Insights passes the recording to Update Lockout Cache; if your installed copy lacks that hook, refresh the cache manually.
+
+If either outcome fails, check that the automation is enabled, the rule references `day_plan`, the preset is empty, and the cache has been refreshed. [Troubleshooting](maintenance.md#troubleshooting) covers connection and file errors.
+
+## Everyday use
+
+Keep **Log Day Plan** somewhere convenient, such as a widget or Home Screen icon. Each new tracking day, your apps stay protected until you finish planning and log it. The starter's tracking day begins at 05:00; [Late Extension Hours](maintenance.md#timezone-settings) controls that boundary.
+
+You do not need to reopen the configurator every day. Log your metrics normally; Insights updates the local cache, and the app-open automation checks access whenever you enter a protected app.
+
+Run **Update Lockout Cache** without input after changing configuration, after changing timezone, or when a recording from Notion/another device has not reached your phone. Locked requests refreshes when needed, but the phone still needs a usable local snapshot. Test permission prompts unlocked before relying on the automations.
+
+<a id="temporary-unlocks"></a>
+### Need a temporary exception?
+
+Run **Allowed** without input. Choose a legitimate unlock (60-second wait) or a penalty unlock (30-second wait). Leave the protected app closed while waiting, then reopen it to complete the request. Entering early restarts the wait; complete the attempt within five minutes.
+
+Runtime 1.1.1 uses a whole-minute deadline: legitimate access lasts up to 19 minutes and penalty access up to 9 minutes, sometimes almost a minute shorter. Once that session expires, the next app opening checks your ordinary rules again.
+
+<details>
+<summary>Optional: deduct points for a penalty unlock</summary>
+
+Duplicate the logger template as **Log Screen Time Lock Off**, configure a number/add metric with a negative point value, and have the logger send one unit explicitly. Locked calls this named logger on a penalty grant. The runtime's “10 points deducted” notification does not itself record a deduction; check the Sheet or customize that text if you are not using a ten-point penalty.
+
+</details>
+
+For an expiry alarm that sends you Home while an app is still open, use [Calendar Alarms integration](calendar-alarms.md#end-a-temporary-app-unlock).
+
+<a id="track-protected-app-time"></a>
+## Add a screen-time allowance
+
+A duration rule needs recorded app time; OpenHabits does not read Apple's Screen Time totals. These helpers are made from your installed templates, with no further downloads:
+
+1. Add a duration/add metric such as `screen_time`, then duplicate **Toggle Timer Template** as **Screen Time Timer** and configure its metric Text as `[["screen_time"]]`.
+2. Create **Start Screen Time Timer** with a Run Shortcut action calling **Screen Time Timer** with input `start`. **Allowed** calls this named helper on ordinary allowed access.
+3. Create **Stop Screen Time Timer** to call the same timer with input `stop`. Run that helper in an **App → Is Closed** automation for the same protected apps.
+4. In **Locked**'s temporary-grant branch (`Route is allow`), also call **Start Screen Time Timer** if temporary sessions should count toward the allowance. That branch bypasses Allowed.
+5. Test a short allowed app session, close the app, and verify the elapsed duration appears in the Sheet. Then add a **Screen-time limit** rule referencing `screen_time`, with the allowance and hours you want. Apply and refresh the cache.
+
+Once measured time reaches the allowance, the next protected app opening blocks access. Rationing can release that allowance gradually instead; see [Rules and presets](rules.md).
+
+## Different rules for workdays and weekends
+
+Presets select groups of rules using an all-day calendar event. For example, use `workday` and `weekend` presets in a calendar named **App Lockout Settings**. [Rules and presets](rules.md#different-rules-on-different-days) covers the setup and how to share that selection with Chrome.
+
+With no preset selected, all rules are eligible. Make sure each day has the intended preset event when you rely on different day modes.
 
 ## Optional blocking app
 
-The shared action readouts contain **Comment** placeholders where you can optionally start a session in a blocking app when access is blocked, and stop it when access is allowed. Add the native actions for whichever app you use. No particular blocking app is required.
+Locked and Allowed contain Comment placeholders where you can start or stop a session in a blocking app of your choice. Add that app's native actions if you want another enforcement layer; no particular blocking app is required.
 
-Without this extra layer, enforcement happens when the app-open automation runs; it does not continuously remove an already open app. For troubleshooting and cache refreshes, see [Maintenance](maintenance.md).
+The app-open automation acts when you enter an app. Continuous enforcement and returning you Home at a temporary session's deadline need the optional blocking-app or Calendar Alarms setup above. [Chrome website protection](chrome.md) applies Metrics rules on your computer.

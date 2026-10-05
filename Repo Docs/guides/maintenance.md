@@ -4,7 +4,7 @@
 
 Your tracking data is a normal Sheet: column A identifies each metric, column B labels it, and columns C onward hold daily values. Use Sheets charts, formulas, and conditional formatting for the views you want.
 
-For a simple chart-ready table on a separate tab, put `Date` and `Water` in A1:B1. In A2 enter `=TRANSPOSE('Tracking Data'!C1:1)`. In B2 enter `=TRANSPOSE(FILTER('Tracking Data'!C2:1000,'Tracking Data'!A2:A1000="water"))`. Chart the resulting two columns. Replace `water` with another metric ID; widen the row range if your Sheet has more than 1,000 rows. Keep the area below these formulas empty so their results can expand.
+For a simple chart-ready table on a separate tab, put `Date` and `Water` in A1:B1. In A2 enter `=TRANSPOSE('Tracking Data'!C1:1)`. In B2 enter `=TRANSPOSE(FILTER('Tracking Data'!C2:1000,'Tracking Data'!A2:A1000="glass_of_water"))`. Chart the resulting two columns. Replace `glass_of_water` with another metric ID; widen the row range if your Sheet has more than 1,000 rows. Keep the area below these formulas empty so their results can expand.
 
 ## Timezone settings
 

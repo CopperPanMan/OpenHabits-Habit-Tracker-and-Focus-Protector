@@ -113,29 +113,7 @@
   },
   "metricSettings": [
     {
-      "metricID": "started_day",
-      "displayName": "Started Day",
-      "dataType": "timestamp",
-      "recordType": "keep_first",
-      "timezoneMode": "fixed",
-      "dates": [],
-      "timestampSettings": {
-        "writeMode": "now"
-      },
-      "streaks": {
-        "unit": "days",
-        "streaksID": "started_day_streak"
-      },
-      "points": {
-        "value": 1,
-        "multiplierDays": 5,
-        "maxMultiplier": 1,
-        "pointsID": "started_day_points"
-      },
-      "writeToNotion": false
-    },
-    {
-      "metricID": "water",
+      "metricID": "glass_of_water",
       "displayName": "Glasses of Water",
       "dataType": "number",
       "recordType": "add",
@@ -145,13 +123,35 @@
         "value": 1,
         "multiplierDays": 5,
         "maxMultiplier": 1,
-        "pointsID": "water_points"
+        "pointsID": "glass_of_water_points"
       },
       "writeToNotion": false
     },
     {
-      "metricID": "focus_duration",
-      "displayName": "Focused Work",
+      "metricID": "last_drank",
+      "displayName": "Last Drank",
+      "dataType": "timestamp",
+      "recordType": "overwrite",
+      "timezoneMode": "fixed",
+      "dates": [],
+      "timestampSettings": {
+        "writeMode": "now"
+      },
+      "streaks": {
+        "unit": "days",
+        "streaksID": "last_drank_streak"
+      },
+      "points": {
+        "value": 1,
+        "multiplierDays": 5,
+        "maxMultiplier": 1,
+        "pointsID": "last_drank_points"
+      },
+      "writeToNotion": false
+    },
+    {
+      "metricID": "time_working",
+      "displayName": "Time Working",
       "dataType": "duration",
       "recordType": "add",
       "timezoneMode": "fixed",
@@ -160,7 +160,7 @@
         "value": 0.1,
         "multiplierDays": 5,
         "maxMultiplier": 1,
-        "pointsID": "focus_points"
+        "pointsID": "time_working_points"
       },
       "writeToNotion": false
     }

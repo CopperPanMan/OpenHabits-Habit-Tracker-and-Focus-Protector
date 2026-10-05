@@ -23,8 +23,8 @@ test('starter imports without warnings and supplies every documented row', () =>
   assert.deepEqual(Array.from(validation.warnings), []);
   const rows = Array.from(c.openHabitsCollectRequiredRows_(config), row => row.id);
   assert.deepEqual(rows.sort(), [
-    'focus_duration', 'focus_points', 'point_total_alltime', 'point_total_today',
-    'started_day', 'started_day_points', 'started_day_streak', 'water', 'water_points'
+    'glass_of_water', 'glass_of_water_points', 'last_drank', 'last_drank_points',
+    'last_drank_streak', 'point_total_alltime', 'point_total_today', 'time_working', 'time_working_points'
   ]);
   const preparation = fs.readFileSync(path.join(root, 'Examples/starter-template.md'), 'utf8');
   for (const id of rows) assert.ok(preparation.includes('`' + id + '`'), id);
@@ -34,18 +34,18 @@ test('starter imports without warnings and supplies every documented row', () =>
 
 test('starter logger inputs and point units agree with the server', () => {
   const c = load();
-  for (const id of ['started_day', 'water', 'focus_duration']) {
+  for (const id of ['last_drank', 'glass_of_water', 'time_working']) {
     const metric = c.getMetricSettingById(id).setting;
     assert.ok(metric, id);
     assert.equal(c.getMultiplier_(id, 10), 1);
   }
-  assert.equal(c.getMetricSettingById('started_day').setting.recordType, 'keep_first');
+  assert.equal(c.getMetricSettingById('last_drank').setting.recordType, 'overwrite');
   assert.equal(c.validateMetricValueForRecord_('timestamp', null).ok, true);
-  assert.equal(c.getMetricSettingById('water').setting.recordType, 'add');
+  assert.equal(c.getMetricSettingById('glass_of_water').setting.recordType, 'add');
   assert.equal(c.validateMetricValueForRecord_('number', 1).value, 1);
   assert.equal(c.validateMetricValueForRecord_('number', null).ok, false);
-  assert.equal(c.calculatePointsDelta_('water', 'number', 2, null, 1), 2);
-  assert.equal(c.getMetricSettingById('focus_duration').setting.recordType, 'add');
+  assert.equal(c.calculatePointsDelta_('glass_of_water', 'number', 2, null, 1), 2);
+  assert.equal(c.getMetricSettingById('time_working').setting.recordType, 'add');
   assert.equal(c.validateMetricValueForRecord_('duration', '00:30:00').ok, true);
-  assert.equal(c.calculatePointsDelta_('focus_duration', 'duration', '00:30:00', null, 1), 3);
+  assert.equal(c.calculatePointsDelta_('time_working', 'duration', '00:30:00', null, 1), 3);
 });

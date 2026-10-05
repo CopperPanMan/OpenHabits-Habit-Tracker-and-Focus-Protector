@@ -1,42 +1,12 @@
 # Downloads
 
-Use the [Setup Guide](setup.md) first. Install only the shortcuts for features you choose.
+The [Setup Guide](setup.md) contains the starter Sheet copy link and all six Shortcut install links, with descriptions beside each one:
 
-**Publication status:** the Sheet and iCloud Shortcut links below are awaiting the final shared versions. They will be added here before release. For now, the [manual Sheet installation](setup.md#1-copy-the-starter-sheet) and [developer Shortcut readouts](shortcut-actions/index.md) are available.
+- [Starter Google Sheet](setup.md#1-copy-the-starter-sheet)
+- [iOS 27 and newer shortcuts](setup.md#ios-27-and-newer)
+- [iOS 26 shortcuts](setup.md#ios-26)
 
-## Starter Sheet
-
-| Resource | Link |
-| --- | --- |
-| Starter Google Sheet, including bound Apps Script and starter configuration | To be added before release |
-
-## iOS 27 and newer
-
-| Shortcut | Install when | Link |
-| --- | --- | --- |
-| Insights | Using the phone loggers | To be added before release |
-| Log Started Day | Trying the starter timestamp | To be added before release |
-| Log Water | Trying the starter counter | To be added before release |
-| Metric(s) Logger Template | Creating your own loggers | To be added before release |
-| Toggle Focus Timer | Trying the starter duration | To be added before release |
-| Toggle Timer Template | Creating your own timers | To be added before release |
-| Locked | Enabling iOS app protection | To be added before release |
-| Allowed | Enabling iOS app protection | To be added before release |
-| Update Lockout Cache | Enabling iOS app protection or refreshing Calendar Alarms task state | To be added before release |
-
-## iOS 26
-
-| Shortcut | Install when | Link |
-| --- | --- | --- |
-| Insights | Using the phone loggers | To be added before release |
-| Log Started Day | Trying the starter timestamp | To be added before release |
-| Log Water | Trying the starter counter | To be added before release |
-| Metric(s) Logger Template | Creating your own loggers | To be added before release |
-| Toggle Focus Timer | Trying the starter duration | To be added before release |
-| Toggle Timer Template | Creating your own timers | To be added before release |
-| Locked | Enabling iOS app protection | To be added before release |
-| Allowed | Enabling iOS app protection | To be added before release |
-| Update Lockout Cache | Enabling iOS app protection or refreshing Calendar Alarms task state | To be added before release |
+The final Sheet and iCloud links are awaiting publication. The templates themselves provide the demos; there are no separate demo-shortcut downloads.
 
 ## Desktop and integrations
 
@@ -44,4 +14,4 @@ Use the [Setup Guide](setup.md) first. Install only the shortcuts for features y
 - [Calendar Alarms for iOS](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS)
 - [Notion integration](guides/notion.md)
 
-Maintainer instructions for assembling and sharing the Sheet are in [Starter template preparation](../Examples/starter-template.md).
+Maintainer instructions for preparing the Sheet and shared templates are in [Starter template preparation](../Examples/starter-template.md). [Shortcut action readouts](shortcut-actions/index.md) document native wiring and publication edits; they are not signed Shortcut exports.
