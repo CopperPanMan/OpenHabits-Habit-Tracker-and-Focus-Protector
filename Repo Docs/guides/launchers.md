@@ -6,7 +6,7 @@ First [test a logger](metrics.md) manually. A launcher runs that same logging fl
 
 ## QR codes
 
-Use **Shortcut QR Code Generator** in the [Config Editor](https://copperpanman.github.io/OpenHabits-Habit-Tracker-and-Focus-Protector/).
+Use **Shortcut QR Code Generator** in the [Config Editor](https://copperpanman.github.io/OpenHabits-Metrics/).
 
 | Launcher type | Use it for |
 | --- | --- |
