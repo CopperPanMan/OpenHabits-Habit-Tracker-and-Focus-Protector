@@ -8,7 +8,8 @@ not signed Shortcut exports; this PR cannot modify installed iOS Shortcuts.
 ## Responsibility boundary
 
 Scriptable owns state files, parsing, date arithmetic, cache decisions, and
-notification text. Shortcuts owns HTTP, menus, notifications, optional blocking-app actions, calendar
+notification text. The inline installer downloads its managed scripts itself.
+Shortcuts owns logging/cache HTTP, menus, notifications, optional blocking-app actions, calendar
 queries/events, and calls to other Shortcuts. `lockouts.js` stays a pure evaluator
 with no file, network, or calendar access. The Metrics runtime does not depend
 on a Calendar Alarms runtime.
@@ -88,11 +89,11 @@ by the native Shortcut, and previously created events are not rewritten.
 
 `runtime-install-manifest.json` records managed filenames, URLs, and version.
 The published installer uses main-branch download URLs. When testing unmerged
-runtime changes, replace the `main` segment with the test branch in both URLs.
+runtime changes, replace the `main` segment with the test branch in the installer's base URL.
 
-`Inline Scriptable/Insights Installer.js` takes downloaded source strings and
-validates every supplied script before writing any. It always replaces valid
-managed files, so rerunning setup updates them. It performs no HTTP and never
+`Inline Scriptable/Insights Installer.js` needs no input parameter. It downloads
+both scripts and validates them before writing either. It always replaces valid
+managed files, so rerunning setup updates them. It never
 touches user settings/cache/timer state. The current Insights publication readout
 checks for `Update Lockout Cache`, so Calendar Alarms-only users can install the
 scripts without Locked/Allowed. Logging-only users retain no Scriptable dependency.

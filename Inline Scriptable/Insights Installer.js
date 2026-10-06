@@ -1,11 +1,7 @@
 // Paste this into Scriptable's Run Inline Script action in Insights setup.
-// Parameter: List [downloaded runtime source, optional downloaded lockouts source].
-// Shortcuts performs all HTTP before calling this script. No bookmark is needed
-// to install into Scriptable's own Documents directory.
-
-const sources = Array.isArray(args.shortcutParameter)
-  ? args.shortcutParameter
-  : [args.shortcutParameter];
+// No parameter is needed: this script downloads and installs both managed files.
+// No bookmark is needed to install into Scriptable's own Documents directory.
+const baseURL = "https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Metrics/main/";
 
 function sourceText(value, name, markers) {
   if (typeof value !== "string" || !value.trim()) {
@@ -27,24 +23,20 @@ function sourceText(value, name, markers) {
 
 const scripts = [{
   name: "OpenHabits Runtime.js",
-  source: sourceText(sources[0], "OpenHabits Runtime.js", [
+  source: sourceText(await new Request(baseURL + "OpenHabits%20Runtime.js").loadString(), "OpenHabits Runtime.js", [
     "const RUNTIME_VERSION =",
     "Script.setShortcutOutput",
     'case "app_open"'
   ])
+}, {
+  name: "lockouts.js",
+  source: sourceText(await new Request(baseURL + "lockouts.js").loadString(), "lockouts.js", [
+    "lockoutsEvaluateNow",
+    "Script.setShortcutOutput"
+  ])
 }];
 
-if (sources[1] !== undefined && sources[1] !== null && sources[1] !== "") {
-  scripts.push({
-    name: "lockouts.js",
-    source: sourceText(sources[1], "lockouts.js", [
-      "lockoutsEvaluateNow",
-      "Script.setShortcutOutput"
-    ])
-  });
-}
-
-// Validate all supplied downloads before replacing any managed script.
+// Download and validate both scripts before replacing either managed script.
 const fm = FileManager.iCloud();
 for (const script of scripts) {
   fm.writeString(

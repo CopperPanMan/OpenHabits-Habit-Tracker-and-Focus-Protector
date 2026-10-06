@@ -11,7 +11,7 @@ readout. Arrows label magic-variable outputs; Set Variable lines are real action
 
 Run Inline Script below means paste the entire `Inline Scriptable/Insights
 Installer.js` source into that action, not a URL or a filesystem path. Run in App
-is Off. HTTP downloads happen in Shortcuts, before the installer runs.
+is Off. Leave Parameter empty; the installer downloads both scripts itself.
 
 ```text
 GET FILE FROM SHORTCUTS
@@ -68,21 +68,8 @@ IF Shortcut Input does not have any value
         Overwrite If File Exists: On
     GET SHORTCUTS: All Shortcuts
     IF Shortcuts contains Update Lockout Cache
-        TEXT: https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Metrics/main/OpenHabits%20Runtime.js
-        GET CONTENTS OF URL: Text
-            Method: GET
-        GET TEXT FROM INPUT: Contents of URL
-            -> RuntimeSource
-        TEXT: https://raw.githubusercontent.com/CopperPanMan/OpenHabits-Metrics/main/lockouts.js
-        GET CONTENTS OF URL: Text
-            Method: GET
-        GET TEXT FROM INPUT: Contents of URL
-            -> EvaluatorSource
-        LIST
-            Item 1: RuntimeSource
-            Item 2: EvaluatorSource
         RUN INLINE SCRIPT: Insights Installer
-            Parameter: List
+            Parameter: (empty)
     END IF
     SHOW NOTIFICATION: Settings Updated!
     STOP THIS SHORTCUT
