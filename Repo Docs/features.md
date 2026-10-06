@@ -8,7 +8,7 @@ Finish the [setup demos](setup.md#5-try-the-templates), then choose the features
 | Start and stop a work, exercise, or other timer | [Track time](guides/timers.md) |
 | Log using QR codes, NFC, Siri, widgets, or automations | [Quick launchers](guides/launchers.md) |
 | Earn points and track streaks | [Points and streaks](guides/points-streaks.md) |
-| Get performance feedback or a "what next?" prompt | [Insights and prompts](guides/insights.md) |
+| Get performance feedback when logging | [Insights](guides/insights.md) |
 | Redirect distracting iPhone apps | [iOS app protection](guides/ios-lockouts.md) |
 | Block until tasks are done, limit screen time, or use different rules on different days | [Blocking rules and presets](guides/rules.md) |
 | Apply rules to websites on a computer | [Chrome website protection](guides/chrome.md) |

@@ -51,4 +51,4 @@ A request can partially succeed. There is no recording idempotency key: retrying
 - [Lockouts server contract](lockouts-server.md): presets, rule ordering, tokens, and block responses.
 - [Runtime contract](runtime.md): local caching, offsets, unlock state, and Scriptable commands.
 - [Notion guide](guides/notion.md): connection properties and the separate native property-webhook format. A recognized Notion payload without an explicit key maps to `record_metric_notion`.
-- [Insights and prompts](guides/insights.md): `ppnMessage`, eligibility, and delivery by your own client.
+- [Insights](guides/insights.md): performance feedback when logging.

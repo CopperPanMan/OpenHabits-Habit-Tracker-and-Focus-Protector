@@ -1,4 +1,4 @@
-# OpenHabits Runtime 1.1.1
+# OpenHabits Runtime 1.2.0
 
 This checkpoint uses the user's uploaded 1.1.0 script as its baseline, rather
 than the obsolete dictionary-envelope prototype in PR #163. The native action
@@ -10,13 +10,13 @@ not signed Shortcut exports; this PR cannot modify installed iOS Shortcuts.
 Scriptable owns state files, parsing, date arithmetic, cache decisions, and
 notification text. The inline installer downloads its managed scripts itself.
 Shortcuts owns logging/cache HTTP, menus, notifications, optional blocking-app actions, calendar
-queries/events, and calls to other Shortcuts. `lockouts.js` stays a pure evaluator
+events and its existing today-preset query, and calls to other Shortcuts. `lockouts.js` stays a pure evaluator
 with no file, network, or calendar access. The Metrics runtime does not depend
 on a Calendar Alarms runtime.
 
 Create a Scriptable bookmark named `Shortcuts` pointing to `iCloud Drive/Shortcuts`.
 State paths are under `OpenHabits/OpenHabits Metrics`: `settings.json`,
-`lockouts.json`, and `lockoutCache.json`. The installer writes scripts into
+`lockouts.json`, `lockoutCache.json`, and the runtime-owned `presetRegistry.json`. The installer writes scripts into
 Scriptable Documents, never into that state folder. Runtime calls never wait
 for an iCloud download; unavailable files return a block/error notification.
 
@@ -28,9 +28,9 @@ No JSON envelope, Base64, or `ok` flag is required. Run in App is Off.
 
 | Parameter | Output |
 | --- | --- |
-| `app_open` or `["app_open", Shortcut Input]` | `route`: allow, block, or evaluate; notification when appropriate; a new grant also returns calendarEnd/calendarMinutes/penalty; evaluation returns cacheJSON |
-| `["app_open", "task_block"]` | Read/validate cache only; skip unlock-state processing and do not refresh |
-| `["evaluator_input", OpenResult, PresetTitle]` | Serialized JSON `{cache, presetOverride}` for the separate lockouts script; titles are escaped safely |
+| `app_open` or `["app_open", Shortcut Input]` | `route`: allow, block, or evaluate; notification when appropriate; a new grant also returns calendarEnd/calendarMinutes/penalty; evaluation returns cacheJSON and a versioned presetPolicy marker |
+| `["app_open", "task_block"]` | Read/validate cache and carry managed preset policy; skip unlock-state processing and forecast refresh |
+| `["evaluator_input", OpenResult, PresetTitle]` | Serialized JSON `{cache, presetOverride}` for the separate lockouts script; the effective preset includes the persistent deletion hold; titles are escaped safely |
 | `begin_legitimate` | Persist the unlock request; return complete notification text |
 | `begin_penalty` | Persist the unlock request; return complete notification text |
 | `["cache_prepare", Shortcut Input]` | Return URL/secret/clientNow for native POST when fetching; otherwise updatedState is 1 for a changed patch or empty text |
@@ -40,6 +40,42 @@ The main entry point catches local errors and returns `route: block` plus a
 notification. Native action errors/timeouts can terminate before any result;
 there is no additional native error-handling ladder. The snapshot's `ok` field
 is an existing server contract, not a runtime success flag.
+
+## Expected-preset registry
+
+The managed entry point (`dispatchManaged`) reads the configured Apple Calendar
+(default **App Lockout Settings**) and stores `openhabits_preset_registry_v1` in
+`presetRegistry.json`. It leaves setup settings and the downloaded cache intact.
+No native Shortcut actions or links change. The underlying synchronous command
+helpers retain their legacy contract; the phone entry point marks its evaluation
+results with `presetPolicy: openhabits_preset_registry_v1`.
+
+On ordinary `app_open` evaluations, the forecast covers local today plus seven
+future days. It refreshes once per local date/calendar/offset combination, using
+all-day event occurrences (including recurring and multi-day events). Missing
+forecast events do not erase known expectations. Use one all-day preset per day;
+conflicting titles or an unreadable/ambiguous calendar produce a failure.
+
+`evaluator_input` uses Locked’s existing current-day title for the default
+calendar. An empty title is verified through Scriptable; a custom configured
+calendar is always queried directly. Today's missing expected preset starts a
+persistent two-minute hold. Repeated openings and forecast refreshes do not reset
+it. A successful calendar read after the wait clears only today's expectation;
+a tombstone prevents forecast refresh from restoring it. A present event takes
+effect immediately and cancels any hold. Block messages show the remaining wait.
+With no expectation, evaluation uses an in-memory copy with no blocks, following
+the ordinary Allowed flow. Chrome and the server keep their existing semantics.
+
+Temporary sessions and pending unlock requests are processed before any calendar
+or registry I/O. Recursive task-block passes retain managed policy and can confirm
+today's state without another weekly scan. Errors never clear an expectation;
+unavailable iCloud state follows the existing block/error path. Approve calendar
+permissions once with the phone unlocked. Expectations begin with the first
+successful observation; the runtime cannot detect events deleted before then.
+
+Penalty notifications omit the numeric cost. The optional **Log Screen Time Lock
+Off** logger determines the actual deduction; the recommended configurable value
+is `-2` points per grant.
 
 ## Earlier session end and immediate reentry
 

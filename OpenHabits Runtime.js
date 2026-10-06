@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: blue; icon-glyph: code;
 
-const RUNTIME_VERSION = "1.1.1";
+const RUNTIME_VERSION = "1.2.0";
 
 // Clock alarms are scheduled to whole minutes. Advance both the calendar
 // event end and local access expiry so an alarm cannot precede local expiry.
@@ -244,7 +244,7 @@ function appOpen(s, now) {
       calendarMinutes: sessionMinutes,
       penalty,
       notification:
-        `${penalty ? "10 points deducted. " : ""}` +
+        `${penalty ? "Penalty unlock. " : ""}` +
         `Unlocked until ${end}.`
     };
   }
@@ -272,7 +272,7 @@ function beginUnlock(s, now, type) {
   return {
     notification:
       (type === "penalty_unlock"
-        ? `${rule.wait}s timer started. You will lose 10pts by continuing.`
+        ? `${rule.wait}s timer started for penalty unlock.`
         : `${rule.wait}s timer started for legitimate unlock.`) +
       "\nValid for 5 minutes. Attempting early entry will reset the timer."
   };
@@ -499,11 +499,145 @@ function dispatch(raw, s, now) {
   }
 }
 
+// Runtime-owned state, separate from settings.json (which Insights rewrites).
+const PRESET_REGISTRY_FILE = "presetRegistry.json";
+const PRESET_REGISTRY_SCHEMA = "openhabits_preset_registry_v1";
+const PRESET_REMOVAL_WAIT_MS = 2 * MINUTE_MS;
+const DEFAULT_PRESET_CALENDAR = "App Lockout Settings";
+
+function localDayKey(now) {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function localMidnight(now, days = 0) {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
+}
+
+function presetRegistry(s) {
+  const registry = s.read(PRESET_REGISTRY_FILE);
+  if (registry == null) return { schemaVersion: PRESET_REGISTRY_SCHEMA, lastForecastKey: "", days: {} };
+  if (registry.schemaVersion !== PRESET_REGISTRY_SCHEMA || typeof registry.lastForecastKey !== "string") {
+    throw new Error("Invalid presetRegistry.json. Repair the file before retrying.");
+  }
+  object(registry.days, "Preset registry days");
+  for (const [day, entry] of Object.entries(registry.days)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !entry ||
+        !(entry.expected === null || (typeof entry.expected === "string" && entry.expected.trim())) ||
+        !(entry.missingSince === null || Number.isFinite(date(entry.missingSince))) ||
+        typeof entry.cleared !== "boolean" ||
+        (entry.cleared && (entry.expected !== null || entry.missingSince !== null))) {
+      throw new Error("Invalid presetRegistry.json. Repair the file before retrying.");
+    }
+  }
+  return registry;
+}
+
+function presetCalendarName(cache) {
+  return String((cache.config.globals || {}).presetCalendarName || DEFAULT_PRESET_CALENDAR);
+}
+
+async function readPresetEvents(name, start, end) {
+  const calendars = (await Calendar.forEvents()).filter(calendar => calendar.title === name);
+  if (calendars.length !== 1) {
+    throw new Error(`Find exactly one readable calendar named ${name} in Scriptable. Temporary unlocks remain available through Allowed.`);
+  }
+  return CalendarEvent.between(start, end, calendars);
+}
+
+function presetOnDay(events, day) {
+  const end = localMidnight(day, 1);
+  const titles = [...new Set(events.filter(event => event.isAllDay && +event.startDate < +end && +event.endDate > +day)
+    .map(event => String(event.title || "").trim()).filter(Boolean))];
+  if (titles.length > 1) throw new Error(`Use one all-day preset per day (${localDayKey(day)}).`);
+  return titles[0] || null;
+}
+
+async function preparePresetRegistry(s, now, cache, readEvents) {
+  const registry = presetRegistry(s);
+  const today = localDayKey(now);
+  const name = presetCalendarName(cache);
+  const key = `${today}|${offset(now)}|${name}`;
+  if (registry.lastForecastKey === key) return;
+  const events = await readEvents(name, localMidnight(now), localMidnight(now, 8));
+  // Validate the whole forecast before changing persistent state.
+  const forecast = Array.from({ length: 8 }, (_, i) => {
+    const day = localMidnight(now, i);
+    return [localDayKey(day), presetOnDay(events, day)];
+  });
+  for (const [day, expected] of forecast) {
+    const old = registry.days[day];
+    if (expected && !(old && old.cleared)) {
+      // Today's live observation is resolved by evaluator_input. A daily
+      // refresh must not reset a removal countdown or resurrect a tombstone.
+      if (day !== today || !old) registry.days[day] = { expected, missingSince: null, cleared: false };
+    } else if (!old) registry.days[day] = { expected: null, missingSince: null, cleared: false };
+    // An absent forecast event never erases an already known expectation.
+  }
+  for (const day of Object.keys(registry.days)) if (day < today) delete registry.days[day];
+  registry.lastForecastKey = key;
+  s.write(PRESET_REGISTRY_FILE, registry);
+}
+
+async function managedEvaluatorInput(result, title, s, now, readEvents) {
+  const cache = validateCache(result.cacheJSON);
+  const registry = presetRegistry(s);
+  const today = localDayKey(now);
+  const name = presetCalendarName(cache);
+  // Existing Locked supplies today's native Calendar title. Verify an empty
+  // result through Scriptable, so denied access is never interpreted as a deletion.
+  // Read the configured calendar ourselves when it differs from Locked's default.
+  let current = typeof title === "string" ? title.trim() : "";
+  if (!current || name !== DEFAULT_PRESET_CALENDAR) {
+    const events = await readEvents(name, localMidnight(now), localMidnight(now, 1));
+    current = presetOnDay(events, localMidnight(now));
+  }
+  const before = JSON.stringify(registry);
+  let entry = registry.days[today] || { expected: null, missingSince: null, cleared: false };
+  let notice = "";
+  if (current) {
+    // Preset changes are immediate; a real event also cancels deletion hold.
+    entry = { expected: current, missingSince: null, cleared: false };
+  } else if (entry.expected) {
+    if (!entry.missingSince) entry.missingSince = now.toISOString();
+    const remaining = PRESET_REMOVAL_WAIT_MS - (+now - date(entry.missingSince));
+    if (remaining <= 0) entry = { expected: null, missingSince: null, cleared: true };
+    else notice = `Preset ${entry.expected} was removed. Its rules remain for ${Math.ceil(remaining / 1000)} seconds. Use Allowed for a temporary unlock. `;
+  }
+  registry.days[today] = entry;
+  if (JSON.stringify(registry) !== before) s.write(PRESET_REGISTRY_FILE, registry);
+  if (!entry.expected) cache.config.blocks = [];
+  if (notice) {
+    for (const block of cache.config.blocks) {
+      block.onBlock = { ...block.onBlock, message: notice + ((block.onBlock || {}).message || "Access blocked.") };
+    }
+  }
+  return JSON.stringify({ cache, presetOverride: entry.expected });
+}
+
+// Preserve the synchronous command helpers for existing consumers. The actual
+// Scriptable entry point adds versioned calendar policy to evaluation results.
+async function dispatchManaged(raw, s, now, readEvents = readPresetEvents) {
+  const list = Array.isArray(raw) ? raw : [raw];
+  const command = typeof list[0] === "string" ? list[0].trim() : "";
+  if (command === "evaluator_input") {
+    const result = object(list[1], "App-open result");
+    if (result.presetPolicy === PRESET_REGISTRY_SCHEMA) {
+      return managedEvaluatorInput(result, list[2], s, now, readEvents);
+    }
+  }
+  const result = dispatch(raw, s, now);
+  if (command === "app_open" && result.route === "evaluate") {
+    if (list[1] !== "task_block") await preparePresetRegistry(s, now, validateCache(result.cacheJSON), readEvents);
+    result.presetPolicy = PRESET_REGISTRY_SCHEMA;
+  }
+  return result;
+}
+
 async function main() {
   let result;
 
   try {
-    result = dispatch(
+    result = await dispatchManaged(
       args.shortcutParameter,
       storage(),
       new Date()

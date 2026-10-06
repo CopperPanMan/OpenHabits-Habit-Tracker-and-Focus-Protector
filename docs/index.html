@@ -70,7 +70,7 @@
 
     <section class="panel" aria-labelledby="metricTextHeading">
       <h2 id="metricTextHeading">Shortcut-ready metric text</h2>
-      <p>Select metrics, then copy the text into the Metric Logger Shortcut's <strong>Text</strong> action. Numbers need an explicit value: use <code>1</code> for done/not-done metrics. Replace <code>&lt;Provided Input&gt;</code> with a magic variable: leave numbers unquoted; wrap text and duration values in JSON quotes. See <a href="https://github.com/CopperPanMan/OpenHabits-Metrics/blob/main/Repo%20Docs/guides/metrics.md">logger input examples</a>.</p>
+      <p>Select metrics, then copy the generated text into your logger’s <strong>Text</strong> action. Completion and timestamp entries are ready to run. Other types use <code>&lt;Provided Input&gt;</code> automatically; replace it with the metric’s magic variable, or enter a fixed value below. Fixed text values are escaped automatically. See <a href="https://github.com/CopperPanMan/OpenHabits-Metrics/blob/main/Repo%20Docs/guides/metrics.md">logger setup</a> for live free-form text.</p>
       <label for="shortcutMetricSearch">Find configured metrics</label>
       <input id="shortcutMetricSearch" type="search" autocomplete="off" placeholder="Search by name or metric ID">
       <fieldset class="metric-multi-select">
@@ -78,7 +78,6 @@
         <div id="shortcutMetricOptions" class="metric-option-list" role="group" aria-describedby="shortcutMetricSelectionStatus"></div>
       </fieldset>
       <p id="shortcutMetricSelectionStatus" class="field-hint" aria-live="polite">No metrics selected.</p>
-      <label><input id="shortcutRequiresInput" type="checkbox"> This metric requires Provided Input (one metric only)</label>
       <div class="row gap"><button id="shortcutTextGenerate" type="button">Generate metric text</button><button id="shortcutTextCopy" class="secondary" type="button">Copy metric text</button></div>
       <label for="shortcutMetricOutput">Paste-ready text</label><input id="shortcutMetricOutput" readonly>
       <p id="shortcutMetricStatus" class="status" aria-live="polite"></p>

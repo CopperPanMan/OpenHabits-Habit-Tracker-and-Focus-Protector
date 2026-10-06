@@ -3,7 +3,7 @@
 Status: runtime-based action readout adapted for publication. The original native
 sequence was implemented by the user; this version replaces blocking-app actions
 with optional comments. It does not update installed or shared Shortcut exports.
-Runtime 1.1.1 changes the deadline; the native sequence remains compatible.
+Runtime 1.2.0 adds expected-preset tracking behind these existing calls; the native sequence remains compatible.
 Arrows label magic-variable outputs. All Run Script actions use Run in App: Off.
 The ending calendar alarm uses `calendarEnd` directly, with zero offset; do not
 subtract another minute in the event notes or native actions.

@@ -16,7 +16,7 @@ For example, water at `1` point per unit earns `2` points for two glasses. Time 
 
 The daily total receives each point change; the cumulative total carries the running total across days. An additive metric scores the new increment. Overwriting a metric adjusts totals by the difference from its previously recorded points. Keeping the first value does not award points again for repeated taps. Editing a cell directly in Sheets does not rerun scoring.
 
-For a penalty, use a number metric with **Add** and a negative point value. For example, `penalty_unlock` at `-10` points, logged with value `1`, deducts ten points on every recording.
+For a penalty, use a number metric with **Add** and a negative point value. For example, `penalty_unlock` at `-2` points, logged with value `1`, deducts two points on every recording.
 
 ## Streaks
 

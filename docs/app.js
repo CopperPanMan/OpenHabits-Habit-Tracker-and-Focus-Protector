@@ -84,10 +84,9 @@
     blockTimezoneMode: 'fixed keeps this block tied to the Apps Script/cache timezone. floating follows the current device/browser wall clock while traveling.',
     defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. fixed is backward-compatible; floating follows the device/browser local wall clock.',
     cacheTimezoneMode: 'script preserves legacy config_snapshot task-state reads. client lets config_snapshot use a valid request timezone to build virtual task-block state from adjacent existing sheet columns.',
-    dateRule: 'Scheduled weekday for streaks and optional suggestions. Due-by timestamp metrics also use the configured deadline.',
-    presets: 'Named modes supplied by a Shortcut or calendar event. An active preset selects its assigned blocks. With no active preset, all blocks are eligible.',
-    datesSection: 'Choose days that count toward streaks and optional suggestions. No rules means every day. Due-by timestamp metrics also enforce their configured deadline.',
-    promptsSection: 'Optional suggestions for a custom client that asks what to do next. Suggestions use these weekdays and time windows. Your client displays or speaks the returned message.',
+    dateRule: 'Scheduled weekday for streaks. Due-by timestamp metrics also use the configured deadline.',
+    presets: 'A preset selects its assigned blocks. On iOS, no preset means no blocks; deleting an expected preset keeps its rules for two minutes. Chrome uses all blocks when no preset is supplied.',
+    datesSection: 'Choose days that count toward streaks. No rules means every day. Due-by timestamp metrics also enforce their configured deadline.',
     streaksSection: 'Enable streaks to store consecutive completed days or sessions in a separate row. Its ID defaults to Metric ID + _streak. Save and Apply creates the row.',
     pointsSection: 'Enable points to store this metric’s daily award in a separate row. Its ID defaults to Metric ID + _points. Points are per numeric unit, rounded duration minute, or text/timestamp completion. Save and Apply creates the row.',
     insightsSection: 'Controls optional feedback after logging, such as a streak update or a comparison with an earlier day or recent average. A probability of 0% means never and 100% means always.'
@@ -137,6 +136,10 @@
       const isOpen = help.classList.toggle('open');
       help.setAttribute('aria-expanded', String(isOpen));
     });
+    const close = () => { help.classList.remove('open'); help.setAttribute('aria-expanded', 'false'); };
+    help.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') close(); });
+    help.addEventListener('blur', close);
+    help.addEventListener('keydown', event => { if (event.key === 'Escape') { close(); help.blur(); } });
     wrapper.append(span, help);
     return wrapper;
   }
@@ -175,11 +178,18 @@
     return sel;
   }
 
+  let fieldSequence = 0;
   function field(container, title, control, help) {
+    const group = document.createElement('div');
+    group.className = 'config-field';
+    const row = labelWithHelp(title, help);
     const label = document.createElement('label');
-    label.appendChild(labelWithHelp(title, help));
-    label.appendChild(control);
-    container.appendChild(label);
+    label.textContent = title;
+    control.id = control.id || `config-field-${++fieldSequence}`;
+    label.htmlFor = control.id;
+    row.firstElementChild.replaceWith(label);
+    group.append(row, control);
+    container.appendChild(group);
   }
 
   function fieldHint(text) {
@@ -226,6 +236,11 @@
     if (input.metricSettings) {
       input.metricSettings.forEach((metric, index) => copyGeneratedMetricIds(metric, copy.metricSettings[index]));
     }
+    if (input.lockouts) {
+      input.lockouts.blocks.forEach((block, index) => {
+        if (generatedBlockIds.has(block)) generatedBlockIds.add(copy.lockouts.blocks[index]);
+      });
+    }
     return copy;
   }
 
@@ -248,6 +263,7 @@
     if (JSON.stringify(state) !== beforeSerialized) {
       pushUndoSnapshot(before);
       saveLocalDraft();
+      publishConfiguredMetrics();
     } else {
       updateUndoRedoButtons();
     }
@@ -366,79 +382,14 @@
     return input;
   }
 
-  function promptsEnabled(metric) {
-    return metric.ppnMessage !== undefined && metric.ppnMessage !== null && metric.ppnMessage !== '';
-  }
-
-  function setPromptsEnabled(metric, enabled) {
-    if (enabled) metric.ppnMessage = ['Keep your streak going:', `Complete ${metric.displayName || 'this metric'}.`];
-    else delete metric.ppnMessage;
-  }
-
   function getPromptRanges(dateRule) {
     if (Array.isArray(dateRule[2])) return dateRule[2];
     if (String(dateRule[2] ?? '').trim() === '' && String(dateRule[3] ?? '').trim() === '') return [];
     return [[dateRule[2], dateRule[3]]];
   }
 
-  function setPromptRanges(dateRule, ranges) {
-    if (!ranges.length) dateRule.splice(2);
-    else if (!Array.isArray(dateRule[2]) && ranges.length === 1) {
-      [dateRule[2], dateRule[3]] = ranges[0];
-    } else dateRule.splice(2, dateRule.length - 2, ranges);
-  }
-
-  function renderPrompts(metric, index) {
-    const section = toggleSection('What’s next? prompts', `metric-${index}-prompts`, false, HELP.promptsSection);
-    field(section, 'Enable Suggestions', makeCheck(promptsEnabled(metric), enabled => { setPromptsEnabled(metric, enabled); renderAll(); }), 'Enable suggestions for your own client. Turning this off removes the prompt message and retains the time windows.');
-    const settings = document.createElement('div');
-    settings.hidden = !promptsEnabled(metric);
-    settings.appendChild(fieldHint('A custom Shortcut or other client must request and display suggestions. There is no dedicated published prompt shortcut. For scheduled reminders, use Calendar Alarms.'));
-    const messageGrid = document.createElement('div');
-    messageGrid.className = 'grid';
-    if (Array.isArray(metric.ppnMessage)) {
-      field(messageGrid, 'Before Streak Count', makeInput({ value: metric.ppnMessage[0], onChange: value => metric.ppnMessage[0] = value }), 'Opening words followed by the current streak count and unit.');
-      field(messageGrid, 'After Streak Count', makeInput({ value: metric.ppnMessage[1], onChange: value => metric.ppnMessage[1] = value }), 'Instruction spoken or displayed after the streak count.');
-    } else {
-      field(messageGrid, 'Prompt Message', makeInput({ value: metric.ppnMessage, onChange: value => metric.ppnMessage = value }), 'The current streak count and unit are appended to this message.');
-    }
-    settings.appendChild(messageGrid);
-    settings.appendChild(fieldHint('The first incomplete, eligible metric in configuration order is suggested. Reorder metrics to change this priority.'));
-    settings.appendChild(fieldHint('Suggestion windows use the weekdays in Date Rules. With no windows, suggestions are eligible all day. Hours use 0–24; for example, 8.5 means 08:30. A start later than the end crosses midnight.'));
-    if (!metric.dates.length) settings.appendChild(fieldHint('Add weekdays under Date Rules to configure suggestion windows. With no date rules, this metric is eligible every day at any time.'));
-    metric.dates.forEach((dateRule, dateIndex) => {
-      const dayCard = document.createElement('div');
-      dayCard.className = 'card';
-      const title = document.createElement('h4');
-      title.textContent = `${dateRule[0]} · Date Rule ${dateIndex + 1}`;
-      dayCard.appendChild(title);
-      getPromptRanges(dateRule).forEach((range, rangeIndex) => {
-        const grid = document.createElement('div');
-        grid.className = 'grid';
-        ['Suggestion Start Hour', 'Suggestion End Hour'].forEach((label, position) => {
-          field(grid, label, makeInput({ type: 'number', min: 0, max: 24, value: range[position], onChange: value => {
-            const ranges = getPromptRanges(dateRule).map(item => item.slice());
-            ranges[rangeIndex][position] = value;
-            setPromptRanges(dateRule, ranges);
-          } }), 'Limits when your client can receive a suggestion for this metric.');
-        });
-        grid.appendChild(button('Remove Window', 'secondary', () => {
-          setPromptRanges(dateRule, getPromptRanges(dateRule).filter((_, i) => i !== rangeIndex));
-          renderAll();
-        }));
-        dayCard.appendChild(grid);
-      });
-      dayCard.appendChild(button('Add Suggestion Window', 'secondary', () => {
-        setPromptRanges(dateRule, [...getPromptRanges(dateRule), [0, 24]]);
-        renderAll();
-      }));
-      settings.appendChild(dayCard);
-    });
-    section.appendChild(settings);
-    return section;
-  }
-
   const METRIC_TYPES = [
+    { value: 'completion', label: 'Done / not done' },
     { value: 'text', label: 'Text' },
     { value: 'number', label: 'Number' },
     { value: 'duration', label: 'Duration' },
@@ -446,6 +397,7 @@
   ];
 
   const METRIC_TYPE_HINTS = {
+    completion: 'Log completion with one tap. The logger sends 1 automatically.',
     text: 'Store a note, journal entry, name, or other text.',
     number: 'Track a count, amount, or rating—for example 3 glasses of water or mood 8.',
     duration: 'Track elapsed time—for example 45 minutes of exercise.',
@@ -479,10 +431,11 @@
       due_by: ['Due-by Task', 'timestamp', 'keep_first']
     }[recipe] || ['Custom Metric', 'number', 'overwrite'];
     [metric.displayName, metric.dataType, metric.recordType] = defaults;
+    if (recipe === 'completion') metric.inputMode = 'completion';
     metric.metricID = normalizedMetricId(metric.displayName);
     if (recipe === 'due_by') {
       metric.timestampSettings.writeMode = 'due_by';
-      metric.dates = [['Sunday', '22:00', 0, 24]];
+      metric.dates = [['Sunday', '22:00']];
     }
     generatedMetricIds.add(metric);
     return metric;
@@ -709,14 +662,16 @@
 
     const typeGroup = document.createElement('div');
     typeGroup.className = 'field-group';
-    field(typeGroup, 'What are you tracking?', makeSelect(METRIC_TYPES, metric.dataType, v => {
-      metric.dataType = v;
+    field(typeGroup, 'What are you tracking?', makeSelect(METRIC_TYPES, metric.inputMode === 'completion' && metric.dataType === 'number' ? 'completion' : metric.dataType, v => {
+      metric.dataType = v === 'completion' ? 'number' : v;
+      if (v === 'completion') { metric.inputMode = 'completion'; metric.recordType = 'keep_first'; }
+      else delete metric.inputMode;
       if (metric.recordType === 'add' && !['number', 'duration'].includes(v)) metric.recordType = 'overwrite';
       if (v !== 'timestamp') metric.timestampSettings.writeMode = 'now';
       applyMetricTypeDefaults(metric);
       renderAll();
     }), HELP.metricType);
-    typeGroup.appendChild(fieldHint(METRIC_TYPE_HINTS[metric.dataType] || 'Choose the kind of value this metric stores.'));
+    typeGroup.appendChild(fieldHint(METRIC_TYPE_HINTS[metric.inputMode === 'completion' && metric.dataType === 'number' ? 'completion' : metric.dataType] || 'Choose the kind of value this metric stores.'));
     g.appendChild(typeGroup);
 
     const recordGroup = document.createElement('div');
@@ -737,7 +692,7 @@
     card.appendChild(g);
 
     const advancedSummary = [`Advanced`, metricTypeLabel(metric.dataType)];
-    if (metric.dataType === 'timestamp' || metric.dates.length > 0 || promptsEnabled(metric)) {
+    if (metric.dataType === 'timestamp' || metric.dates.length > 0) {
       advancedSummary.push(metric.timezoneMode === 'fixed' ? 'spreadsheet timezone' : 'local time');
     }
     const advanced = toggleSection(advancedSummary.join(' · '), `metric-${i}-advanced`, false);
@@ -748,7 +703,7 @@
       if (Number.isInteger(v) && v > 0) metric.rowNumber = v;
       else delete metric.rowNumber;
     } }), 'Normally OpenHabits finds the row by Metric ID. Enter a positive row number only when you intentionally need to override that lookup.');
-    const usesTimeSettings = metric.dataType === 'timestamp' || metric.dates.length > 0 || promptsEnabled(metric);
+    const usesTimeSettings = metric.dataType === 'timestamp' || metric.dates.length > 0;
     if (usesTimeSettings) {
       field(advancedGrid, 'Timezone Behavior', makeSelect([
         { value: 'floating', label: 'Follow the device’s local time' },
@@ -784,7 +739,6 @@
     });
     dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '']); renderAll(); }));
     advanced.appendChild(dates);
-    advanced.appendChild(renderPrompts(metric, i));
 
     const streaks = toggleSection('Streak Properties', `metric-${i}-streaks`, false, HELP.streaksSection);
     field(streaks, 'Enable Streaks', makeCheck(!!metric.streaks.streaksID, enabled => { setFeatureEnabled(metric, 'streaks', enabled); renderAll(); }), HELP.streaksSection);
@@ -866,7 +820,11 @@
     addRow.append(recipe, button('Add metric', '', () => { state.metricSettings.push(metricFromRecipe(recipe.value)); renderAll(); }));
     addMetric.append(addTitle, addDescription, addRow);
     root.append(addMetric);
-    const metricSummary = state.metricSettings.map(({ metricID, displayName }) => ({ metricID, displayName }));
+    publishConfiguredMetrics();
+  }
+
+  function publishConfiguredMetrics() {
+    const metricSummary = state.metricSettings.map(({ metricID, displayName, dataType, inputMode }) => ({ metricID, displayName, dataType, inputMode }));
     window.OpenHabitsConfiguredMetrics = metricSummary;
     document.dispatchEvent(new CustomEvent('openhabits:metrics-changed', { detail: metricSummary }));
   }
@@ -911,15 +869,8 @@
     field(g, 'End Time', makeInput({ type: 'time', value: block.times.end, onChange: v => block.times.end = v }), 'Block activation end time (24h).');
     card.appendChild(g);
 
-    const technical = toggleSection('Advanced · Technical identity', `block-${i}-technical`, false, 'The Block ID is included in diagnostics and client responses. Most users can leave the generated value unchanged.');
-    const technicalGrid = document.createElement('div');
-    technicalGrid.className = 'grid';
-    field(technicalGrid, 'Technical Block ID', makeInput({ value: block.id, onChange: v => { block.id = v; generatedBlockIds.delete(block); } }), 'Unique identifier used for diagnostics and integrations. Changing a saved ID can make older logs harder to match.');
-    technical.appendChild(technicalGrid);
-    card.appendChild(technical);
-
-    const presetSec = toggleSection('Preset Assignment', `block-${i}-presets`, true, HELP.presets);
-    presetSec.appendChild(fieldHint(block.presets.length ? 'Eligible in these modes, and whenever no preset is supplied.' : 'Eligible when no preset is supplied; excluded when a preset is active.'));
+    const presetSec = toggleSection('Assign Presets to this Block', `block-${i}-presets`, true, HELP.presets);
+    presetSec.appendChild(fieldHint(block.presets.length ? 'Applies when one of these presets is active.' : 'Assign a preset to enable this block on iOS.'));
     const presetOptions = document.createElement('div');
     presetOptions.className = 'check-list';
     state.lockouts.presets.forEach(preset => {
@@ -1101,7 +1052,11 @@
       applyMetricTypeDefaults(normalized);
       return normalized;
     });
-    merged.lockouts.blocks = ((merged.lockouts && merged.lockouts.blocks) || []).map((b) => ({ ...newBlock(), ...b, times: { ...newBlock().times, ...(b.times || {}) }, typeSpecific: { ...newBlock().typeSpecific, ...(b.typeSpecific || {}), duration: { ...newBlock().typeSpecific.duration, ...((b.typeSpecific && b.typeSpecific.duration) || {}), rationing: { ...newBlock().typeSpecific.duration.rationing, ...(((b.typeSpecific || {}).duration || {}).rationing || {}) } }, firstXMinutes: { ...newBlock().typeSpecific.firstXMinutes, ...((b.typeSpecific && b.typeSpecific.firstXMinutes) || {}) } }, onBlock: { ...newBlock().onBlock, ...(b.onBlock || {}) } }));
+    merged.lockouts.blocks = ((merged.lockouts && merged.lockouts.blocks) || []).map((b) => {
+      const normalized = { ...newBlock(), ...b, times: { ...newBlock().times, ...(b.times || {}) }, typeSpecific: { ...newBlock().typeSpecific, ...(b.typeSpecific || {}), duration: { ...newBlock().typeSpecific.duration, ...((b.typeSpecific && b.typeSpecific.duration) || {}), rationing: { ...newBlock().typeSpecific.duration.rationing, ...(((b.typeSpecific || {}).duration || {}).rationing || {}) } }, firstXMinutes: { ...newBlock().typeSpecific.firstXMinutes, ...((b.typeSpecific && b.typeSpecific.firstXMinutes) || {}) } }, onBlock: { ...newBlock().onBlock, ...(b.onBlock || {}) } };
+      if (generatedBlockIds.has(b)) generatedBlockIds.add(normalized);
+      return normalized;
+    });
     return merged;
   }
 
@@ -1172,7 +1127,7 @@
         if (hasDueBy && !/^\d{2}:\d{2}$/.test(d[1])) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by must be HH:MM.`);
         getPromptRanges(d).forEach(range => {
           if (!Array.isArray(range) || range.length < 2 || !range.slice(0, 2).every(hour => typeof hour === 'number' && Number.isFinite(hour) && hour >= 0 && hour <= 24)) {
-            errors.push(`Metric ${i + 1}, date ${di + 1}: suggestion start/end hours must be numbers from 0 to 24.`);
+            errors.push(`Metric ${i + 1}, date ${di + 1}: legacy time-window start/end hours must be numbers from 0 to 24.`);
           }
         });
       });

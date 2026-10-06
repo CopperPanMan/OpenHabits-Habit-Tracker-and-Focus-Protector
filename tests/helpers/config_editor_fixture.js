@@ -14,10 +14,11 @@ function loadEditor() {
   assert.ok(initialization > 0);
   vm.runInContext(source.slice(0, initialization) + `
     renderAll = () => {};
+    publishConfiguredMetrics = () => {};
     globalThis.editor = {
       newMetric, metricFromRecipe, setFeatureEnabled, setMetricId, setSupportingId,
-      generateSupportingId, pointsEnabled, ensureShape, duplicateMetric,
-      promptsEnabled, setPromptsEnabled, getPromptRanges, setPromptRanges,
+      generateSupportingId, pointsEnabled, ensureShape, duplicateMetric, duplicateBlock,
+      getPromptRanges,
       validateStorageIds, validateState, withHistory, undo, redo,
       setState: config => { state = ensureShape(config); },
       getState: () => state
