@@ -87,9 +87,7 @@ You can then paste that config back into the Editor to adjust it visually.
 
 Basic installation is straightforward and takes approximately 15–20 minutes.
 
-You are encouraged to give an AI of your choice [a link to this repository](https://github.com/CopperPanMan/OpenHabits-Metrics) for help with setup, usage, and questions along the way. This works best with capable paid models. Each Apple Shortcut also contains Comment blocks with its instructions.
-
-The guide walks through installation and a first test recording, then links to focused guides for the features you want. You do not need to configure the entire system at once.
+The guide walks through installation and a first test recording, then links to focused guides for the features you want. You do not need to configure the entire system at once. Feel free to give an AI a link to this repository to help with setup or any questions you may have.
 
 ### [**→ Setup & Usage Guide**](Repo%20Docs/setup.md)
 
