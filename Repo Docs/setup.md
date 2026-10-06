@@ -2,6 +2,8 @@
 
 This guide connects your Sheet and shortcuts, then lets you try recording values and timing a session. Afterward, you can customize your metrics or [set up iOS app protection](guides/ios-lockouts.md).
 
+**Use an AI to help you through setup.** You are encouraged to give an AI of your choice [a link to this repository](https://github.com/CopperPanMan/OpenHabits-Metrics) and ask it to guide you through setup and usage, explain settings, or answer questions as you go. This works best with capable paid models. Tell it what you want to track or protect so it can help you choose the relevant steps.
+
 You need a Google account and an iPhone with Apple Shortcuts. Scriptable is also used for iOS app protection and Calendar Alarms integration. Notion and third-party blocking apps are optional.
 
 ## 1. Copy the starter Sheet
@@ -42,6 +44,8 @@ Your secret lets your shortcuts call this deployment. A script bound to your She
 
 ## 3. Install the iPhone shortcuts
 
+Each shortcut contains **Comment blocks with instructions**. Open it in the Shortcuts editor and read those blocks for setup, customization, and optional integrations.
+
 **Install these three shortcuts:**
 
 | Shortcut & install link | What it does and why you need it |
@@ -58,7 +62,7 @@ Your secret lets your shortcuts call this deployment. A script bound to your She
 | **[Allowed](https://www.icloud.com/shortcuts/0a2a22c2049c4d10a56c5c01fc7209ad)** | Handles allowed access and lets you request a temporary unlock. *Further instructions can be found inside the shortcut.*|
 | **[Update Lockout Cache](https://www.icloud.com/shortcuts/1c81ba3450604c2699068e1edf8583e3)** | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
 
-Note: if you want to track screen time, you'll need one more automation that runs a shortcut to stop a configured screen time timer. Do this by making a shortcut that runs "Screen Time Timer" with input = stop.
+**For screen-time tracking**, make a **Toggle Screen Time Timer** from Toggle Timer Template, configured for your screen-time duration metric. Create **Start Screen Time Timer** to run it with input `start`, and **Stop Screen Time Timer** to run it with input `stop`. Configure Allowed to run the start helper when access is allowed, and an **App → Is Closed → Run Immediately** automation to run the stop helper whenever any protected app closes. Follow the [screen-time setup](guides/ios-lockouts.md#add-a-screen-time-allowance) for the full wiring and test.
 
 ## 4. Connect Insights
 
@@ -100,6 +104,8 @@ If either demo fails, use [Troubleshooting](guides/maintenance.md#troubleshootin
 ## 6. Make it yours
 
 Open the Sheet's settings panel and use **Copy Current Configuration → Open Config Editor**. Load the copied configuration, customize it, then use **Finish and Copy for OpenHabits** and **Save and Apply** back in the Sheet panel.
+
+The panel shows a notice when a setup issue needs attention. Full checks and the last-saved time are under **Troubleshooting and preferences → System diagnostics**; when everything is ready, you can go straight to applying your editor changes.
 
 Duplicate the logger or timer template for your own metrics. See [logger input examples](guides/metrics.md) or [timers](guides/timers.md) when you need them. New rows are created when you apply the configuration; ordinary configuration changes do not need a new deployment.
 

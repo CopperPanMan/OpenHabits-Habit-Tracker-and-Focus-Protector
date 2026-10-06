@@ -20,9 +20,11 @@ The server also supports `positive_push_notification`. It chooses the first sche
 
 For a custom client:
 
-1. Add a `ppnMessage` to the metric's JSON configuration. The editor preserves this field on import. For example: `"ppnMessage": ["Keep your streak going:", "Start your focused work."]`.
-2. Set its scheduled days and prompt hours in the metric settings. Due-by deadlines also affect eligibility.
+1. In **Advanced → What’s next? prompts**, turn on **Enable Suggestions** and edit the words before and after the streak count. For example, use “Keep your streak going:” before it and “Start your focused work.” afterward. The configuration stores this as `"ppnMessage": ["Keep your streak going:", "Start your focused work."]`; imported text messages are also preserved and editable.
+2. Set the scheduled weekdays under **Date Rules**, then add **Suggestion Start Hour** and **Suggestion End Hour** windows in the prompts section if you want to limit eligibility. Hours use `0`–`24`; `8.5` means 08:30, and `20`–`2` crosses midnight. You can add multiple windows to a weekday. With no windows, the metric is eligible all day on its scheduled days; with no date rules, it is eligible every day. Due By controls due-by timestamp recording.
 3. Send a JSON POST to your web app with `key: "positive_push_notification"`, your `secret`, and `data: null`.
 4. Read the response's `messages` and display them in your client; use a personal automation if you want a schedule.
 
 The example's first phrase is followed by the calculated streak count and unit, then the second phrase. See [API reference](../developer-keys.md) for request/response details. Prompt hours restrict prompting, rather than ordinary logging; [Create and log metrics](metrics.md) explains logging schedules.
+
+Reorder metrics in the editor to change suggestion priority. For example, a custom “What should I do now?” shortcut could suggest an unfinished morning habit during the morning and focused work during working hours. Turning **Enable Suggestions** off removes that metric's prompt message while retaining its weekday and time-window settings.

@@ -28,7 +28,7 @@ function openHabitsValidateConfig_(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return { ok: false, errors: ['Configuration must be a JSON object.'], warnings: [] };
   if (!config.trackingSheetName || typeof config.trackingSheetName !== 'string') errors.push('trackingSheetName is required.');
   if (!Array.isArray(config.metricSettings)) errors.push('metricSettings must be an array.');
-  (config.metricSettings || []).forEach(function (metric, index) {
+  (Array.isArray(config.metricSettings) ? config.metricSettings : []).forEach(function (metric, index) {
     var label = 'metricSettings[' + index + ']';
     if (!metric || typeof metric !== 'object') { errors.push(label + ' must be an object.'); return; }
     var id = String(metric.metricID || '').trim();
@@ -49,6 +49,7 @@ function openHabitsValidateConfig_(config) {
       });
     }
   });
+  errors = errors.concat(openHabitsValidateStorageIds_(config));
   var blockIds = {};
   var blocks = ((config.lockouts || {}).blocks) || [];
   if (!Array.isArray(blocks)) {
@@ -62,6 +63,43 @@ function openHabitsValidateConfig_(config) {
     else blockIds[blockId] = true;
   });
   return { ok: errors.length === 0, errors: errors, warnings: [] };
+}
+
+// Supporting rows are write destinations, not references to logged metrics.
+function openHabitsValidateStorageIds_(config) {
+  var errors = [];
+  var owners = Object.create(null);
+  var metrics = Array.isArray(config.metricSettings) ? config.metricSettings : [];
+  function reserve(id, label) {
+    if (typeof id === 'string') id = id.trim();
+    if (typeof id === 'string' && id && !owners[id]) owners[id] = label;
+  }
+  function add(id, label) {
+    if (id === undefined || id === null || id === '') return;
+    if (typeof id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id)) {
+      errors.push(label + ' may only contain letters, numbers, underscores, and hyphens, starting with a letter or number.');
+      return;
+    }
+    if (owners[id]) errors.push('Row ID "' + id + '" is shared by ' + owners[id] + ' and ' + label + '. Use a unique ID for each measurement, points, streak, and total row.');
+    else owners[id] = label;
+  }
+  metrics.forEach(function (metric) {
+    if (metric) reserve(metric.metricID, 'Metric ID for "' + metric.metricID + '"');
+  });
+  var globals = (config.lockouts || {}).globals || {};
+  reserve(globals.cumulativeScreentimeID, 'Cumulative Screen Time ID');
+  reserve(globals.timeOpenedID, 'Time Opened ID');
+  add(config.dailyPointsID, 'Daily Points ID');
+  add(config.cumulativePointsID, 'Cumulative Points ID');
+  metrics.forEach(function (metric) {
+    if (!metric) return;
+    var points = metric.points || {};
+    var name = ' for metric "' + (metric.metricID || 'unnamed') + '"';
+    if (Number(points.value || 0) !== 0 && !points.pointsID) errors.push('Points ID' + name + ' is required when the point value is nonzero.');
+    add(points.pointsID, 'Points ID' + name);
+    add((metric.streaks || {}).streaksID, 'Streak ID' + name);
+  });
+  return errors;
 }
 
 function openHabitsCollectRequiredRows_(config) {

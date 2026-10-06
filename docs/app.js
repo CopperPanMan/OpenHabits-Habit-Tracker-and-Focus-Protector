@@ -68,6 +68,7 @@
   const redoStack = [];
   const generatedMetricIds = new WeakSet();
   const generatedBlockIds = new WeakSet();
+  const generatedSupportingIds = { points: new WeakSet(), streaks: new WeakSet() };
   const HISTORY_LIMIT = 150;
   const DRAFT_KEY = 'openhabits-config-editor-draft-v2';
   let cleanSnapshot = JSON.stringify(state);
@@ -83,11 +84,12 @@
     blockTimezoneMode: 'fixed keeps this block tied to the Apps Script/cache timezone. floating follows the current device/browser wall clock while traveling.',
     defaultBlockTimezoneMode: 'Default timezone behavior for blocks that do not set their own timezoneMode. fixed is backward-compatible; floating follows the device/browser local wall clock.',
     cacheTimezoneMode: 'script preserves legacy config_snapshot task-state reads. client lets config_snapshot use a valid request timezone to build virtual task-block state from adjacent existing sheet columns.',
-    dateRule: 'Scheduled day, due-by deadline for due-by timestamps, and hours for optional what-next prompts. Ordinary logging is not restricted to these hours.',
+    dateRule: 'Scheduled weekday for streaks and optional suggestions. Due-by timestamp metrics also use the configured deadline.',
     presets: 'Named modes supplied by a Shortcut or calendar event. An active preset selects its assigned blocks. With no active preset, all blocks are eligible.',
-    datesSection: 'Choose days that count toward streaks and optional prompts. No rules means every day. Due-by timestamps enforce the deadline; start/end hours filter prompts, not ordinary logging.',
-    streaksSection: 'Optionally stores the number of consecutive days or sessions this metric was completed. Leave the Streak Metric ID empty to disable separate streak storage.',
-    pointsSection: 'Points are per numeric unit, per rounded duration minute, or per text/timestamp completion. A continuing streak can increase the award up to the maximum multiplier. Points Metric ID stores the metric’s daily award separately.',
+    datesSection: 'Choose days that count toward streaks and optional suggestions. No rules means every day. Due-by timestamp metrics also enforce their configured deadline.',
+    promptsSection: 'Optional suggestions for a custom client that asks what to do next. Suggestions use these weekdays and time windows. Your client displays or speaks the returned message.',
+    streaksSection: 'Enable streaks to store consecutive completed days or sessions in a separate row. Its ID defaults to Metric ID + _streak. Save and Apply creates the row.',
+    pointsSection: 'Enable points to store this metric’s daily award in a separate row. Its ID defaults to Metric ID + _points. Points are per numeric unit, rounded duration minute, or text/timestamp completion. Save and Apply creates the row.',
     insightsSection: 'Controls optional feedback after logging, such as a streak update or a comparison with an earlier day or recent average. A probability of 0% means never and 100% means always.'
   };
 
@@ -220,7 +222,16 @@
   }
 
   function cloneState(input) {
-    return JSON.parse(JSON.stringify(input));
+    const copy = JSON.parse(JSON.stringify(input));
+    if (input.metricSettings) {
+      input.metricSettings.forEach((metric, index) => copyGeneratedMetricIds(metric, copy.metricSettings[index]));
+    }
+    return copy;
+  }
+
+  function copyGeneratedMetricIds(from, to) {
+    if (generatedMetricIds.has(from)) generatedMetricIds.add(to);
+    Object.values(generatedSupportingIds).forEach(ids => { if (ids.has(from)) ids.add(to); });
   }
 
   function pushUndoSnapshot(snapshot) {
@@ -298,6 +309,133 @@
 
   function normalizedMetricId(name) {
     return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  function supportingIdKey(kind) {
+    return kind === 'points' ? 'pointsID' : 'streaksID';
+  }
+
+  function generateSupportingId(metric, kind) {
+    const suffix = kind === 'points' ? 'points' : 'streak';
+    metric[kind][supportingIdKey(kind)] = `${metric.metricID || normalizedMetricId(metric.displayName) || 'metric'}_${suffix}`;
+    generatedSupportingIds[kind].add(metric);
+  }
+
+  function setSupportingId(metric, kind, value) {
+    metric[kind][supportingIdKey(kind)] = value;
+    generatedSupportingIds[kind].delete(metric);
+  }
+
+  function setMetricId(metric, id, supportingInputs = {}) {
+    metric.metricID = id;
+    Object.keys(generatedSupportingIds).forEach(kind => {
+      if (!generatedSupportingIds[kind].has(metric)) return;
+      generateSupportingId(metric, kind);
+      if (supportingInputs[kind]) supportingInputs[kind].value = metric[kind][supportingIdKey(kind)];
+    });
+  }
+
+  function pointsEnabled(metric) {
+    return !!metric.points.pointsID || Number(metric.points.value || 0) !== 0;
+  }
+
+  function setFeatureEnabled(metric, kind, enabled) {
+    if (enabled) {
+      generateSupportingId(metric, kind);
+      if (kind === 'points' && Number(metric.points.value || 0) === 0) metric.points.value = 1;
+    } else {
+      metric[kind][supportingIdKey(kind)] = '';
+      generatedSupportingIds[kind].delete(metric);
+      if (kind === 'points') metric.points.value = 0;
+    }
+  }
+
+  function supportingIdField(container, metric, kind) {
+    const title = kind === 'points' ? 'Points ID' : 'Streak ID';
+    const key = supportingIdKey(kind);
+    const group = document.createElement('div');
+    group.className = 'field-group';
+    const input = makeInput({ value: metric[kind][key], required: true, onChange: value => setSupportingId(metric, kind, value) });
+    field(group, title, input, 'Unique ID for a separate supporting row. Save and Apply creates it. Changing an existing ID starts a new row and retains the old history.');
+    group.appendChild(button('Regenerate from Metric ID', 'link-button', () => {
+      generateSupportingId(metric, kind);
+      input.value = metric[kind][key];
+    }));
+    group.appendChild(fieldHint('Save and Apply creates this separate row. Use a different ID from your measurement and other supporting rows.'));
+    container.appendChild(group);
+    return input;
+  }
+
+  function promptsEnabled(metric) {
+    return metric.ppnMessage !== undefined && metric.ppnMessage !== null && metric.ppnMessage !== '';
+  }
+
+  function setPromptsEnabled(metric, enabled) {
+    if (enabled) metric.ppnMessage = ['Keep your streak going:', `Complete ${metric.displayName || 'this metric'}.`];
+    else delete metric.ppnMessage;
+  }
+
+  function getPromptRanges(dateRule) {
+    if (Array.isArray(dateRule[2])) return dateRule[2];
+    if (String(dateRule[2] ?? '').trim() === '' && String(dateRule[3] ?? '').trim() === '') return [];
+    return [[dateRule[2], dateRule[3]]];
+  }
+
+  function setPromptRanges(dateRule, ranges) {
+    if (!ranges.length) dateRule.splice(2);
+    else if (!Array.isArray(dateRule[2]) && ranges.length === 1) {
+      [dateRule[2], dateRule[3]] = ranges[0];
+    } else dateRule.splice(2, dateRule.length - 2, ranges);
+  }
+
+  function renderPrompts(metric, index) {
+    const section = toggleSection('What’s next? prompts', `metric-${index}-prompts`, false, HELP.promptsSection);
+    field(section, 'Enable Suggestions', makeCheck(promptsEnabled(metric), enabled => { setPromptsEnabled(metric, enabled); renderAll(); }), 'Enable suggestions for your own client. Turning this off removes the prompt message and retains the time windows.');
+    const settings = document.createElement('div');
+    settings.hidden = !promptsEnabled(metric);
+    settings.appendChild(fieldHint('A custom Shortcut or other client must request and display suggestions. There is no dedicated published prompt shortcut. For scheduled reminders, use Calendar Alarms.'));
+    const messageGrid = document.createElement('div');
+    messageGrid.className = 'grid';
+    if (Array.isArray(metric.ppnMessage)) {
+      field(messageGrid, 'Before Streak Count', makeInput({ value: metric.ppnMessage[0], onChange: value => metric.ppnMessage[0] = value }), 'Opening words followed by the current streak count and unit.');
+      field(messageGrid, 'After Streak Count', makeInput({ value: metric.ppnMessage[1], onChange: value => metric.ppnMessage[1] = value }), 'Instruction spoken or displayed after the streak count.');
+    } else {
+      field(messageGrid, 'Prompt Message', makeInput({ value: metric.ppnMessage, onChange: value => metric.ppnMessage = value }), 'The current streak count and unit are appended to this message.');
+    }
+    settings.appendChild(messageGrid);
+    settings.appendChild(fieldHint('The first incomplete, eligible metric in configuration order is suggested. Reorder metrics to change this priority.'));
+    settings.appendChild(fieldHint('Suggestion windows use the weekdays in Date Rules. With no windows, suggestions are eligible all day. Hours use 0–24; for example, 8.5 means 08:30. A start later than the end crosses midnight.'));
+    if (!metric.dates.length) settings.appendChild(fieldHint('Add weekdays under Date Rules to configure suggestion windows. With no date rules, this metric is eligible every day at any time.'));
+    metric.dates.forEach((dateRule, dateIndex) => {
+      const dayCard = document.createElement('div');
+      dayCard.className = 'card';
+      const title = document.createElement('h4');
+      title.textContent = `${dateRule[0]} · Date Rule ${dateIndex + 1}`;
+      dayCard.appendChild(title);
+      getPromptRanges(dateRule).forEach((range, rangeIndex) => {
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        ['Suggestion Start Hour', 'Suggestion End Hour'].forEach((label, position) => {
+          field(grid, label, makeInput({ type: 'number', min: 0, max: 24, value: range[position], onChange: value => {
+            const ranges = getPromptRanges(dateRule).map(item => item.slice());
+            ranges[rangeIndex][position] = value;
+            setPromptRanges(dateRule, ranges);
+          } }), 'Limits when your client can receive a suggestion for this metric.');
+        });
+        grid.appendChild(button('Remove Window', 'secondary', () => {
+          setPromptRanges(dateRule, getPromptRanges(dateRule).filter((_, i) => i !== rangeIndex));
+          renderAll();
+        }));
+        dayCard.appendChild(grid);
+      });
+      dayCard.appendChild(button('Add Suggestion Window', 'secondary', () => {
+        setPromptRanges(dateRule, [...getPromptRanges(dateRule), [0, 24]]);
+        renderAll();
+      }));
+      settings.appendChild(dayCard);
+    });
+    section.appendChild(settings);
+    return section;
   }
 
   const METRIC_TYPES = [
@@ -421,8 +559,8 @@
     const copy = cloneState(metric);
     copy.displayName = `${metric.displayName || 'Unnamed Metric'} Copy`;
     copy.metricID = uniqueId(`${metric.metricID || normalizedMetricId(copy.displayName)}_copy`, new Set(state.metricSettings.map(item => item.metricID)));
-    if (copy.streaks) copy.streaks.streaksID = '';
-    if (copy.points) copy.points.pointsID = '';
+    if (metric.streaks.streaksID) generateSupportingId(copy, 'streaks');
+    if (pointsEnabled(metric)) generateSupportingId(copy, 'points');
     state.metricSettings.splice(index + 1, 0, copy);
     generatedMetricIds.add(copy);
     renderAll();
@@ -551,8 +689,9 @@
 
     const g = document.createElement('div');
     g.className = 'grid metric-basics';
-    const metricIdInput = makeInput({ value: metric.metricID, onChange: v => { metric.metricID = v; generatedMetricIds.delete(metric); }, required: true });
-    field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => { metric.displayName = v; if (generatedMetricIds.has(metric)) { metric.metricID = normalizedMetricId(v); metricIdInput.value = metric.metricID; } }, required: true }), 'Friendly name shown to users. New recipe IDs follow this name until the ID is edited.');
+    const supportingInputs = {};
+    const metricIdInput = makeInput({ value: metric.metricID, onChange: v => { setMetricId(metric, v, supportingInputs); generatedMetricIds.delete(metric); }, required: true });
+    field(g, 'Display Name', makeInput({ value: metric.displayName, onChange: v => { metric.displayName = v; if (generatedMetricIds.has(metric)) { setMetricId(metric, normalizedMetricId(v), supportingInputs); metricIdInput.value = metric.metricID; } }, required: true }), 'Friendly name shown to users. New recipe IDs follow this name until the ID is edited.');
     const metricIdField = document.createElement('div');
     metricIdField.className = 'field-group';
     field(metricIdField, 'Metric ID', metricIdInput, 'Unique ID used by Shortcuts and Sheet row lookups. Spaces become underscores. Changing a saved ID does not rename historical rows.');
@@ -561,6 +700,7 @@
     idActions.append(fieldHint('Used by Shortcuts and integrations. Usually you can leave the generated value as-is.'));
     idActions.append(button('Regenerate from name', 'link-button', () => {
       metric.metricID = normalizedMetricId(metric.displayName);
+      setMetricId(metric, metric.metricID, supportingInputs);
       generatedMetricIds.add(metric);
       renderAll();
     }));
@@ -597,7 +737,7 @@
     card.appendChild(g);
 
     const advancedSummary = [`Advanced`, metricTypeLabel(metric.dataType)];
-    if (metric.dataType === 'timestamp' || metric.dates.length > 0) {
+    if (metric.dataType === 'timestamp' || metric.dates.length > 0 || promptsEnabled(metric)) {
       advancedSummary.push(metric.timezoneMode === 'fixed' ? 'spreadsheet timezone' : 'local time');
     }
     const advanced = toggleSection(advancedSummary.join(' · '), `metric-${i}-advanced`, false);
@@ -608,7 +748,7 @@
       if (Number.isInteger(v) && v > 0) metric.rowNumber = v;
       else delete metric.rowNumber;
     } }), 'Normally OpenHabits finds the row by Metric ID. Enter a positive row number only when you intentionally need to override that lookup.');
-    const usesTimeSettings = metric.dataType === 'timestamp' || metric.dates.length > 0;
+    const usesTimeSettings = metric.dataType === 'timestamp' || metric.dates.length > 0 || promptsEnabled(metric);
     if (usesTimeSettings) {
       field(advancedGrid, 'Timezone Behavior', makeSelect([
         { value: 'floating', label: 'Follow the device’s local time' },
@@ -630,9 +770,9 @@
       const dg = document.createElement('div');
       dg.className = 'grid';
       field(dg, 'Day', makeSelect(DAYS, d[0], v => d[0] = v), HELP.dateRule);
-      field(dg, 'Due By (HH:MM)', makeInput({ type: 'time', value: d[1], onChange: v => d[1] = v }), HELP.dateRule);
-      field(dg, 'Start Hour', makeInput({ type: 'number', min: 0, max: 24, value: d[2], onChange: v => d[2] = v }), HELP.dateRule);
-      field(dg, 'End Hour', makeInput({ type: 'number', min: 0, max: 24, value: d[3], onChange: v => d[3] = v }), HELP.dateRule);
+      if (metric.dataType === 'timestamp' && metric.timestampSettings.writeMode === 'due_by') {
+        field(dg, 'Due By (HH:MM)', makeInput({ type: 'time', value: d[1], onChange: v => d[1] = v }), HELP.dateRule);
+      }
       dCard.appendChild(dg);
       const dCtr = document.createElement('div');
       dCtr.className = 'controls';
@@ -642,24 +782,29 @@
       dCard.appendChild(dCtr);
       dates.appendChild(dCard);
     });
-    dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '', 20, 2]); renderAll(); }));
+    dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '']); renderAll(); }));
     advanced.appendChild(dates);
+    advanced.appendChild(renderPrompts(metric, i));
 
     const streaks = toggleSection('Streak Properties', `metric-${i}-streaks`, false, HELP.streaksSection);
+    field(streaks, 'Enable Streaks', makeCheck(!!metric.streaks.streaksID, enabled => { setFeatureEnabled(metric, 'streaks', enabled); renderAll(); }), HELP.streaksSection);
     const streakGrid = document.createElement('div');
     streakGrid.className = 'grid';
+    streakGrid.hidden = !metric.streaks.streaksID;
     field(streakGrid, 'Unit', makeInput({ value: metric.streaks.unit, onChange: v => metric.streaks.unit = v }), 'Display unit for streak narration (days, sessions, etc).');
-    field(streakGrid, 'Streak Metric ID', metricReferenceSelect(metric.streaks.streaksID, v => metric.streaks.streaksID = v), 'Metric row used to store the streak count. Choose None to disable separate streak storage.');
+    supportingInputs.streaks = supportingIdField(streakGrid, metric, 'streaks');
     streaks.appendChild(streakGrid);
     advanced.appendChild(streaks);
 
     const points = toggleSection('Points Properties', `metric-${i}-points`, false, HELP.pointsSection);
+    field(points, 'Enable Points', makeCheck(pointsEnabled(metric), enabled => { setFeatureEnabled(metric, 'points', enabled); renderAll(); }), 'Enable scoring and a separate points row. Disabling points sets the award to zero.');
     const pointsGrid = document.createElement('div');
     pointsGrid.className = 'grid';
-    field(pointsGrid, 'Base Points per Completion', makeInput({ type: 'number', value: metric.points.value, onChange: v => metric.points.value = v }), 'Points awarded before any streak multiplier is applied.');
+    pointsGrid.hidden = !pointsEnabled(metric);
+    field(pointsGrid, 'Base Points per Unit / Completion', makeInput({ type: 'number', value: metric.points.value, onChange: v => metric.points.value = v }), 'Points per numeric unit, rounded duration minute, or text/timestamp completion, before the streak multiplier. Negative values deduct points.');
     field(pointsGrid, 'Days Until Maximum Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.multiplierDays, onChange: v => metric.points.multiplierDays = v }), 'The streak length at which the maximum multiplier is reached.');
     field(pointsGrid, 'Maximum Streak Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.maxMultiplier, onChange: v => metric.points.maxMultiplier = v }), 'Largest multiplier that a continuing streak can earn.');
-    field(pointsGrid, 'Store This Metric’s Points In', metricReferenceSelect(metric.points.pointsID, v => metric.points.pointsID = v), 'Metric row used to store per-metric points. Choose None to disable separate storage.');
+    supportingInputs.points = supportingIdField(pointsGrid, metric, 'points');
     points.appendChild(pointsGrid);
     advanced.appendChild(points);
 
@@ -945,6 +1090,13 @@
         delete m.type;
       }
       const normalized = { ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, timestampSettings: { ...newMetric().timestampSettings, ...(m.timestampSettings || {}) } };
+      normalized.dates = normalized.dates.map(entry => {
+        const rule = typeof entry === 'string' ? [entry, ''] : entry.slice();
+        rule[0] = DAYS.find(day => day.toLowerCase() === String(rule[0]).toLowerCase()) || rule[0];
+        return rule;
+      });
+      copyGeneratedMetricIds(m, normalized);
+      if (pointsEnabled(normalized) && !normalized.points.pointsID) generateSupportingId(normalized, 'points');
       normalizeMetricInsights(normalized);
       applyMetricTypeDefaults(normalized);
       return normalized;
@@ -963,8 +1115,45 @@
     return ensureShape(cfg);
   }
 
-  function validateState() {
+  // Keep these storage checks aligned with openHabitsValidateStorageIds_ in SetupV2.gs.
+  function validateStorageIds(config) {
     const errors = [];
+    const owners = new Map();
+    const metrics = Array.isArray(config.metricSettings) ? config.metricSettings : [];
+    function reserve(id, label) {
+      if (typeof id === 'string') id = id.trim();
+      if (typeof id === 'string' && id && !owners.has(id)) owners.set(id, label);
+    }
+    function add(id, label) {
+      if (id === undefined || id === null || id === '') return;
+      if (typeof id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id)) {
+        errors.push(`${label} may only contain letters, numbers, underscores, and hyphens, starting with a letter or number.`);
+        return;
+      }
+      if (owners.has(id)) errors.push(`Row ID "${id}" is shared by ${owners.get(id)} and ${label}. Use a unique ID for each measurement, points, streak, and total row.`);
+      else owners.set(id, label);
+    }
+    metrics.forEach(metric => {
+      if (metric) reserve(metric.metricID, `Metric ID for "${metric.metricID}"`);
+    });
+    const globals = (config.lockouts || {}).globals || {};
+    reserve(globals.cumulativeScreentimeID, 'Cumulative Screen Time ID');
+    reserve(globals.timeOpenedID, 'Time Opened ID');
+    add(config.dailyPointsID, 'Daily Points ID');
+    add(config.cumulativePointsID, 'Cumulative Points ID');
+    metrics.forEach(metric => {
+      if (!metric) return;
+      const points = metric.points || {};
+      const name = ` for metric "${metric.metricID || 'unnamed'}"`;
+      if (Number(points.value || 0) !== 0 && !points.pointsID) errors.push(`Points ID${name} is required when the point value is nonzero.`);
+      add(points.pointsID, `Points ID${name}`);
+      add((metric.streaks || {}).streaksID, `Streak ID${name}`);
+    });
+    return errors;
+  }
+
+  function validateState() {
+    const errors = validateStorageIds(state);
     const metricIds = state.metricSettings.map(metric => metric.metricID).filter(Boolean);
     const duplicateMetricIds = metricIds.filter((id, index) => metricIds.indexOf(id) !== index);
     if (duplicateMetricIds.length) errors.push(`Duplicate Metric IDs: ${[...new Set(duplicateMetricIds)].join(', ')}.`);
@@ -981,7 +1170,11 @@
         const hasDueBy = String(d[1] || '').trim() !== '';
         if (m.timestampSettings.writeMode === 'due_by' && !hasDueBy) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by is required for due-by timestamps.`);
         if (hasDueBy && !/^\d{2}:\d{2}$/.test(d[1])) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by must be HH:MM.`);
-        if (typeof d[2] !== 'number' || typeof d[3] !== 'number') errors.push(`Metric ${i + 1}, date ${di + 1}: start/end must be numbers.`);
+        getPromptRanges(d).forEach(range => {
+          if (!Array.isArray(range) || range.length < 2 || !range.slice(0, 2).every(hour => typeof hour === 'number' && Number.isFinite(hour) && hour >= 0 && hour <= 24)) {
+            errors.push(`Metric ${i + 1}, date ${di + 1}: suggestion start/end hours must be numbers from 0 to 24.`);
+          }
+        });
       });
     });
     if (!['fixed', 'floating'].includes(state.lockouts.globals.defaultBlockTimezoneMode)) errors.push('Lockouts defaultBlockTimezoneMode must be fixed or floating.');

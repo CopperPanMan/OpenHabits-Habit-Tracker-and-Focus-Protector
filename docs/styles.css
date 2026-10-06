@@ -67,6 +67,8 @@ code { background: var(--code-bg); padding:.1rem .3rem; border-radius:4px; }
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: .6rem;
 }
+
+.grid[hidden] { display: none; }
 .metric-basics { align-items: start; }
 .field-group { min-width: 0; }
 .field-group > label { width: 100%; }

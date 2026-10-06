@@ -10,6 +10,8 @@ Start with one app and the day-plan example below. After it works, expand the ap
 
 Finish [Metrics setup and the two demos](../setup.md). Install **Locked**, **Allowed**, and **Update Lockout Cache** from the [shortcut toggles](../setup.md#3-install-the-phone-shortcuts), and complete the Scriptable steps under **Connect Insights**. Keep the shared shortcuts' names so their referring actions work.
 
+Open each shortcut in the Shortcuts editor and read its **Comment blocks** for instructions and optional setup actions.
+
 <details>
 <summary>Manual script installation for an older Insights shortcut</summary>
 
@@ -90,9 +92,9 @@ For an expiry alarm that sends you Home while an app is still open, use [Calenda
 
 A duration rule needs recorded app time; OpenHabits does not read Apple's Screen Time totals. These helpers are made from your installed templates, with no further downloads:
 
-1. Add a duration/add metric such as `screen_time`, then duplicate **Toggle Timer Template** as **Screen Time Timer** and configure its metric Text as `[["screen_time"]]`.
-2. Create **Start Screen Time Timer** with a Run Shortcut action calling **Screen Time Timer** with input `start`. **Allowed** calls this named helper on ordinary allowed access.
-3. Create **Stop Screen Time Timer** to call the same timer with input `stop`. Run that helper in an **App → Is Closed** automation for the same protected apps.
+1. Add a duration/add metric such as `screen_time`, then duplicate **Toggle Timer Template** as **Toggle Screen Time Timer** and configure its metric Text as `[["screen_time"]]`. Read the timer's Comment blocks for its configuration instructions.
+2. Create **Start Screen Time Timer** with a Run Shortcut action calling **Toggle Screen Time Timer** with input `start`. Inside **Allowed**, confirm or configure its Run Shortcut action to run **Start Screen Time Timer** when access is allowed. Keep that helper name so Allowed's included action finds it.
+3. Create **Stop Screen Time Timer** with a Run Shortcut action calling **Toggle Screen Time Timer** with input `stop`. Create an **App → Is Closed → Run Immediately** automation, select all of your protected apps, and have it run **Stop Screen Time Timer** whenever any of those apps closes.
 4. In **Locked**'s temporary-grant branch (`Route is allow`), also call **Start Screen Time Timer** if temporary sessions should count toward the allowance. That branch bypasses Allowed.
 5. Test a short allowed app session, close the app, and verify the elapsed duration appears in the Sheet. Then add a **Screen-time limit** rule referencing `screen_time`, with the allowance and hours you want. Apply and refresh the cache.
 
