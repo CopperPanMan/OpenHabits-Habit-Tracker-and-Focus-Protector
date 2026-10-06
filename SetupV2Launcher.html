@@ -15,11 +15,7 @@
       <p id="handoffStatus" class="status">Loading your configuration…</p>
     </section>
 
-    <section class="panel launcher-status-panel">
-      <h2>System status</h2>
-      <p id="savedAt" class="status">Checking OpenHabits…</p>
-      <div id="checks" class="setup-checks"></div>
-    </section>
+    <div id="systemIssues" class="notice warning launcher-issues" role="status" aria-live="polite" hidden></div>
 
     <section class="panel">
       <h2>Apply editor changes</h2>
@@ -40,6 +36,11 @@
         <label class="preference"><input id="autoOpen" type="checkbox"> Open OpenHabits automatically with this Sheet</label>
       </div>
       <p id="advancedStatus" class="status" aria-live="polite"></p>
+      <details class="launcher-diagnostics">
+        <summary>System diagnostics</summary>
+        <p id="savedAt" class="status">Checking OpenHabits…</p>
+        <div id="checks" class="setup-checks"></div>
+      </details>
     </details>
   </main>
 <script>
@@ -56,6 +57,7 @@
   const advancedStatus = document.getElementById('advancedStatus');
   let currentJson = '';
   let validationSequence = 0;
+  let statusSequence = 0;
 
   const callServer = (name, value, success, failureTarget = result) => {
     google.script.run.withSuccessHandler(success).withFailureHandler(error => {
@@ -106,7 +108,7 @@
     });
   }
 
-  google.script.run.withSuccessHandler(data => {
+  function renderSystemStatus(data) {
     currentJson = data.configJson;
     copyCurrent.disabled = false;
     openEditor.href = editorUrl + '#from-sheet';
@@ -120,12 +122,43 @@
     const checks = document.getElementById('checks');
     checks.replaceChildren(...data.status.checks.map(check => {
       const item = document.createElement('div');
-      item.className = 'setup-check ' + check.state;
-      item.textContent = (check.state === 'pass' ? '✓ ' : '! ') + check.message;
+      const informational = check.id === 'config' && check.state === 'warning';
+      item.className = 'setup-check ' + (informational ? 'info' : check.state);
+      item.textContent = (check.state === 'pass' ? '✓ ' : informational ? '' : '! ') + check.message;
       return item;
     }));
+    const issues = document.getElementById('systemIssues');
+    const actionable = data.status.checks.filter(check => check.state === 'fail' || (check.state === 'warning' && check.id !== 'config'));
+    issues.replaceChildren(...actionable.map(check => {
+      const nextSteps = {
+        config: 'Load a valid configuration or undo the last configuration change.',
+        tracking: 'Save and Apply creates the tracking sheet.',
+        rows: check.state === 'fail' ? 'Remove duplicate IDs from Tracking Data.' : 'Use Check and Repair Metric Rows or Save and Apply.',
+        timezone: 'Set the timezone in Apps Script Project Settings.',
+        secret: 'Add the OPENHABITS_SECRET Script Property in Apps Script before connecting shortcuts.'
+      };
+      const item = document.createElement('p');
+      item.textContent = check.message + ' ' + (nextSteps[check.id] || 'Open System diagnostics under Troubleshooting and preferences for details.');
+      return item;
+    }));
+    issues.hidden = actionable.length === 0;
     handoffStatus.textContent = 'Ready.';
-  }).withFailureHandler(error => { handoffStatus.textContent = 'Error: ' + error.message; }).openHabitsGetConfigBridgeData();
+  }
+
+  function refreshSystemStatus(initial = false) {
+    const sequence = ++statusSequence;
+    google.script.run.withSuccessHandler(data => {
+      if (sequence === statusSequence) renderSystemStatus(data);
+    }).withFailureHandler(error => {
+      if (sequence !== statusSequence) return;
+      if (initial) handoffStatus.textContent = 'Error: ' + error.message;
+      const issues = document.getElementById('systemIssues');
+      issues.textContent = 'Could not refresh system diagnostics: ' + error.message + ' Reopen the OpenHabits panel to try again.';
+      issues.hidden = false;
+    }).openHabitsGetConfigBridgeData();
+  }
+
+  refreshSystemStatus(true);
 
   copyCurrent.addEventListener('click', async () => {
     handoffStatus.textContent = 'Copying configuration…';
@@ -157,6 +190,7 @@
         : 'Configuration saved and applied.';
       result.className = 'notice status success';
       json.value = '';
+      refreshSystemStatus();
     });
   });
 
@@ -166,6 +200,7 @@
       advancedStatus.textContent = response.ok
         ? (response.addedRows.length ? 'Repaired ' + response.addedRows.length + ' missing row(s).' : 'All required metric rows are present.')
         : 'Could not repair rows: ' + (response.errors || []).join(' ');
+      refreshSystemStatus();
     }, advancedStatus);
   });
 
@@ -174,7 +209,7 @@
     advancedStatus.textContent = 'Restoring the previous configuration…';
     callServer('openHabitsUndoLastConfigChange', null, response => {
       advancedStatus.textContent = response.ok ? 'The last configuration change was undone.' : (response.errors || []).join(' ');
-      if (response.ok) document.getElementById('undo').disabled = false;
+      if (response.ok) refreshSystemStatus();
     }, advancedStatus);
   });
 

@@ -25,6 +25,8 @@ The IDs in these examples must exist in your configuration. The completion recip
 3. Paste it into the logger's **Text** action. For a completion recipe, make the entry `["metricID",1]`; generated no-value text must be given this explicit value. Confirm **Run Shortcut** calls **Insights**.
 4. Run it, then check the matching Sheet cell.
 
+The shortcut's **Comment blocks** contain instructions for configuring its actions and optional integrations.
+
 For a value you enter each time, add **Ask for Input** before Text. Replace `<Provided Input>` with its actual magic-variable token. Numbers are unquoted; text and duration strings need JSON quotes around the token. For example, a rating has the structure `[["mood",8]]`; a duration has the structure `[["time_working","00:25:00"]]`.
 
 For free-form text containing quotation marks, backslashes, or newlines, build the metric entries with native List actions and serialize them as JSON before passing them to Insights; interpolating that text into a JSON Text action does not escape it automatically.
@@ -42,6 +44,8 @@ Generate value-bearing metrics individually when connecting different input vari
 In **Advanced → Date Rules**, choose the days that should count toward the metric's scheduled streak and prompt eligibility. A missing schedule means every day. Logging outside those days is still possible; the schedule is not a general recording lock.
 
 For a deadline, use the **Due-by task** recipe, add a date rule for each applicable weekday, and set its **Due By** time. Test before and after that time. A late `keep_first` recording makes no write; late `overwrite` clears that day's value and its points. The due time is a deadline, not an alarm; use [Calendar Alarms](calendar-alarms.md) to schedule reminders.
+
+Time windows for custom suggestions live under **Advanced → What’s next? prompts**, where you can enable suggestions and edit their message. Those windows share the weekdays in Date Rules and limit when your custom client can receive a suggestion. See [custom prompts](insights.md#custom-what-next-prompts) for client setup.
 
 Completion means the effective day's cell is nonempty, not that it meets a numeric target. A logged `0` counts as complete. To block apps until a task is done, use a separate completion/timestamp metric instead of expecting a count to reach a goal.
 
