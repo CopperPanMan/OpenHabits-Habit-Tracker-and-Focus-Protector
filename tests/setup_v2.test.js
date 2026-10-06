@@ -203,7 +203,8 @@ test('config editor exposes newcomer help, duplication, preset assignment, and s
   }
   assert.match(app, /function duplicateMetric\(/);
   assert.match(app, /function duplicateBlock\(/);
-  assert.match(app, /Technical Block ID/);
+  assert.doesNotMatch(app, /Technical Block ID|Technical identity|What’s next/);
+  assert.match(app, /Assign Presets to this Block/);
   assert.match(app, /metricReferenceSelect\(id/);
   assert.match(app, /Preset Modes/);
   assert.match(app, /first rule that blocks access wins/);

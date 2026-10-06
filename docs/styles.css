@@ -166,9 +166,10 @@ button.danger { border-color: var(--danger); background: var(--danger); }
   flex: 0 0 auto;
 }
 .help:hover::after,
-.help:focus::after,
+.help:focus-visible::after,
 .help.open::after {
   content: attr(data-help);
+  pointer-events: none;
   position:absolute;
   z-index:10;
   left:1.2rem;
@@ -260,3 +261,8 @@ button.chip-remove { border: 0; border-radius: 999px; padding: 0; width: 1.35rem
   .qr-layout { grid-template-columns: 1fr; }
   .qr-preview { min-height: 240px; }
 }
+
+.config-field { display: flex; flex-direction: column; gap: .2rem; }
+.config-field > .row { justify-content: flex-start; }
+
+.shortcut-metric-row { display: flex; flex-direction: column; gap: .3rem; }

@@ -25,8 +25,9 @@ The publication [Insights readout](../shortcut-actions/Insights.md) installs the
 
 1. In the Config Editor, add a **Timestamp** metric called **Day Plan**, with ID `day_plan`, keeping the first recording of the day. Apply the configuration to the Sheet.
 2. Duplicate **Metric(s) Logger Template**, name it **Log Day Plan**, and replace its entire Text action with `[["day_plan"]]`. Confirm it calls Insights. Run this logger when you have finished planning; leave it unlogged for the first protection test.
-3. Add a block using **Require completed metrics**, selecting `day_plan`. For this first test, use a full-day window (`00:00`–`00:00`), leave preset assignments empty, and set the message to “Plan your day, then run Log Day Plan to unlock.”
-4. **Save and Apply**, then run **Update Lockout Cache** without input.
+3. Add a block using **Require completed metrics**, selecting `day_plan`. For this first test, use a full-day window (`00:00`–`00:00`), create a preset named `everyday` and assign it to the block, and set the message to “Plan your day, then run Log Day Plan to unlock.”
+4. In Apple Calendar, create an all-day event titled `everyday` in **App Lockout Settings**, starting today and repeating daily. On iOS a day with no preset has no blocks.
+5. **Save and Apply**, then run **Update Lockout Cache** without input.
 
 This uses a new metric so the earlier demos do not accidentally satisfy the rule. The extra logger is a copy you make from the included template; it is not another download. You can change the block's hours after testing.
 
@@ -61,7 +62,7 @@ Open the protected app once with the phone unlocked and approve permissions. If 
 - **Before logging Day Plan:** open the protected app. It should send you Home and show your block message.
 - **After logging Day Plan:** run Log Day Plan, confirm its Sheet timestamp, then reopen the app. It should be allowed. Insights passes the recording to Update Lockout Cache; if your installed copy lacks that hook, refresh the cache manually.
 
-If either outcome fails, check that the automation is enabled, the rule references `day_plan`, the preset is empty, and the cache has been refreshed. [Troubleshooting](maintenance.md#troubleshooting) covers connection and file errors.
+If either outcome fails, check that the automation is enabled, the rule references `day_plan`, today’s all-day preset event is `everyday`, and the cache has been refreshed. [Troubleshooting](maintenance.md#troubleshooting) covers connection and file errors.
 
 ## Everyday use
 
@@ -76,12 +77,12 @@ Run **Update Lockout Cache** without input after changing configuration, after c
 
 Run **Allowed** without input. Choose a legitimate unlock (60-second wait) or a penalty unlock (30-second wait). Leave the protected app closed while waiting, then reopen it to complete the request. Entering early restarts the wait; complete the attempt within five minutes.
 
-Runtime 1.1.1 uses a whole-minute deadline: legitimate access lasts up to 19 minutes and penalty access up to 9 minutes, sometimes almost a minute shorter. Once that session expires, the next app opening checks your ordinary rules again.
+Runtime 1.2.0 uses a whole-minute deadline: legitimate access lasts up to 19 minutes and penalty access up to 9 minutes, sometimes almost a minute shorter. Once that session expires, the next app opening checks your ordinary rules again.
 
 <details>
 <summary>Optional: deduct points for a penalty unlock</summary>
 
-Duplicate the logger template as **Log Screen Time Lock Off**, configure a number/add metric with a negative point value, and have the logger send one unit explicitly. Locked calls this named logger on a penalty grant. The runtime's “10 points deducted” notification does not itself record a deduction; check the Sheet or customize that text if you are not using a ten-point penalty.
+Duplicate the logger template as **Log Screen Time Lock Off**, configure a **Done / not done** metric with **Add** and a negative point value (we recommend `-2`), and have the logger send `1`. Choose the cost yourself in the metric’s Points Properties. Locked calls this named logger on a penalty grant; without it, no points are deducted. Runtime notifications omit the cost so they do not misrepresent your configuration.
 
 </details>
 
@@ -104,7 +105,11 @@ Once measured time reaches the allowance, the next protected app opening blocks 
 
 Presets select groups of rules using an all-day calendar event. For example, use `workday` and `weekend` presets in a calendar named **App Lockout Settings**. [Rules and presets](rules.md#different-rules-on-different-days) covers the setup and how to share that selection with Chrome.
 
-With no preset selected, all rules are eligible. Make sure each day has the intended preset event when you rely on different day modes.
+On iOS, no preset means no blocks. Runtime 1.2.0 remembers expected presets for today and the next seven days, refreshing that forecast once a day when an app opening reaches rule evaluation. If today’s expected event disappears, its rules continue for two minutes from the first observed absence. Reopening does not restart the countdown. When the countdown has passed and the event is still absent, today’s expectation is cleared. A different preset takes effect immediately.
+
+Use **Allowed** for a temporary exception instead of deleting a day’s preset or disabling an automation. Temporary unlocks keep working during a deletion countdown. Calendar errors retain expectations and report a failure instead of treating the day as empty. Approve Scriptable’s calendar access with the phone unlocked when first running the updated scripts.
+
+The runtime stores its registry in `presetRegistry.json` beside the other state files, leaving `settings.json` alone. The existing Locked actions and shared shortcut links remain compatible. The registry can only remember events it has actually observed.
 
 ## Optional blocking app
 

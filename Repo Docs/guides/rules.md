@@ -38,10 +38,14 @@ Use a message such as `{usedHuman} used; allowance now {allowedNowHuman}.` The e
 
 A **preset** is a label on blocks, not a separate copy of your metrics. For example, assign `workday` to workday rules and `weekend` to weekend rules.
 
-On iOS, create an all-day event in **App Lockout Settings** titled exactly `workday` or `weekend`. Locked reads that title as the day's preset. Use one matching all-day event per day.
+On iOS, create an all-day event in **App Lockout Settings** titled exactly `workday` or `weekend`. Locked and OpenHabits Runtime use that title as the day’s preset. Set **Preset Calendar Name** to match the calendar if you use another name. Use one matching all-day event per day.
 
-For Chrome, set the global **Preset Calendar Name** to a Google Calendar the Apps Script account can read. Create today's all-day event with the preset title there. If you want both devices to use it, make that Google Calendar available in Apple Calendar and select it in Locked's calendar actions. The Chrome options page has no separate preset selector.
+For Chrome, set the global **Preset Calendar Name** to a Google Calendar the Apps Script account can read. Create today's all-day event with the preset title there. If you want both devices to use it, make that Google Calendar available in Apple Calendar and use that same name in **Preset Calendar Name**; Runtime 1.2.0 reads the configured calendar without changes to Locked’s actions. The Chrome options page has no separate preset selector.
 
-With a selected preset, only blocks assigned to that preset are eligible. **With no selected preset, all blocks are eligible**, even blocks assigned to different presets. Create calendar events for the days on which you need a particular selection.
+With a selected preset, only its assigned blocks are eligible. In the editor, use **Assign Presets to this Block**. Blocks with no assignment are excluded while a preset is active.
+
+**On iOS with Runtime 1.2.0, no preset means no blocks.** The runtime records today’s expected preset and the next seven days once per day. Deleting an expected event keeps its rules active for two minutes from the first app opening that observes its absence; another opening after the wait confirms absence and clears today’s expectation. Switching to another preset applies immediately. Calendar failures do not count as absence. See [iOS preset behavior](ios-lockouts.md#different-rules-for-workdays-and-weekends).
+
+**Chrome’s server behavior is unchanged:** without a selected preset, all blocks are eligible. Give Chrome an appropriate calendar event when choosing a subset of rules.
 
 Test each preset with one incomplete task and then its completed value. The server's `app_closer` response includes the resolved preset and evaluation errors for custom debugging; see [API reference](../developer-keys.md).
