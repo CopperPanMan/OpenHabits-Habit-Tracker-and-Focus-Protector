@@ -105,6 +105,8 @@ If either demo fails, use [Troubleshooting](guides/maintenance.md#troubleshootin
 
 Open the Sheet's settings panel and use **Copy Current Configuration → Open Config Editor**. Load the copied configuration, customize it, then use **Finish and Copy for OpenHabits** and **Save and Apply** back in the Sheet panel.
 
+Metric and block cards start collapsed when you load a configuration. Click a card's header to edit it, or use **Expand All / Collapse All** in either tab. New and duplicated items open automatically. Search metrics by name or ID, and blocks by name, preset, or referenced metric. If finishing reveals validation errors, the editor opens the first affected field; select another error to jump to its settings.
+
 The panel shows a notice when a setup issue needs attention. Full checks and the last-saved time are under **Troubleshooting and preferences → System diagnostics**; when everything is ready, you can go straight to applying your editor changes.
 
 Duplicate the logger or timer template for your own metrics. See [logger input examples](guides/metrics.md) or [timers](guides/timers.md) when you need them. New rows are created when you apply the configuration; ordinary configuration changes do not need a new deployment.

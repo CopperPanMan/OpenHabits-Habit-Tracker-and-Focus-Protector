@@ -64,6 +64,10 @@
 
   let state = defaultConfig();
   const sectionOpenState = new Map();
+  const itemUiKeys = new WeakMap();
+  let itemUiSequence = 0;
+  const searchQueries = { metrics: '', blocks: '' };
+  let validationShown = false;
   const undoStack = [];
   const redoStack = [];
   const generatedMetricIds = new WeakSet();
@@ -186,6 +190,7 @@
     const label = document.createElement('label');
     label.textContent = title;
     control.id = control.id || `config-field-${++fieldSequence}`;
+    control.dataset.field = title;
     label.htmlFor = control.id;
     row.firstElementChild.replaceWith(label);
     group.append(row, control);
@@ -204,8 +209,9 @@
     details.className = 'section';
     details.open = key && sectionOpenState.has(key) ? sectionOpenState.get(key) : defaultOpen;
     if (key) {
+      details.dataset.sectionKey = key;
       details.addEventListener('toggle', () => {
-        sectionOpenState.set(key, details.open);
+        if (details.isConnected) sectionOpenState.set(key, details.open);
       });
     }
     const summary = document.createElement('summary');
@@ -215,6 +221,151 @@
     if (helpText) summary.appendChild(labelWithHelp(title, helpText).lastElementChild);
     details.appendChild(summary);
     return details;
+  }
+
+  // UI identities never enter exported configuration. They follow an item
+  // through undo/redo, even when its editable ID or position changes.
+  function itemUiKey(item) {
+    if (!itemUiKeys.has(item)) itemUiKeys.set(item, `item-${++itemUiSequence}`);
+    return itemUiKeys.get(item);
+  }
+
+  function copyItemUiKey(from, to) {
+    if (itemUiKeys.has(from)) itemUiKeys.set(to, itemUiKeys.get(from));
+  }
+
+  function captureSectionState() {
+    document.querySelectorAll('details[data-section-key]').forEach(details => {
+      sectionOpenState.set(details.dataset.sectionKey, details.open);
+    });
+  }
+
+  function resetEditorView() {
+    sectionOpenState.clear();
+    searchQueries.metrics = '';
+    searchQueries.blocks = '';
+    validationShown = false;
+    clearValidationErrors();
+  }
+
+  function openNewItem(item) {
+    sectionOpenState.set(`${itemUiKey(item)}-card`, true);
+  }
+
+  const BLOCK_TYPE_LABELS = {
+    duration_block: 'Screen-time limit',
+    task_block: 'Require completed metrics',
+    firstXMinutesAfterTimestamp_block: 'Block briefly after an event'
+  };
+
+  function metricCardSummary(metric) {
+    const type = metric.dataType === 'number' && metric.inputMode === 'completion' ? 'completion' : metric.dataType;
+    return `${metricTypeLabel(type)} · Points ${pointsEnabled(metric) ? 'on' : 'off'} · Streaks ${metric.streaks.streaksID ? 'on' : 'off'}`;
+  }
+
+  function blockCardSummary(block) {
+    const hours = block.times.beg === block.times.end ? 'All day' : `${block.times.beg}–${block.times.end}`;
+    return `${BLOCK_TYPE_LABELS[block.type] || block.type} · ${hours} · ${block.presets.length ? `Presets: ${block.presets.join(', ')}` : 'No presets assigned'}`;
+  }
+
+  function blockMetricReferences(block) {
+    if (block.type === 'task_block') return block.typeSpecific.task_block_IDs;
+    if (block.type === 'duration_block') return [block.typeSpecific.duration.screenTimeID];
+    if (block.type === 'firstXMinutesAfterTimestamp_block') return [block.typeSpecific.firstXMinutes.timestampID];
+    return [];
+  }
+
+  function blockSearchText(block) {
+    const references = blockMetricReferences(block);
+    const metricNames = state.metricSettings.filter(metric => references.includes(metric.metricID)).map(metric => metric.displayName);
+    return [block.name, block.id, BLOCK_TYPE_LABELS[block.type], ...block.presets, ...references, ...metricNames].join(' ').toLowerCase();
+  }
+
+  function filterCards(tab) {
+    const root = $(`tab-${tab}`);
+    if (!root) return;
+    const query = searchQueries[tab].trim().toLowerCase();
+    const items = tab === 'metrics' ? state.metricSettings : state.lockouts.blocks;
+    root.querySelectorAll('.editor-card').forEach((card, index) => {
+      const item = items[index];
+      if (!item) { card.hidden = true; return; }
+      const text = tab === 'metrics' ? `${item.displayName} ${item.metricID} ${item.dataType} ${metricCardSummary(item)}`.toLowerCase() : blockSearchText(item);
+      card.hidden = !text.includes(query);
+    });
+    root.querySelectorAll('.metric-navigator a').forEach((link, index) => {
+      link.hidden = root.querySelectorAll('.editor-card')[index].hidden;
+    });
+    const empty = root.querySelector('.search-empty');
+    if (empty) empty.hidden = !items.length || [...root.querySelectorAll('.editor-card')].some(card => !card.hidden);
+  }
+
+  function listTools(tab) {
+    const tools = document.createElement('div');
+    tools.className = 'metric-tools';
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.id = `${tab}Search`;
+    search.value = searchQueries[tab];
+    search.placeholder = tab === 'metrics' ? 'Search metrics by name or ID' : 'Search blocks by name, preset, or metric';
+    search.setAttribute('aria-label', `Search ${tab}`);
+    search.addEventListener('input', () => { searchQueries[tab] = search.value; filterCards(tab); });
+    const expand = open => {
+      $(`tab-${tab}`).querySelectorAll('.editor-card, .editor-card details').forEach(details => {
+        details.open = open;
+        if (details.dataset.sectionKey) sectionOpenState.set(details.dataset.sectionKey, open);
+      });
+    };
+    tools.append(search, button('Expand All', 'secondary', () => expand(true), { trackHistory: false }), button('Collapse All', 'secondary', () => expand(false), { trackHistory: false }));
+    return tools;
+  }
+
+  function searchEmptyMessage(tab) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-state search-empty';
+    empty.textContent = `No ${tab} match your search.`;
+    empty.hidden = true;
+    return empty;
+  }
+
+  function cardHeader(card, item, tab, name, summaryText, controls) {
+    const header = card.firstElementChild;
+    header.className = 'card-head';
+    header.replaceChildren();
+    const text = document.createElement('div');
+    text.className = 'card-heading';
+    const title = document.createElement('h3');
+    title.dataset.cardName = '';
+    title.textContent = name;
+    const description = document.createElement('span');
+    description.className = 'card-description';
+    description.dataset.cardDescription = '';
+    description.textContent = summaryText;
+    text.append(title, description);
+    // Buttons in a native summary must not invoke its disclosure action.
+    controls.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });
+    controls.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); });
+    header.append(text, controls);
+    card.dataset.itemKey = itemUiKey(item);
+    card.dataset.tab = tab;
+  }
+
+  function refreshCardSummaries() {
+    for (const tab of ['metrics', 'blocks']) {
+      const root = $(`tab-${tab}`);
+      if (!root) continue;
+      const items = tab === 'metrics' ? state.metricSettings : state.lockouts.blocks;
+      root.querySelectorAll('.editor-card').forEach((card, index) => {
+        const item = items[index];
+        if (!item || itemUiKey(item) !== card.dataset.itemKey) return;
+        card.querySelector('[data-card-name]').textContent = (tab === 'metrics' ? item.displayName : item.name) || (tab === 'metrics' ? 'Unnamed Metric' : 'Unnamed Block');
+        card.querySelector('[data-card-description]').textContent = tab === 'metrics' ? metricCardSummary(item) : blockCardSummary(item);
+      });
+      if (tab === 'metrics') root.querySelectorAll('.metric-navigator a').forEach((link, index) => {
+        const metric = items[index];
+        if (metric) link.textContent = `${metric.displayName || 'Unnamed'} · ${metric.metricID || 'missing ID'} · ${metric.dataType}`;
+      });
+      filterCards(tab);
+    }
   }
 
   function button(text, cls, onClick, options = {}) {
@@ -238,6 +389,7 @@
     }
     if (input.lockouts) {
       input.lockouts.blocks.forEach((block, index) => {
+        copyItemUiKey(block, copy.lockouts.blocks[index]);
         if (generatedBlockIds.has(block)) generatedBlockIds.add(copy.lockouts.blocks[index]);
       });
     }
@@ -245,6 +397,7 @@
   }
 
   function copyGeneratedMetricIds(from, to) {
+    copyItemUiKey(from, to);
     if (generatedMetricIds.has(from)) generatedMetricIds.add(to);
     Object.values(generatedSupportingIds).forEach(ids => { if (ids.has(from)) ids.add(to); });
   }
@@ -257,6 +410,7 @@
   }
 
   function withHistory(changeFn) {
+    captureSectionState();
     const before = cloneState(state);
     const beforeSerialized = JSON.stringify(before);
     changeFn();
@@ -264,6 +418,8 @@
       pushUndoSnapshot(before);
       saveLocalDraft();
       publishConfiguredMetrics();
+      refreshCardSummaries();
+      if (validationShown) showValidationErrors(collectValidationIssues());
     } else {
       updateUndoRedoButtons();
     }
@@ -285,6 +441,7 @@
 
   function undo() {
     if (!undoStack.length) return;
+    captureSectionState();
     const current = cloneState(state);
     const previous = undoStack.pop();
     redoStack.push(current);
@@ -294,6 +451,7 @@
 
   function redo() {
     if (!redoStack.length) return;
+    captureSectionState();
     const current = cloneState(state);
     const next = redoStack.pop();
     undoStack.push(current);
@@ -516,6 +674,8 @@
     if (pointsEnabled(metric)) generateSupportingId(copy, 'points');
     state.metricSettings.splice(index + 1, 0, copy);
     generatedMetricIds.add(copy);
+    openNewItem(copy);
+    searchQueries.metrics = '';
     renderAll();
   }
 
@@ -524,6 +684,8 @@
     copy.name = `${block.name || block.id || 'Block'} Copy`;
     copy.id = uniqueId(`${block.id || normalizedMetricId(copy.name)}_copy`, new Set(state.lockouts.blocks.map(item => item.id)));
     state.lockouts.blocks.splice(index + 1, 0, copy);
+    openNewItem(copy);
+    searchQueries.blocks = '';
     renderAll();
   }
 
@@ -624,21 +786,17 @@
   }
 
   function renderMetric(metric, i) {
-    const card = document.createElement('div');
-    card.className = 'card metric-card';
+    const key = itemUiKey(metric);
+    const card = toggleSection('', `${key}-card`, false);
+    card.className = 'card metric-card editor-card';
     card.id = `metric-card-${i}`;
-    const head = document.createElement('div');
-    head.className = 'card-head';
-    const name = document.createElement('h3');
-    name.textContent = `${metric.displayName || 'Unnamed Metric'} (Metric ${i + 1})`;
     const ctr = document.createElement('div');
     ctr.className = 'controls';
     ctr.append(button('↑', 'secondary', () => move(state.metricSettings, i, -1)));
     ctr.append(button('↓', 'secondary', () => move(state.metricSettings, i, 1)));
     ctr.append(button('Duplicate', 'secondary', () => duplicateMetric(metric, i)));
     ctr.append(button('Delete', 'danger', () => { state.metricSettings.splice(i, 1); renderAll(); }));
-    head.append(name, ctr);
-    card.appendChild(head);
+    cardHeader(card, metric, 'metrics', metric.displayName || 'Unnamed Metric', metricCardSummary(metric), ctr);
 
     const g = document.createElement('div');
     g.className = 'grid metric-basics';
@@ -695,7 +853,7 @@
     if (metric.dataType === 'timestamp' || metric.dates.length > 0) {
       advancedSummary.push(metric.timezoneMode === 'fixed' ? 'spreadsheet timezone' : 'local time');
     }
-    const advanced = toggleSection(advancedSummary.join(' · '), `metric-${i}-advanced`, false);
+    const advanced = toggleSection(advancedSummary.join(' · '), `${key}-advanced`, false);
 
     const advancedGrid = document.createElement('div');
     advancedGrid.className = 'grid';
@@ -715,10 +873,11 @@
     }
     advanced.appendChild(advancedGrid);
 
-    const dates = toggleSection('Date Rules', `metric-${i}-dates`, false, HELP.datesSection);
+    const dates = toggleSection('Date Rules', `${key}-dates`, false, HELP.datesSection);
     metric.dates.forEach((d, di) => {
       const dCard = document.createElement('div');
       dCard.className = 'card';
+      dCard.dataset.dateIndex = di;
       const dateTitle = document.createElement('h4');
       dateTitle.textContent = `Date Rule ${di + 1}`;
       dCard.appendChild(dateTitle);
@@ -740,7 +899,7 @@
     dates.append(button('Add Date Rule', '', () => { metric.dates.push(['Sunday', '']); renderAll(); }));
     advanced.appendChild(dates);
 
-    const streaks = toggleSection('Streak Properties', `metric-${i}-streaks`, false, HELP.streaksSection);
+    const streaks = toggleSection('Streak Properties', `${key}-streaks`, false, HELP.streaksSection);
     field(streaks, 'Enable Streaks', makeCheck(!!metric.streaks.streaksID, enabled => { setFeatureEnabled(metric, 'streaks', enabled); renderAll(); }), HELP.streaksSection);
     const streakGrid = document.createElement('div');
     streakGrid.className = 'grid';
@@ -750,7 +909,7 @@
     streaks.appendChild(streakGrid);
     advanced.appendChild(streaks);
 
-    const points = toggleSection('Points Properties', `metric-${i}-points`, false, HELP.pointsSection);
+    const points = toggleSection('Points Properties', `${key}-points`, false, HELP.pointsSection);
     field(points, 'Enable Points', makeCheck(pointsEnabled(metric), enabled => { setFeatureEnabled(metric, 'points', enabled); renderAll(); }), 'Enable scoring and a separate points row. Disabling points sets the award to zero.');
     const pointsGrid = document.createElement('div');
     pointsGrid.className = 'grid';
@@ -762,7 +921,7 @@
     points.appendChild(pointsGrid);
     advanced.appendChild(points);
 
-    const insights = toggleSection('Insights Properties', `metric-${i}-insights`, false, HELP.insightsSection);
+    const insights = toggleSection('Insights Properties', `${key}-insights`, false, HELP.insightsSection);
     if (metric.dataType === 'text') insights.hidden = true;
     const ig = document.createElement('div');
     ig.className = 'grid';
@@ -789,15 +948,13 @@
   function renderMetrics() {
     const root = $('tab-metrics');
     root.innerHTML = '';
-    const tools = document.createElement('div'); tools.className = 'metric-tools';
-    const search = makeInput({ value: '', onChange: () => {}, required: false }); search.placeholder = 'Search metrics by name or ID';
-    search.addEventListener('input', () => document.querySelectorAll('.metric-card').forEach((card, index) => { const m = state.metricSettings[index]; card.hidden = !`${m.displayName} ${m.metricID} ${m.dataType}`.toLowerCase().includes(search.value.toLowerCase()); }));
-    tools.append(search, button('Expand All', 'secondary', () => document.querySelectorAll('#tab-metrics details').forEach(d => d.open = true), { trackHistory: false }), button('Collapse All', 'secondary', () => document.querySelectorAll('#tab-metrics details').forEach(d => d.open = false), { trackHistory: false }));
-    root.appendChild(tools);
+    root.appendChild(listTools('metrics'));
     const nav = document.createElement('nav'); nav.className = 'metric-navigator'; nav.setAttribute('aria-label', 'Metric navigator');
-    state.metricSettings.forEach((m, i) => { const link = document.createElement('a'); link.href = `#metric-card-${i}`; link.textContent = `${m.displayName || 'Unnamed'} · ${m.metricID || 'missing ID'} · ${m.dataType}`; nav.appendChild(link); });
+    state.metricSettings.forEach((m, i) => { const link = document.createElement('a'); link.href = `#metric-card-${i}`; link.textContent = `${m.displayName || 'Unnamed'} · ${m.metricID || 'missing ID'} · ${m.dataType}`; link.addEventListener('click', event => { event.preventDefault(); revealTarget({ tab: 'metrics', itemKey: itemUiKey(m) }); }); nav.appendChild(link); });
     root.appendChild(nav);
     state.metricSettings.forEach((m, i) => root.appendChild(renderMetric(m, i)));
+    root.appendChild(searchEmptyMessage('metrics'));
+    filterCards('metrics');
     const recipe = makeSelect([
       { value: 'completion', label: 'Done / not done' },
       { value: 'text', label: 'Text / daily note' },
@@ -817,7 +974,7 @@
     addDescription.textContent = 'Choose the closest starting point. You can change every setting afterward.';
     const addRow = document.createElement('div');
     addRow.className = 'row gap';
-    addRow.append(recipe, button('Add metric', '', () => { state.metricSettings.push(metricFromRecipe(recipe.value)); renderAll(); }));
+    addRow.append(recipe, button('Add metric', '', () => { const metric = metricFromRecipe(recipe.value); state.metricSettings.push(metric); openNewItem(metric); searchQueries.metrics = ''; renderAll(); }));
     addMetric.append(addTitle, addDescription, addRow);
     root.append(addMetric);
     publishConfiguredMetrics();
@@ -830,25 +987,17 @@
   }
 
   function renderBlock(block, i) {
-    const card = document.createElement('div');
-    card.className = 'card';
-    const head = document.createElement('div');
-    head.className = 'card-head';
-    const title = document.createElement('h3');
-    const typeLabels = {
-      duration_block: 'Screen-time limit',
-      task_block: 'Require completed metrics',
-      firstXMinutesAfterTimestamp_block: 'Block briefly after an event'
-    };
-    title.textContent = `${block.name || typeLabels[block.type] || 'Unnamed Block'} · ${block.times.beg}–${block.times.end}`;
+    const key = itemUiKey(block);
+    const card = toggleSection('', `${key}-card`, false);
+    card.className = 'card block-card editor-card';
+    card.id = `block-card-${i}`;
     const ctr = document.createElement('div');
     ctr.className = 'controls';
     ctr.append(button('↑', 'secondary', () => move(state.lockouts.blocks, i, -1)));
     ctr.append(button('↓', 'secondary', () => move(state.lockouts.blocks, i, 1)));
     ctr.append(button('Duplicate', 'secondary', () => duplicateBlock(block, i)));
     ctr.append(button('Delete', 'danger', () => { state.lockouts.blocks.splice(i, 1); renderAll(); }));
-    head.append(title, ctr);
-    card.appendChild(head);
+    cardHeader(card, block, 'blocks', block.name || 'Unnamed Block', blockCardSummary(block), ctr);
 
     const g = document.createElement('div');
     g.className = 'grid';
@@ -869,7 +1018,7 @@
     field(g, 'End Time', makeInput({ type: 'time', value: block.times.end, onChange: v => block.times.end = v }), 'Block activation end time (24h).');
     card.appendChild(g);
 
-    const presetSec = toggleSection('Assign Presets to this Block', `block-${i}-presets`, true, HELP.presets);
+    const presetSec = toggleSection('Assign Presets to this Block', `${key}-presets`, true, HELP.presets);
     presetSec.appendChild(fieldHint(block.presets.length ? 'Applies when one of these presets is active.' : 'Assign a preset to enable this block on iOS.'));
     const presetOptions = document.createElement('div');
     presetOptions.className = 'check-list';
@@ -888,7 +1037,7 @@
     presetSec.appendChild(presetOptions);
     card.appendChild(presetSec);
 
-    const typeSec = toggleSection('Type-Specific Properties', `block-${i}-type-specific`);
+    const typeSec = toggleSection('Type-Specific Properties', `${key}-type-specific`);
     if (block.type === 'duration_block') {
       const d = document.createElement('div'); d.className = 'grid';
       field(d, 'Max Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.maxMinutes, onChange: v => block.typeSpecific.duration.maxMinutes = v }), 'Max minutes allowed before block message/shortcut.');
@@ -927,7 +1076,7 @@
     }
     card.appendChild(typeSec);
 
-    const onBlock = toggleSection('On-Block Output', `block-${i}-onblock`);
+    const onBlock = toggleSection('On-Block Output', `${key}-onblock`, false);
     const og = document.createElement('div'); og.className = 'grid';
     field(og, 'Message', makeInput({ value: block.onBlock.message, onChange: v => block.onBlock.message = v }), 'Shown when block is active. Supports tokens like {endTime} and {screenTimeBar}.');
     field(og, 'Shortcut Name', makeInput({ value: block.onBlock.shortcutName, onChange: v => block.onBlock.shortcutName = v }), 'Optional iOS shortcut name to run on block.');
@@ -977,13 +1126,18 @@
       empty.textContent = 'No focus rules yet. Start with a screen-time limit, require a completed metric, or block briefly after an event.';
       root.appendChild(empty);
     }
+    root.appendChild(listTools('blocks'));
     state.lockouts.blocks.forEach((b, i) => root.appendChild(renderBlock(b, i)));
+    root.appendChild(searchEmptyMessage('blocks'));
+    filterCards('blocks');
     root.append(button('Add Block', '', () => {
       const block = newBlock();
       block.name = `Block ${state.lockouts.blocks.length + 1}`;
       block.id = uniqueId(block.name, new Set(state.lockouts.blocks.map(item => item.id)));
       generatedBlockIds.add(block);
       state.lockouts.blocks.push(block);
+      openNewItem(block);
+      searchQueries.blocks = '';
       renderAll();
     }));
   }
@@ -1054,6 +1208,7 @@
     });
     merged.lockouts.blocks = ((merged.lockouts && merged.lockouts.blocks) || []).map((b) => {
       const normalized = { ...newBlock(), ...b, times: { ...newBlock().times, ...(b.times || {}) }, typeSpecific: { ...newBlock().typeSpecific, ...(b.typeSpecific || {}), duration: { ...newBlock().typeSpecific.duration, ...((b.typeSpecific && b.typeSpecific.duration) || {}), rationing: { ...newBlock().typeSpecific.duration.rationing, ...(((b.typeSpecific || {}).duration || {}).rationing || {}) } }, firstXMinutes: { ...newBlock().typeSpecific.firstXMinutes, ...((b.typeSpecific && b.typeSpecific.firstXMinutes) || {}) } }, onBlock: { ...newBlock().onBlock, ...(b.onBlock || {}) } };
+      copyItemUiKey(b, normalized);
       if (generatedBlockIds.has(b)) generatedBlockIds.add(normalized);
       return normalized;
     });
@@ -1070,22 +1225,27 @@
     return ensureShape(cfg);
   }
 
+  function validationTarget(tab, item, field, extra = {}) {
+    return { tab, ...(item ? { itemKey: itemUiKey(item) } : {}), field, ...extra };
+  }
+
   // Keep these storage checks aligned with openHabitsValidateStorageIds_ in SetupV2.gs.
-  function validateStorageIds(config) {
+  function validateStorageIds(config, report) {
     const errors = [];
     const owners = new Map();
     const metrics = Array.isArray(config.metricSettings) ? config.metricSettings : [];
+    const fail = (message, target) => { errors.push(message); if (report) report(message, target); };
     function reserve(id, label) {
       if (typeof id === 'string') id = id.trim();
       if (typeof id === 'string' && id && !owners.has(id)) owners.set(id, label);
     }
-    function add(id, label) {
+    function add(id, label, target) {
       if (id === undefined || id === null || id === '') return;
       if (typeof id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id)) {
-        errors.push(`${label} may only contain letters, numbers, underscores, and hyphens, starting with a letter or number.`);
+        fail(`${label} may only contain letters, numbers, underscores, and hyphens, starting with a letter or number.`, target);
         return;
       }
-      if (owners.has(id)) errors.push(`Row ID "${id}" is shared by ${owners.get(id)} and ${label}. Use a unique ID for each measurement, points, streak, and total row.`);
+      if (owners.has(id)) fail(`Row ID "${id}" is shared by ${owners.get(id)} and ${label}. Use a unique ID for each measurement, points, streak, and total row.`, target);
       else owners.set(id, label);
     }
     metrics.forEach(metric => {
@@ -1094,59 +1254,137 @@
     const globals = (config.lockouts || {}).globals || {};
     reserve(globals.cumulativeScreentimeID, 'Cumulative Screen Time ID');
     reserve(globals.timeOpenedID, 'Time Opened ID');
-    add(config.dailyPointsID, 'Daily Points ID');
-    add(config.cumulativePointsID, 'Cumulative Points ID');
+    add(config.dailyPointsID, 'Daily Points ID', validationTarget('global', null, 'Daily Points Metric ID'));
+    add(config.cumulativePointsID, 'Cumulative Points ID', validationTarget('global', null, 'Cumulative Points Metric ID'));
     metrics.forEach(metric => {
       if (!metric) return;
       const points = metric.points || {};
       const name = ` for metric "${metric.metricID || 'unnamed'}"`;
-      if (Number(points.value || 0) !== 0 && !points.pointsID) errors.push(`Points ID${name} is required when the point value is nonzero.`);
-      add(points.pointsID, `Points ID${name}`);
-      add((metric.streaks || {}).streaksID, `Streak ID${name}`);
+      const pointsTarget = validationTarget('metrics', metric, 'Points ID');
+      if (Number(points.value || 0) !== 0 && !points.pointsID) fail(`Points ID${name} is required when the point value is nonzero.`, pointsTarget);
+      add(points.pointsID, `Points ID${name}`, pointsTarget);
+      add((metric.streaks || {}).streaksID, `Streak ID${name}`, validationTarget('metrics', metric, 'Streak ID'));
     });
     return errors;
   }
 
-  function validateState() {
-    const errors = validateStorageIds(state);
+  function collectValidationIssues() {
+    const issues = [];
+    const fail = (message, target) => issues.push({ message, target });
+    validateStorageIds(state, fail);
     const metricIds = state.metricSettings.map(metric => metric.metricID).filter(Boolean);
     const duplicateMetricIds = metricIds.filter((id, index) => metricIds.indexOf(id) !== index);
-    if (duplicateMetricIds.length) errors.push(`Duplicate Metric IDs: ${[...new Set(duplicateMetricIds)].join(', ')}.`);
+    if (duplicateMetricIds.length) {
+      const metric = state.metricSettings.find(item => item.metricID === duplicateMetricIds[0]);
+      fail(`Duplicate Metric IDs: ${[...new Set(duplicateMetricIds)].join(', ')}.`, validationTarget('metrics', metric, 'Metric ID'));
+    }
     state.metricSettings.forEach((m, i) => {
-      if (!m.metricID) errors.push(`Metric ${i + 1}: Metric ID is required.`);
-      if (!m.displayName) errors.push(`Metric ${i + 1}: Display Name is required.`);
-      if (m.rowNumber !== undefined && (!Number.isInteger(m.rowNumber) || m.rowNumber <= 0)) errors.push(`Metric ${i + 1}: Row Number must be a positive whole number.`);
-      if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) errors.push(`Metric ${i + 1}: timezoneMode must be fixed or floating.`);
-      if (!['text', 'number', 'duration', 'timestamp'].includes(m.dataType)) errors.push(`Metric ${i + 1}: invalid data type.`);
-      if (m.recordType === 'add' && !['number', 'duration'].includes(m.dataType)) errors.push(`Metric ${i + 1}: add record type is only supported for number and duration metrics.`);
-      if (m.timestampSettings.writeMode === 'due_by' && m.dates.length === 0) errors.push(`Metric ${i + 1}: due-by timestamps require at least one date rule.`);
+      const metricIssue = (message, field, extra) => fail(message, validationTarget('metrics', m, field, extra));
+      if (!m.metricID) metricIssue(`Metric ${i + 1}: Metric ID is required.`, 'Metric ID');
+      if (!m.displayName) metricIssue(`Metric ${i + 1}: Display Name is required.`, 'Display Name');
+      if (m.rowNumber !== undefined && (!Number.isInteger(m.rowNumber) || m.rowNumber <= 0)) metricIssue(`Metric ${i + 1}: Row Number must be a positive whole number.`, 'Sheet Row Override');
+      if (m.timezoneMode && !['fixed', 'floating'].includes(m.timezoneMode)) metricIssue(`Metric ${i + 1}: timezoneMode must be fixed or floating.`, 'Timezone Behavior');
+      if (!['text', 'number', 'duration', 'timestamp'].includes(m.dataType)) metricIssue(`Metric ${i + 1}: invalid data type.`, 'What are you tracking?');
+      if (m.recordType === 'add' && !['number', 'duration'].includes(m.dataType)) metricIssue(`Metric ${i + 1}: add record type is only supported for number and duration metrics.`, 'When today already has a value');
+      if (m.timestampSettings.writeMode === 'due_by' && m.dates.length === 0) metricIssue(`Metric ${i + 1}: due-by timestamps require at least one date rule.`, null, { action: 'Add Date Rule' });
       m.dates.forEach((d, di) => {
-        if (!DAYS.includes(d[0])) errors.push(`Metric ${i + 1}, date ${di + 1}: invalid day.`);
+        if (!DAYS.includes(d[0])) metricIssue(`Metric ${i + 1}, date ${di + 1}: invalid day.`, 'Day', { dateIndex: di });
         const hasDueBy = String(d[1] || '').trim() !== '';
-        if (m.timestampSettings.writeMode === 'due_by' && !hasDueBy) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by is required for due-by timestamps.`);
-        if (hasDueBy && !/^\d{2}:\d{2}$/.test(d[1])) errors.push(`Metric ${i + 1}, date ${di + 1}: due-by must be HH:MM.`);
+        if (m.timestampSettings.writeMode === 'due_by' && !hasDueBy) metricIssue(`Metric ${i + 1}, date ${di + 1}: due-by is required for due-by timestamps.`, 'Due By (HH:MM)', { dateIndex: di });
+        if (hasDueBy && !/^\d{2}:\d{2}$/.test(d[1])) metricIssue(`Metric ${i + 1}, date ${di + 1}: due-by must be HH:MM.`, 'Due By (HH:MM)', { dateIndex: di });
         getPromptRanges(d).forEach(range => {
           if (!Array.isArray(range) || range.length < 2 || !range.slice(0, 2).every(hour => typeof hour === 'number' && Number.isFinite(hour) && hour >= 0 && hour <= 24)) {
-            errors.push(`Metric ${i + 1}, date ${di + 1}: legacy time-window start/end hours must be numbers from 0 to 24.`);
+            metricIssue(`Metric ${i + 1}, date ${di + 1}: legacy time-window start/end hours must be numbers from 0 to 24.`, 'Day', { dateIndex: di });
           }
         });
       });
     });
-    if (!['fixed', 'floating'].includes(state.lockouts.globals.defaultBlockTimezoneMode)) errors.push('Lockouts defaultBlockTimezoneMode must be fixed or floating.');
-    if (!['script', 'client'].includes(state.lockouts.globals.cacheTimezoneMode)) errors.push('Lockouts cacheTimezoneMode must be script or client.');
+    if (!['fixed', 'floating'].includes(state.lockouts.globals.defaultBlockTimezoneMode)) fail('Lockouts defaultBlockTimezoneMode must be fixed or floating.', validationTarget('global', null, 'Default Block Timezone Mode'));
+    if (!['script', 'client'].includes(state.lockouts.globals.cacheTimezoneMode)) fail('Lockouts cacheTimezoneMode must be script or client.', validationTarget('global', null, 'Cache Timezone Mode'));
     const blockIds = state.lockouts.blocks.map(block => block.id).filter(Boolean);
     const duplicateBlockIds = blockIds.filter((id, index) => blockIds.indexOf(id) !== index);
-    if (duplicateBlockIds.length) errors.push(`Duplicate Block IDs: ${[...new Set(duplicateBlockIds)].join(', ')}.`);
+    if (duplicateBlockIds.length) {
+      const block = state.lockouts.blocks.find(item => item.id === duplicateBlockIds[0]);
+      fail(`Duplicate Block IDs: ${[...new Set(duplicateBlockIds)].join(', ')}. Recreate or remove the duplicate block.`, validationTarget('blocks', block, 'Block Name'));
+    }
     state.lockouts.blocks.forEach((b, i) => {
-      if (!b.id) errors.push(`Block ${i + 1}: Block ID is required.`);
-      if (b.timezoneMode && !['fixed', 'floating'].includes(b.timezoneMode)) errors.push(`Block ${i + 1}: timezoneMode must be fixed or floating.`);
-      if (!/^\d{2}:\d{2}$/.test(b.times.beg) || !/^\d{2}:\d{2}$/.test(b.times.end)) errors.push(`Block ${i + 1}: begin/end time must be HH:MM.`);
-      const references = b.type === 'task_block' ? b.typeSpecific.task_block_IDs : b.type === 'duration_block' ? [b.typeSpecific.duration.screenTimeID] : [b.typeSpecific.firstXMinutes.timestampID];
-      references.filter(Boolean).forEach(id => {
-        if (!metricIds.includes(id)) errors.push(`Block ${i + 1}: referenced Metric ID "${id}" was not found.`);
+      const blockIssue = (message, field, extra) => fail(message, validationTarget('blocks', b, field, extra));
+      if (!b.id) blockIssue(`Block ${i + 1}: Block ID is required. Enter a Block Name to generate it.`, 'Block Name');
+      if (b.timezoneMode && !['fixed', 'floating'].includes(b.timezoneMode)) blockIssue(`Block ${i + 1}: timezoneMode must be fixed or floating.`, 'Timezone Mode');
+      if (!/^\d{2}:\d{2}$/.test(b.times.beg) || !/^\d{2}:\d{2}$/.test(b.times.end)) blockIssue(`Block ${i + 1}: begin/end time must be HH:MM.`, !/^\d{2}:\d{2}$/.test(b.times.beg) ? 'Begin Time' : 'End Time');
+      const references = blockMetricReferences(b);
+      const field = b.type === 'task_block' ? 'Required Metric ID' : b.type === 'duration_block' ? 'Screen Time Metric ID' : 'Timestamp Metric ID';
+      references.forEach((id, occurrence) => {
+        if (id && !metricIds.includes(id)) blockIssue(`Block ${i + 1}: referenced Metric ID "${id}" was not found.`, field, { occurrence });
       });
     });
-    return errors;
+    return issues;
+  }
+
+  function validateState() {
+    return collectValidationIssues().map(issue => issue.message);
+  }
+
+  function clearValidationErrors() {
+    const container = $('validationErrors');
+    if (container) { container.replaceChildren(); container.hidden = true; }
+  }
+
+  function revealTarget(target) {
+    const tab = target.tab;
+    const tabButton = [...tabs].find(item => item.dataset.tab === tab);
+    if (tabButton) tabButton.click();
+    const root = $(`tab-${tab}`);
+    if (!root) return;
+    if (tab !== 'global') {
+      searchQueries[tab] = '';
+      const search = $(`${tab}Search`);
+      if (search) search.value = '';
+      filterCards(tab);
+    }
+    const card = target.itemKey ? [...root.querySelectorAll('.editor-card')].find(item => item.dataset.itemKey === target.itemKey) : root;
+    if (!card) return;
+    const scope = target.dateIndex !== undefined ? card.querySelector(`[data-date-index="${target.dateIndex}"]`) : card;
+    const controls = scope ? [...scope.querySelectorAll('[data-field]')].filter(control => control.dataset.field === target.field) : [];
+    const action = target.action ? [...card.querySelectorAll('button')].find(control => control.textContent === target.action) : null;
+    let control = controls[target.occurrence || 0] || action || (scope && scope !== card ? scope.querySelector('[data-field]') : null) || (card !== root ? card.firstElementChild : null);
+    if (control && control.closest('[hidden]')) {
+      // Invalid imported IDs can belong to a disabled feature. Let its
+      // enable toggle generate a valid ID instead of focusing an invisible field.
+      const enable = target.field === 'Points ID' ? 'Enable Points' : target.field === 'Streak ID' ? 'Enable Streaks' : null;
+      if (enable) control = [...card.querySelectorAll('[data-field]')].find(item => item.dataset.field === enable) || control;
+    }
+    if (!control) return;
+    let parent = control.closest('details');
+    while (parent) {
+      parent.open = true;
+      if (parent.dataset.sectionKey) sectionOpenState.set(parent.dataset.sectionKey, true);
+      parent = parent.parentElement.closest('details');
+    }
+    control.scrollIntoView({ block: 'center' });
+    control.focus({ preventScroll: true });
+  }
+
+  function showValidationErrors(issues, revealFirst = false) {
+    const container = $('validationErrors');
+    if (!container) return;
+    clearValidationErrors();
+    if (!issues.length) {
+      $('exportStatus').textContent = 'Validation errors resolved. Finish and copy when ready.';
+      return;
+    }
+    validationShown = true;
+    $('exportStatus').textContent = `Fix ${issues.length} validation error${issues.length === 1 ? '' : 's'} below. Select an error to open its settings.`;
+    const list = document.createElement('ul');
+    list.className = 'validation-errors';
+    issues.forEach(issue => {
+      const entry = document.createElement('li');
+      entry.appendChild(button(issue.message, 'link-button', () => revealTarget(issue.target), { trackHistory: false }));
+      list.appendChild(entry);
+    });
+    container.appendChild(list);
+    container.hidden = false;
+    if (revealFirst) revealTarget(issues[0].target);
   }
 
   function esc(value) {
@@ -1168,11 +1406,12 @@
     renderGlobal();
     renderMetrics();
     renderBlocks();
+    if (validationShown) showValidationErrors(collectValidationIssues());
   }
 
   $('parseBtn').addEventListener('click', () => {
     try {
-      withHistory(() => { state = parseConfigGs($('importText').value); sectionOpenState.clear(); });
+      withHistory(() => { state = parseConfigGs($('importText').value); resetEditorView(); });
       markClean();
       $('importStatus').textContent = 'Config loaded successfully.';
       renderAll();
@@ -1199,7 +1438,7 @@
   });
 
   $('freshBtn').addEventListener('click', () => {
-    withHistory(() => { state = defaultConfig(); });
+    withHistory(() => { state = defaultConfig(); resetEditorView(); });
     $('importText').value = '';
     $('importStatus').textContent = 'Started fresh config.';
     renderAll();
@@ -1221,11 +1460,10 @@
   });
 
   $('exportBtn').addEventListener('click', async () => {
-    const errors = validateState();
-    if (errors.length) {
-      $('exportStatus').textContent = `Fix validation errors first: ${errors.slice(0, 3).join(' | ')}`;
-      return;
-    }
+    const issues = collectValidationIssues();
+    if (issues.length) { showValidationErrors(issues, true); return; }
+    validationShown = false;
+    clearValidationErrors();
     $('exportText').value = JSON.stringify(state, null, 2);
     try {
       await navigator.clipboard.writeText($('exportText').value);
@@ -1239,8 +1477,10 @@
   });
 
   $('legacyExportBtn').addEventListener('click', () => {
-    const errors = validateState();
-    if (errors.length) { $('exportStatus').textContent = `Fix validation errors first: ${errors.slice(0, 3).join(' | ')}`; return; }
+    const issues = collectValidationIssues();
+    if (issues.length) { showValidationErrors(issues, true); return; }
+    validationShown = false;
+    clearValidationErrors();
     $('exportText').value = toConfigGs(state);
     $('exportStatus').textContent = 'Legacy Config.gs generated for migration use.';
   });
@@ -1260,8 +1500,10 @@
   });
 
   $('downloadBtn').addEventListener('click', () => {
-    const errors = validateState();
-    if (errors.length) { $('exportStatus').textContent = `Fix validation errors first: ${errors.slice(0, 3).join(' | ')}`; return; }
+    const issues = collectValidationIssues();
+    if (issues.length) { showValidationErrors(issues, true); return; }
+    validationShown = false;
+    clearValidationErrors();
     const content = JSON.stringify(state, null, 2);
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
@@ -1277,7 +1519,7 @@
     if (draft && draft.config) {
       $('restoreDraftBtn').hidden = false;
       $('restoreDraftBtn').addEventListener('click', () => {
-        withHistory(() => { state = ensureShape(draft.config); });
+        withHistory(() => { state = ensureShape(draft.config); resetEditorView(); });
         $('importStatus').textContent = `Restored local-only draft${draft.savedAt ? ' from ' + new Date(draft.savedAt).toLocaleString() : ''}.`;
         renderAll();
       });
