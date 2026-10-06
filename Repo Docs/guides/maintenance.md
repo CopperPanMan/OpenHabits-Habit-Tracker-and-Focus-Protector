@@ -34,6 +34,8 @@ Changing a display name is independent of its metric ID. Changing an ID creates 
 
 The current inline installer replaces managed scripts after validating downloaded source; it keeps settings, cache, timer, and unlock-state files. Historical installers that skip existing files do not update them. The [runtime reference](../runtime.md) describes the current wiring and remaining on-device checks.
 
+The logging performance update changes `Main.gs` and `getAppConfig()` in `Config.gs`. Preserve your custom `getCodeBackedAppConfig()` settings when updating the latter. See [logging performance](../performance.md) for deployment steps, offline checks, and live timing guidance.
+
 ## Troubleshooting
 
 | Symptom | Check next |

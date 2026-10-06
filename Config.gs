@@ -86,8 +86,18 @@ function getCodeBackedAppConfig() {
 }
 
 function getAppConfig() {
+  // Only reuse config inside an authenticated API request. Editor operations
+  // still load the current revision, and the next request starts fresh.
+  var context = typeof openHabitsRequestContext_ !== 'undefined' ? openHabitsRequestContext_ : null;
+  if (context && context.config) {
+    return context.config;
+  }
   // Existing installations that have not copied SetupV2.gs remain functional.
-  return typeof openHabitsLoadAppConfig_ === 'function'
+  var config = typeof openHabitsLoadAppConfig_ === 'function'
     ? openHabitsLoadAppConfig_()
     : getCodeBackedAppConfig();
+  if (context) {
+    context.config = config;
+  }
+  return config;
 }

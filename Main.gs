@@ -22,6 +22,97 @@ var dailyPointsID;
 var cumulativePointsID;
 var requestTimezone = '';
 var requestClientNow = '';
+var openHabitsRequestContext_ = null;
+
+function getRequestSheetCache_(sheet) {
+  if (!openHabitsRequestContext_) {
+    return null;
+  }
+  var sheets = openHabitsRequestContext_.sheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].sheet === sheet) {
+      return sheets[i];
+    }
+  }
+  var cache = { sheet: sheet, rows: {}, idColumns: {}, streaks: {}, lastRow: null };
+  sheets.push(cache);
+  return cache;
+}
+
+function getTrackingLastRow_(sheet) {
+  var cache = getRequestSheetCache_(sheet);
+  if (cache && cache.lastRow !== null) {
+    return cache.lastRow;
+  }
+  var lastRow = sheet.getLastRow();
+  if (cache) {
+    cache.lastRow = lastRow;
+  }
+  return lastRow;
+}
+
+function invalidateTrackingHeaders_(sheet) {
+  var cache = getRequestSheetCache_(sheet);
+  if (cache) {
+    delete cache.rows[1];
+    cache.streaks = {};
+  }
+}
+
+function readTrackingRowValues_(sheet, row, startColumn, width) {
+  if (width <= 0) {
+    return [];
+  }
+  // Today is mutable while a batch is being recorded. Only headers and
+  // historical values may be reused; the column accessor owns pending writes.
+  var cache = getRequestSheetCache_(sheet);
+  var endColumn = startColumn + width - 1;
+  var canCache = cache && (row === 1 || (activeCol && endColumn < activeCol));
+  var ranges = canCache ? cache.rows[row] || [] : [];
+  for (var i = 0; i < ranges.length; i++) {
+    var range = ranges[i];
+    if (range.start <= startColumn && range.end >= endColumn) {
+      return range.values.slice(startColumn - range.start, endColumn - range.start + 1);
+    }
+  }
+  var values = sheet.getRange(row, startColumn, 1, width).getValues()[0];
+  if (canCache) {
+    ranges.push({ start: startColumn, end: endColumn, values: values });
+    cache.rows[row] = ranges;
+  }
+  return values;
+}
+
+function readMetricIdColumn_(sheet, column, lastRow) {
+  var cache = getRequestSheetCache_(sheet);
+  if (cache && cache.idColumns[column]) {
+    return cache.idColumns[column];
+  }
+  var values = lastRow >= 2 ? sheet.getRange(2, column, lastRow - 1, 1).getValues() : [];
+  if (cache) {
+    cache.idColumns[column] = values;
+  }
+  return values;
+}
+
+function createStreakHistoryAccessor_(sheet, todayColumn) {
+  var firstColumn = dataStartColumn || 3;
+  var headers = readTrackingRowValues_(sheet, 1, firstColumn, todayColumn - firstColumn + 1);
+  var rows = {};
+  return {
+    date: function (column) {
+      var header = headers[column - firstColumn];
+      var date = header instanceof Date ? header : new Date(header);
+      return !isNaN(date.getTime()) ? date : null;
+    },
+    value: function (row, column) {
+      if (!rows[row]) {
+        rows[row] = readTrackingRowValues_(sheet, row, firstColumn, todayColumn - firstColumn);
+      }
+      return rows[row][column - firstColumn];
+    }
+  };
+}
 
 function parseRequestBody_(e) {
   var postData = e && e.postData ? e.postData : null;
@@ -360,7 +451,7 @@ function respondJson_(obj) {
 }
 
 function createColumnAccessor_(sheet, columnNumber) {
-  var lastRow = sheet.getLastRow();
+  var lastRow = getTrackingLastRow_(sheet);
   var rowOffset = 2;
   var values = [];
   var dirtyRows = {};
@@ -401,12 +492,51 @@ function createColumnAccessor_(sheet, columnNumber) {
       if (Object.keys(dirtyRows).length === 0 || values.length === 0) {
         return;
       }
-      sheet.getRange(rowOffset, columnNumber, values.length, 1).setValues(values);
+      var rows = Object.keys(dirtyRows).map(Number).sort(function (a, b) { return a - b; });
+      for (var i = 0; i < rows.length;) {
+        var startRow = rows[i];
+        var endRow = startRow;
+        var next = i + 1;
+        while (next < rows.length && rows[next] === endRow + 1) {
+          endRow = rows[next++];
+        }
+        sheet.getRange(startRow, columnNumber, endRow - startRow + 1, 1)
+          .setValues(values.slice(startRow - rowOffset, endRow - rowOffset + 1));
+        for (; i < next; i++) {
+          delete dirtyRows[rows[i]];
+        }
+      }
     }
   };
 }
 
 function handleApiRequest_(request) {
+  var previousContext = openHabitsRequestContext_;
+  openHabitsRequestContext_ = { config: null, trackingSheet: null, sheets: [] };
+  // Apps Script normally initializes globals for each execution. Reset request
+  // state explicitly as well so no prior day's column or configuration is reused.
+  activeCol = null;
+  sheet1 = null;
+  spreadsheetID = null;
+  trackingSheetName = null;
+  taskIdRowMap = {};
+  taskIdColumn = null;
+  labelColumn = null;
+  dataStartColumn = null;
+  lateExtensionHours = undefined;
+  lateExtension = undefined;
+  dailyPointsID = undefined;
+  cumulativePointsID = undefined;
+  writeToNotion = undefined;
+  firstHabitofDay = 0;
+  try {
+    return handleApiRequestWithContext_(request);
+  } finally {
+    openHabitsRequestContext_ = previousContext;
+  }
+}
+
+function handleApiRequestWithContext_(request) {
   currentTimeStamp = new Date();
   key = request.key;
   requestTimezone = request.timezone || '';
@@ -1155,7 +1285,9 @@ function recordMetricBySource_(rawData, options) {
       continue;
     }
 
-    var streakBeforeLog = calculateStreakBeforeLog_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet);
+    var streakBeforeLog = doesMultiplierNeedStreak_(setting)
+      ? calculateStreakBeforeLog_(metricID, activeCol, lateExtensionHours !== undefined ? lateExtensionHours : lateExtension, trackingSheet)
+      : 0;
     var multiplier = getMultiplier_(metricID, streakBeforeLog);
 
     var validated = validateMetricValueForRecord_(metricType, tuple.length > 1 ? tuple[1] : null);
@@ -1486,10 +1618,7 @@ function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, d
       return '';
     }
 
-    dataRange = trackingSheet.getRange(resolvedRow, 2, 1, resolvedActiveCol - 1).getValues()[0];
-    if (optionalAccessor && resolvedActiveCol >= 2) {
-      dataRange[resolvedActiveCol - 2] = optionalAccessor.get(resolvedRow);
-    }
+    dataRange = readInsightDataRange_(trackingSheet, resolvedRow, resolvedActiveCol, originalComparisonArray, averageSpan, optionalAccessor);
     chooseChance = Math.round(1 / maxPossibleComparisonsV2_(insights, originalComparisonArray, averageSpan) * 100) / 100;
   } else {
     chooseChance = 1;
@@ -1571,6 +1700,38 @@ function findPerformanceInsightsV2_(setting, optionalSheet, optionalActiveCol, d
   }
 
   return findPerformanceInsightsV2_(setting, trackingSheet, resolvedActiveCol, dataRange, foundNegativeComp, foundPositiveComp, optionalAccessor);
+}
+
+function readInsightDataRange_(sheet, row, todayColumn, comparisons, averageSpan, optionalAccessor) {
+  var firstColumn = Math.max(2, Math.floor(todayColumn - averageSpan + 1));
+  for (var i = 0; i < comparisons.length; i++) {
+    var comparison = comparisons[i];
+    var lookback = Number(comparison && comparison[0]);
+    // Match the comparison guards: future, current-day, and unavailable
+    // comparisons cannot contribute to an insight.
+    var comparisonColumn = todayColumn - lookback;
+    if (isFinite(lookback) && comparisonColumn > 1 && comparisonColumn < todayColumn) {
+      firstColumn = Math.min(firstColumn, Math.floor(comparisonColumn));
+      // A long lookback may be valid for a single-day comparison while its
+      // averaging window predates the Sheet. Do not read that unused window.
+      if (comparisonColumn - averageSpan + 1 >= 2) {
+        firstColumn = Math.min(firstColumn, Math.floor(comparisonColumn - averageSpan + 1));
+      }
+    }
+  }
+  var lastColumn = optionalAccessor ? todayColumn - 1 : todayColumn;
+  var values = readTrackingRowValues_(sheet, row, firstColumn, lastColumn - firstColumn + 1);
+  // Keep the existing absolute indexes and recursive comparison behavior.
+  // Unused leading slots need no spreadsheet read; all possible comparison
+  // and averaging windows are contained in the populated tail.
+  var data = new Array(todayColumn - 1);
+  for (var j = 0; j < values.length; j++) {
+    data[firstColumn - 2 + j] = values[j];
+  }
+  if (optionalAccessor) {
+    data[todayColumn - 2] = optionalAccessor.get(row);
+  }
+  return data;
 }
 
 function findMessageValueV2_(insights, todaysValue, compValue) {
@@ -2193,6 +2354,13 @@ function formatDurationDecimalHours_(durationSeconds) {
   return (totalSeconds / 3600).toFixed(2) + 'h';
 }
 
+function doesMultiplierNeedStreak_(setting) {
+  var maxMultiplier = parseStrictNumber_(setting && setting.points && setting.points.maxMultiplier);
+  // Missing/invalid values default to 1 in getMultiplier_. Both 0 and 1
+  // produce a constant multiplier regardless of the preceding streak.
+  return maxMultiplier !== null && maxMultiplier !== 0 && maxMultiplier !== 1;
+}
+
 function getMultiplier_(metricID, streakCountBeforeLog) {
   var settingLookup = getMetricSettingById(metricID);
   var pointsConfig = settingLookup.setting && settingLookup.setting.points ? settingLookup.setting.points : {};
@@ -2415,6 +2583,12 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
     return 0;
   }
 
+  var cache = getRequestSheetCache_(trackingSheet);
+  var cacheKey = JSON.stringify([metricID, resolvedActiveCol, extensionHours]);
+  if (cache && Object.prototype.hasOwnProperty.call(cache.streaks, cacheKey)) {
+    return cache.streaks[cacheKey];
+  }
+  var history = createStreakHistoryAccessor_(trackingSheet, resolvedActiveCol);
   var row = rowLookup.row;
   var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
   var useScheduleFilter = scheduleDays.length > 0;
@@ -2422,7 +2596,7 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
   var expectedPreviousDate = null;
 
   for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
-    var columnDate = getColumnDateForStreak_(trackingSheet, col);
+    var columnDate = history.date(col);
     if (!columnDate || !isScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours)) {
       continue;
     }
@@ -2431,7 +2605,7 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
       break;
     }
 
-    var historicalValue = trackingSheet.getRange(row, col).getValue();
+    var historicalValue = history.value(row, col);
     if (!isCompletedCellValue_(historicalValue)) {
       break;
     }
@@ -2440,17 +2614,19 @@ function calculateStreakBeforeLog_(metricID, activeColInput, lateExtensionInput,
     expectedPreviousDate = getPreviousScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours);
   }
 
-  var seededStreak = getSeededStreakValue_(settingLookup.setting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
+  var seededStreak = getSeededStreakValue_(settingLookup.setting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours, history);
   if (seededStreak !== null && seededStreak > streakCount) {
     streakCount = seededStreak;
   }
 
+  if (cache) {
+    cache.streaks[cacheKey] = streakCount;
+  }
   return streakCount;
 }
 
 function calculateStreak_(metricID, activeColInput, lateExtensionInput, optionalSheet, optionalAccessor) {
   var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
-  var dataColumn = dataStartColumn || 3;
   var resolvedActiveCol = Number(activeColInput) || ensureTodayColumn_(trackingSheet, new Date());
   var extensionHours = lateExtensionInput !== undefined ? lateExtensionInput : (lateExtensionHours !== undefined ? lateExtensionHours : lateExtension);
 
@@ -2467,47 +2643,18 @@ function calculateStreak_(metricID, activeColInput, lateExtensionInput, optional
   var row = rowLookup.row;
   var scheduleDays = normalizeScheduledDays_(settingLookup.setting.dates);
   var useScheduleFilter = scheduleDays.length > 0;
-  var streakCount = 0;
-  var expectedPreviousDate = null;
-
-  for (var col = resolvedActiveCol - 1; col >= dataColumn; col--) {
-    var columnDate = getColumnDateForStreak_(trackingSheet, col);
-    if (!columnDate || !isScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours)) {
-      continue;
-    }
-
-    if (expectedPreviousDate && !isSameCalendarDay_(columnDate, expectedPreviousDate)) {
-      break;
-    }
-
-    var historicalValue = trackingSheet.getRange(row, col).getValue();
-    if (!isCompletedCellValue_(historicalValue)) {
-      break;
-    }
-
-    streakCount += 1;
-    expectedPreviousDate = getPreviousScheduledDateForStreak_(columnDate, scheduleDays, useScheduleFilter, extensionHours);
-  }
-
+  var streakCount = calculateStreakBeforeLog_(metricID, resolvedActiveCol, extensionHours, trackingSheet);
   var todayDate = getColumnDateForStreak_(trackingSheet, resolvedActiveCol);
   var todayScheduled = todayDate && isScheduledDateForStreak_(todayDate, scheduleDays, useScheduleFilter, extensionHours);
   var todayValue = optionalAccessor ? optionalAccessor.get(row) : trackingSheet.getRange(row, resolvedActiveCol).getValue();
-  var seededStreak = getSeededStreakValue_(settingLookup.setting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours);
-
   if (todayScheduled) {
     if (!isCompletedCellValue_(todayValue)) {
       return 0;
     }
 
-    if (seededStreak !== null && seededStreak > streakCount) {
-      streakCount = seededStreak;
-    }
     return streakCount + 1;
   }
 
-  if (seededStreak !== null && seededStreak > streakCount) {
-    streakCount = seededStreak;
-  }
   return streakCount;
 }
 
@@ -2660,7 +2807,7 @@ function isScheduledColumn_(trackingSheet, col, scheduleDays, useScheduleFilter,
 }
 
 function getColumnDateForStreak_(trackingSheet, col) {
-  var headerValue = trackingSheet.getRange(1, col).getValue();
+  var headerValue = readTrackingRowValues_(trackingSheet, 1, col, 1)[0];
   var dateValue = headerValue instanceof Date ? headerValue : new Date(headerValue);
   return (dateValue instanceof Date && !isNaN(dateValue.getTime())) ? dateValue : null;
 }
@@ -2720,12 +2867,13 @@ function countScheduledDatesBetween_(startDateExclusive, endDateExclusive, sched
   return count;
 }
 
-function getSeededStreakValue_(metricSetting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours) {
+function getSeededStreakValue_(metricSetting, trackingSheet, resolvedActiveCol, scheduleDays, useScheduleFilter, extensionHours, optionalHistory) {
   if (!metricSetting || !metricSetting.streaks || !metricSetting.streaks.streaksID) {
     return null;
   }
 
-  var todayDate = getColumnDateForStreak_(trackingSheet, resolvedActiveCol);
+  var history = optionalHistory || createStreakHistoryAccessor_(trackingSheet, resolvedActiveCol);
+  var todayDate = history.date(resolvedActiveCol);
   if (!todayDate) {
     return null;
   }
@@ -2736,7 +2884,7 @@ function getSeededStreakValue_(metricSetting, trackingSheet, resolvedActiveCol, 
   }
 
   for (var col = resolvedActiveCol - 1; col >= (dataStartColumn || 3); col--) {
-    var storedValue = trackingSheet.getRange(streakRowLookup.row, col).getValue();
+    var storedValue = history.value(streakRowLookup.row, col);
     if (storedValue === '' || storedValue === null || storedValue === undefined) {
       continue;
     }
@@ -2746,7 +2894,7 @@ function getSeededStreakValue_(metricSetting, trackingSheet, resolvedActiveCol, 
       continue;
     }
 
-    var seedDate = getColumnDateForStreak_(trackingSheet, col);
+    var seedDate = history.date(col);
     if (!seedDate) {
       return null;
     }
@@ -3097,7 +3245,11 @@ function getCurrentTrackingDayColumn_(optionalSheet) {
 
 function getMetricIdRowMap_(optionalSheet) {
   var trackingSheet = optionalSheet || sheet1 || getTrackingSheet_();
-  var lastRow = trackingSheet.getLastRow();
+  var requestCache = getRequestSheetCache_(trackingSheet);
+  if (requestCache && requestCache.metricIdRowMap) {
+    return requestCache.metricIdRowMap;
+  }
+  var lastRow = getTrackingLastRow_(trackingSheet);
   var emptyMap = {
     firstRowById: {},
     duplicateRowsById: {}
@@ -3111,7 +3263,7 @@ function getMetricIdRowMap_(optionalSheet) {
   if (!taskIdRowMap || taskIdRowMap.cacheKey !== cacheKey) {
     var firstRowById = {};
     var duplicateRowsById = {};
-    var metricIdValues = trackingSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    var metricIdValues = readMetricIdColumn_(trackingSheet, 1, lastRow);
 
     for (var i = 0; i < metricIdValues.length; i++) {
       var rawMetricId = metricIdValues[i][0];
@@ -3138,10 +3290,14 @@ function getMetricIdRowMap_(optionalSheet) {
     };
   }
 
-  return {
+  var result = {
     firstRowById: taskIdRowMap.firstRowById || {},
     duplicateRowsById: taskIdRowMap.duplicateRowsById || {}
   };
+  if (requestCache) {
+    requestCache.metricIdRowMap = result;
+  }
+  return result;
 }
 
 function findRowByMetricId_(metricID, optionalSheet) {
@@ -3214,6 +3370,9 @@ function buildHabitsV2Response(response) {
 
 
 function getTrackingSheet_() {
+  if (openHabitsRequestContext_ && openHabitsRequestContext_.trackingSheet) {
+    return openHabitsRequestContext_.trackingSheet;
+  }
   var config = getAppConfig();
   var scriptProperties = PropertiesService.getScriptProperties();
   var spreadsheetPropertyName = config.scriptProperties && config.scriptProperties.spreadsheetId;
@@ -3244,6 +3403,9 @@ function getTrackingSheet_() {
   spreadsheetID = resolvedSpreadsheetID || (typeof spreadsheet.getId === 'function' ? spreadsheet.getId() : null);
   trackingSheetName = resolvedTrackingSheetName;
   sheet1 = trackingSheet;
+  if (openHabitsRequestContext_) {
+    openHabitsRequestContext_.trackingSheet = trackingSheet;
+  }
   return trackingSheet;
 }
 
@@ -3294,7 +3456,7 @@ function ensureTodayColumn_(optionalSheet, optionalNow) {
 
   var maxLastColumn = Math.max(trackingSheet.getLastColumn(), dataStartColumn || 3);
   var headerRangeWidth = maxLastColumn - (dataStartColumn || 3) + 1;
-  var headerValues = trackingSheet.getRange(1, dataStartColumn || 3, 1, headerRangeWidth).getValues()[0];
+  var headerValues = readTrackingRowValues_(trackingSheet, 1, dataStartColumn || 3, headerRangeWidth);
 
   var lastDateHeaderCol = (dataStartColumn || 3) - 1;
   var lastHeaderValue = null;
@@ -3309,6 +3471,7 @@ function ensureTodayColumn_(optionalSheet, optionalNow) {
 
   if (lastDateHeaderCol < (dataStartColumn || 3)) {
     trackingSheet.getRange(1, dataStartColumn || 3).setValue(now);
+    invalidateTrackingHeaders_(trackingSheet);
     firstHabitofDay = 1;
     return dataStartColumn || 3;
   }
@@ -3316,6 +3479,7 @@ function ensureTodayColumn_(optionalSheet, optionalNow) {
   var parsedLastHeader = lastHeaderValue instanceof Date ? lastHeaderValue : new Date(lastHeaderValue);
   if (isNaN(parsedLastHeader.getTime())) {
     trackingSheet.getRange(1, lastDateHeaderCol).setValue(now);
+    invalidateTrackingHeaders_(trackingSheet);
     return lastDateHeaderCol;
   }
 
@@ -3328,6 +3492,7 @@ function ensureTodayColumn_(optionalSheet, optionalNow) {
 
   var newColumn = lastDateHeaderCol + 1;
   trackingSheet.getRange(1, newColumn).setValue(now);
+  invalidateTrackingHeaders_(trackingSheet);
   firstHabitofDay = 1;
   return newColumn;
 }
@@ -3465,12 +3630,12 @@ function normalizeMetricInput(data) {
 }
 
 function buildTaskIdRowMap_(sheet, taskIdColumn) {
-  var lastRow = sheet.getLastRow();
+  var lastRow = getTrackingLastRow_(sheet);
   if (lastRow < 2) {
     return {};
   }
 
-  var taskIdValues = sheet.getRange(2, taskIdColumn, lastRow - 1, 1).getValues();
+  var taskIdValues = readMetricIdColumn_(sheet, taskIdColumn, lastRow);
   var map = {};
 
   taskIdValues.forEach(function (rowValue, index) {
