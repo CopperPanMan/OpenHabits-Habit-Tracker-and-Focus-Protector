@@ -40,61 +40,29 @@ The JSON configures the Sheet. The shared starter Sheet itself will be distribut
 
 Your secret lets your shortcuts call this deployment. A script bound to your Sheet does not need a separate spreadsheet ID property. [Google's deployment instructions](https://developers.google.com/apps-script/guides/web) explain the account-specific deployment options.
 
-## 3. Install the phone shortcuts
+## 3. Install the iPhone shortcuts
 
-Open the toggle for your iOS version. There are six shared shortcuts; the logger and timer templates are also the demos.
+**Install these three shortcuts:**
 
-**Publication note:** the final iCloud install links will be added directly to the tables below when the shared shortcuts are ready.
-
-<a id="ios-27-and-newer"></a>
-<details>
-<summary><strong>iOS 27 and newer</strong></summary>
-
-**Install these shortcuts:**
-
-| Shortcut / install link | What it does and why you need it |
+| Shortcut & install link | What it does and why you need it |
 | --- | --- |
-| **Insights** — link pending | Connects your loggers to the Sheet and displays feedback. Used by both templates. |
-| **Metric(s) Logger Template** — link pending | Records one or more metrics. Comes ready for the water demo; duplicate it later for your own loggers. |
-| **Toggle Timer Template** — link pending | Starts/stops a timer and records elapsed time. Used for the timer demo; keep it for anything you want to time. |
+| **[Insights](https://www.icloud.com/shortcuts/732362ad21c64aa3b33af262654b1d0e)** | Connects your loggers to the Sheet and displays feedback. Used by both templates. |
+| **[Metric(s) Logger Template](https://www.icloud.com/shortcuts/bf26ab9d8ddc420c983484a2ea8a9c89)** | Records one or more metrics. Comes ready for the water demo; duplicate it later for your own loggers. |
+| **[Toggle Timer Template](https://www.icloud.com/shortcuts/cff63da7e3814bc6bac740a732e82998)** | Starts/stops a timer and records elapsed time. Used for the timer demo; keep it for anything you want to time. |
 
 **Also using iOS app protection?** Install all three below. For Calendar Alarms integration alone, install **Update Lockout Cache**; you do not need Locked or Allowed.
 
-| Shortcut / install link | What it does and why you need it |
+| Shortcut & install link | What it does and why you need it |
 | --- | --- |
-| **Locked** — link pending | Checks your rules when a protected app opens and redirects you when blocked. |
-| **Allowed** — link pending | Handles allowed access and lets you request a temporary unlock. |
-| **Update Lockout Cache** — link pending | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
+| **[Locked](https://www.icloud.com/shortcuts/d7f5f060e14b434dac749d3baca003e0)** | Checks your rules when a protected app opens and redirects you when blocked. NOTE: *You will need to set an automation to run this whenever a protected app is opened (you choose the apps). Further instructions can be found inside the shortcut.*|
+| **[Allowed](https://www.icloud.com/shortcuts/0a2a22c2049c4d10a56c5c01fc7209ad)** | Handles allowed access and lets you request a temporary unlock. *Further instructions can be found inside the shortcut.*|
+| **[Update Lockout Cache](https://www.icloud.com/shortcuts/1c81ba3450604c2699068e1edf8583e3)** | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
 
-</details>
-
-<a id="ios-26"></a>
-<details>
-<summary><strong>iOS 26</strong></summary>
-
-**Install these shortcuts:**
-
-| Shortcut / install link | What it does and why you need it |
-| --- | --- |
-| **Insights** — link pending | Connects your loggers to the Sheet and displays feedback. Used by both templates. |
-| **Metric(s) Logger Template** — link pending | Records one or more metrics. Comes ready for the water demo; duplicate it later for your own loggers. |
-| **Toggle Timer Template** — link pending | Starts/stops a timer and records elapsed time. Used for the timer demo; keep it for anything you want to time. |
-
-**Also using iOS app protection?** Install all three below. For Calendar Alarms integration alone, install **Update Lockout Cache**; you do not need Locked or Allowed.
-
-| Shortcut / install link | What it does and why you need it |
-| --- | --- |
-| **Locked** — link pending | Checks your rules when a protected app opens and redirects you when blocked. |
-| **Allowed** — link pending | Handles allowed access and lets you request a temporary unlock. |
-| **Update Lockout Cache** — link pending | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
-
-</details>
+Note: if you want to track screen time, you'll need one more automation that runs a shortcut to stop a configured screen time timer. Do this by making a shortcut that runs "Screen Time Timer" with input = stop.
 
 ## 4. Connect Insights
 
-Run **Insights** without input. Enter the same **Secret** and **Web App Id** from step 2, then choose **I'm Finished**. Both templates use these connection settings.
-
-If an imported **Run Shortcut** action displays Insights but does not run it, open the action and reselect your installed Insights shortcut.
+Manually run **Insights**. Enter the same **Secret** and **Web App Id** from step 2, then choose **I'm Finished**. Both templates use these connection settings.
 
 <details>
 <summary>If you installed Update Lockout Cache: prepare Scriptable</summary>
@@ -103,7 +71,7 @@ If an imported **Run Shortcut** action displays Insights but does not run it, op
 2. Run **Insights** setup again after Update Lockout Cache is installed. Its published installer wiring downloads **OpenHabits Runtime** and **lockouts** to Scriptable.
 3. Run **Update Lockout Cache** without input once, with the phone unlocked, and approve its permissions.
 
-For an older Insights copy, use the [manual script installation](guides/ios-lockouts.md#install-and-connect). Follow [app protection](guides/ios-lockouts.md) to activate protection, or [Calendar Alarms integration](guides/calendar-alarms.md) to use reminders and task checks. Installing these shortcuts alone does not protect apps.
+Follow [app protection](guides/ios-lockouts.md) to activate protection, or [Calendar Alarms integration](guides/calendar-alarms.md) to use reminders and task checks. Installing these shortcuts alone does not protect apps.
 
 </details>
 
