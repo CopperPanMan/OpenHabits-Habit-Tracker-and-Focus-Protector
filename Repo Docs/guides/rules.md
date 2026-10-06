@@ -2,6 +2,8 @@
 
 Rules use the same metrics you log. Configure them in the Config Editor's **Blocks** tab, then **Save and Apply**. For iOS, also run **Update Lockout Cache**. Chrome reads the server's rules directly.
 
+Loaded blocks start collapsed, showing the rule, hours, and assigned presets in each header. Open a header to edit the block, or use **Expand All / Collapse All**. Search matches block names, presets, and referenced metric names or IDs. New and duplicated blocks open automatically.
+
 First install [iOS app protection](ios-lockouts.md) or [Chrome website protection](chrome.md).
 
 ## Choose a rule
