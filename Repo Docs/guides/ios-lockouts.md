@@ -82,7 +82,7 @@ Runtime 1.2.0 uses a whole-minute deadline: legitimate access lasts up to 19 min
 <details>
 <summary>Optional: deduct points for a penalty unlock</summary>
 
-Duplicate the logger template as **Log Screen Time Lock Off**, configure a **Done / not done** metric with **Add** and a negative point value (we recommend `-2`), and have the logger send `1`. Choose the cost yourself in the metric’s Points Properties. Locked calls this named logger on a penalty grant; without it, no points are deducted. Runtime notifications omit the cost so they do not misrepresent your configuration.
+Duplicate the logger template as **Log Screen Time Lock Off**, configure a **Done / not done** metric with **Add** and a negative point value (we recommend `-2`), and have the logger send `1`. Choose the cost yourself in the metric’s Points Properties, and set Maximum Streak Multiplier to `1` for a fixed deduction. Locked calls this named logger on a penalty grant; without it, no points are deducted. Runtime notifications omit the cost so they do not misrepresent your configuration.
 
 </details>
 

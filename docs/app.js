@@ -366,6 +366,8 @@
       });
       filterCards(tab);
     }
+    const presetGuide = $('presetCalendarGuide');
+    if (presetGuide) presetGuide.textContent = presetCalendarInstructions();
   }
 
   function button(text, cls, onClick, options = {}) {
@@ -471,7 +473,7 @@
       metricID: '', dataType: 'number', displayName: '', recordType: 'overwrite', timezoneMode: 'floating',
       dates: [],
       streaks: { unit: 'days', streaksID: '' },
-      points: { value: 0, multiplierDays: 5, maxMultiplier: 1, pointsID: '' },
+      points: { value: 0, multiplierDays: 5, maxMultiplier: 1.2, pointsID: '' },
       insights: {
         insightChance: 0, streakProb: 0.8, dayToDayChance: 1, dayToAvgChance: 0.5,
         rawValueChance: 1, increaseGood: 1, firstWords: '', insightUnits: ''
@@ -915,8 +917,8 @@
     pointsGrid.className = 'grid';
     pointsGrid.hidden = !pointsEnabled(metric);
     field(pointsGrid, 'Base Points per Unit / Completion', makeInput({ type: 'number', value: metric.points.value, onChange: v => metric.points.value = v }), 'Points per numeric unit, rounded duration minute, or text/timestamp completion, before the streak multiplier. Negative values deduct points.');
-    field(pointsGrid, 'Days Until Maximum Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.multiplierDays, onChange: v => metric.points.multiplierDays = v }), 'The streak length at which the maximum multiplier is reached.');
-    field(pointsGrid, 'Maximum Streak Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.maxMultiplier, onChange: v => metric.points.maxMultiplier = v }), 'Largest multiplier that a continuing streak can earn.');
+    field(pointsGrid, 'Maximum Streak Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.maxMultiplier, onChange: v => metric.points.maxMultiplier = v }), 'Reward consistency with a small bonus on your base points. A maximum of 1.2 means up to 20% extra: 10 base points can become 12. The bonus grows gradually with your streak before each new recording. Set this to 1 for a constant award or fixed penalty; negative base points produce larger deductions as the multiplier grows. A separate streak row is optional; scoring can calculate the streak from your metric history.');
+    field(pointsGrid, 'Days Until Maximum Multiplier', makeInput({ type: 'number', min: 0, value: metric.points.multiplierDays, onChange: v => metric.points.multiplierDays = v }), 'Choose how quickly the consistency bonus grows. With a maximum of 1.2 and 5 days, each prior streak day adds 4%, reaching 20% after 5 completed streak days; the next recording receives that maximum. Only scheduled days count. A shorter ramp rewards consistency sooner; a longer ramp makes the bonus build more slowly.');
     supportingInputs.points = supportingIdField(pointsGrid, metric, 'points');
     points.appendChild(pointsGrid);
     advanced.appendChild(points);
@@ -1087,6 +1089,11 @@
     return card;
   }
 
+  function presetCalendarInstructions() {
+    const calendarName = state.lockouts.globals.presetCalendarName || 'App Lockout Settings';
+    return `Create a calendar named "${calendarName}" (the default is "App Lockout Settings"). Add presets below, such as workday or weekend, and assign them to your blocks. On that calendar, create one all-day event per day with a title that exactly matches a preset name. That day's event activates the blocks assigned to its preset.`;
+  }
+
   function renderBlocks() {
     const root = $('tab-blocks');
     root.innerHTML = '';
@@ -1094,8 +1101,12 @@
     intro.className = 'notice';
     intro.textContent = 'Blocks are checked from top to bottom. If several rules apply, the first rule that blocks access wins.';
     root.appendChild(intro);
-    const presets = toggleSection('Preset Modes', 'blocks-presets', true, 'Define modes once, then select them on each block. A Shortcut or all-day calendar event can activate a preset.');
-    presets.appendChild(fieldHint('Examples: workday, weekend, or entertainment. Names must match the value supplied by the client or calendar event.'));
+    const presets = toggleSection('Preset Modes', 'blocks-presets', true, 'Presets select which blocks apply on a particular day. Add a name here, assign it to blocks, and use that exact name as an all-day event title on your preset calendar. For example, a workday event activates blocks assigned to workday. Use one all-day preset event per day.');
+    const calendarGuide = fieldHint(presetCalendarInstructions());
+    calendarGuide.id = 'presetCalendarGuide';
+    presets.appendChild(calendarGuide);
+    presets.appendChild(fieldHint('On iOS, a day with no preset has no blocks. If an expected preset is deleted, its rules remain for two minutes from the first detected absence; a later app opening confirms it is still missing and clears it. This discourages impulsive deletions. Switching to another preset takes effect immediately. Use Allowed for a temporary unlock.'));
+    presets.appendChild(fieldHint('For Chrome syncing, use a calendar in Google Calendar or shared with the Google account running your Sheet’s Apps Script, and also add it to Apple Calendar. Use the same calendar name in Preset Calendar Name under Global → Lockouts Globals. Chrome currently applies all blocks when no preset is found; the iOS two-minute deletion delay does not apply to Chrome.'));
     const presetList = document.createElement('div');
     presetList.className = 'chip-list';
     state.lockouts.presets.forEach((preset, pi) => {
@@ -1195,6 +1206,9 @@
         delete m.type;
       }
       const normalized = { ...newMetric(), ...m, streaks: { ...newMetric().streaks, ...(m.streaks || {}) }, points: { ...newMetric().points, ...(m.points || {}) }, insights: { ...newMetric().insights, ...(m.insights || {}) }, timestampSettings: { ...newMetric().timestampSettings, ...(m.timestampSettings || {}) } };
+      // Existing scoring with an omitted multiplier historically meant a
+      // constant award. Apply the new bonus default only to unconfigured points.
+      if (m.points && pointsEnabled(m) && m.points.maxMultiplier === undefined) normalized.points.maxMultiplier = 1;
       normalized.dates = normalized.dates.map(entry => {
         const rule = typeof entry === 'string' ? [entry, ''] : entry.slice();
         rule[0] = DAYS.find(day => day.toLowerCase() === String(rule[0]).toLowerCase()) || rule[0];

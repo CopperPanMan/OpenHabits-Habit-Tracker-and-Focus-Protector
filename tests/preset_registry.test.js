@@ -171,7 +171,7 @@ test('ambiguous calendars, invalid registries, and conflicting all-day events re
   await assert.rejects(() => run('app_open', s, now, calendar()), /Invalid presetRegistry/);
   const api = vm.createContext({ Date, Calendar: { forEvents: async () => [] } });
   vm.runInContext(source.replace(/await main\(\);\s*$/, ''), api);
-  await assert.rejects(() => api.readPresetEvents('App Lockout Settings', day(), day(1)), /one readable calendar/);
+  await assert.rejects(() => api.readPresetEvents('App Lockout Settings', day(), day(1)), /No calendar named 'App Lockout Settings'/);
 });
 
 // Exercise the real async entry point, not only command helpers.
@@ -190,4 +190,25 @@ test('Scriptable entry point persists the forecast and returns a managed evaluat
   assert.equal(output.presetPolicy, 'openhabits_preset_registry_v1');
   assert.equal(completed, true);
   assert.equal(s.files['presetRegistry.json'].schemaVersion, 'openhabits_preset_registry_v1');
+});
+
+test('calendar setup errors give distinct missing, duplicate, and access instructions', async () => {
+  const read = async (calendars, between = async () => []) => {
+    const api = vm.createContext({ Date, Calendar: { forEvents: calendars }, CalendarEvent: { between } });
+    vm.runInContext(source.replace(/await main\(\);\s*$/, ''), api);
+    return api.readPresetEvents('My Modes', day(), day(1));
+  };
+  await assert.rejects(() => read(async () => []), error => {
+    assert.match(error.message, /No calendar named 'My Modes'/);
+    assert.match(error.message, /Create it in Calendar/);
+    assert.match(error.message, /all-day events, one per day/);
+    assert.match(error.message, /allow Scriptable access/);
+    return true;
+  });
+  await assert.rejects(() => read(async () => [{ title: 'My Modes' }, { title: 'My Modes' }]), /More than one calendar.*Rename the extra/);
+  await assert.rejects(() => read(async () => { throw new Error('denied'); }), /could not read your calendars.*calendar access for Scriptable in Settings/);
+  await assert.rejects(() => read(async () => [{ title: 'My Modes' }], async () => { throw new Error('events denied'); }), /could not read your calendars/);
+  let queried;
+  await read(async () => [{ title: 'Other' }, { title: 'My Modes' }], async (start, end, calendars) => { queried = calendars; return []; });
+  assert.deepEqual(queried, [{ title: 'My Modes' }]);
 });

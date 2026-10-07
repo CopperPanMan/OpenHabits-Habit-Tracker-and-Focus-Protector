@@ -178,3 +178,39 @@ test('generated rows keep measurements separate and score repeated replacements 
   assert.equal(fixture.get('daily'), 9);
   assert.equal(fixture.get('cumulative'), 9);
 });
+
+test('new points use a 20% bonus default while imported scoring retains its configured multiplier', () => {
+  const editor = loadEditor();
+  const metric = editor.metricFromRecipe('completion');
+  editor.setFeatureEnabled(metric, 'points', true);
+  assert.equal(metric.points.maxMultiplier, 1.2);
+  assert.equal(metric.points.multiplierDays, 5);
+  for (const maxMultiplier of [0, 1, 1.5, 2]) {
+    editor.setState({ metricSettings: [{ metricID: 'existing', points: { value: 0, maxMultiplier } }] });
+    const existing = editor.getState().metricSettings[0];
+    editor.setFeatureEnabled(existing, 'points', true);
+    assert.equal(existing.points.maxMultiplier, maxMultiplier);
+    editor.setFeatureEnabled(existing, 'points', false);
+    editor.setFeatureEnabled(existing, 'points', true);
+    assert.equal(existing.points.maxMultiplier, maxMultiplier);
+  }
+  const imported = editor.ensureShape({ metricSettings: [
+    { metricID: 'old_scoring', points: { value: 2 } },
+    { metricID: 'not_configured' }
+  ] });
+  assert.equal(imported.metricSettings[0].points.maxMultiplier, 1);
+  editor.setFeatureEnabled(imported.metricSettings[1], 'points', true);
+  assert.equal(imported.metricSettings[1].points.maxMultiplier, 1.2);
+});
+
+test('the new bonus reaches 20% after five prior streak days without requiring a separate streak row', () => {
+  const editor = loadEditor();
+  const metric = editor.metricFromRecipe('number_replace');
+  editor.setFeatureEnabled(metric, 'points', true);
+  const fixture = createFixture({ metrics: [JSON.parse(JSON.stringify(metric))], days: 5,
+    history: (id, daysBack) => daysBack > 0 ? 1 : '' });
+  const response = fixture.post([[metric.metricID, 10]]);
+  assert.equal(response.pointsDelta, 12);
+  assert.equal(response.metricsByID[0].multiplier, 1.2);
+  assert.equal(metric.streaks.streaksID, '');
+});
