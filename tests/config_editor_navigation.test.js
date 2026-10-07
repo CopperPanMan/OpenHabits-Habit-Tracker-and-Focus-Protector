@@ -67,7 +67,32 @@ test('validation diagnostics target the supporting ID, exact date, exact task re
   assert.equal(find('date 2').field, 'Due By (HH:MM)');
   assert.equal(find('"missing"').occurrence, 1);
   assert.equal(find('"missing"').field, 'Required Metric ID');
-  assert.equal(find('cacheTimezoneMode').tab, 'global');
+  assert.equal(find('cacheTimezoneMode').tab, 'blocks');
   assert.equal(find('cacheTimezoneMode').field, 'Cache Timezone Mode');
   assert.deepEqual(Array.from(editor.validateState()), issues.map(issue => issue.message));
+});
+
+
+test('drag ordering preserves identities and is one undoable move in either list', () => {
+  for (const tab of ['metrics', 'blocks']) {
+    const editor = loadEditor(); editor.setState(config());
+    const items = () => tab === 'metrics' ? editor.getState().metricSettings : editor.getState().lockouts.blocks;
+    const first = editor.itemUiKey(items()[0]), second = editor.itemUiKey(items()[1]);
+    assert.equal(editor.reorderItems(items(), first, second, false), false);
+    assert.equal(editor.reorderItems(items(), first, 'missing', true), false);
+    editor.withHistory(() => assert.equal(editor.reorderItems(items(), first, second, true), true));
+    assert.equal(editor.itemUiKey(items()[1]), first);
+    editor.undo(); assert.equal(editor.itemUiKey(items()[0]), first);
+    editor.redo(); assert.equal(editor.itemUiKey(items()[1]), first);
+  }
+});
+
+test('new configs omit retired globals while imports retain legacy compatibility and per-block IDs', () => {
+  const editor = loadEditor(); editor.setState(config());
+  assert.equal('timeOpenedID' in editor.getState().lockouts.globals, false);
+  assert.equal('cumulativeScreentimeID' in editor.getState().lockouts.globals, false);
+  const raw = config(); raw.lockouts.globals = { timeOpenedID: 'old_opened', cumulativeScreentimeID: 'old_total' };
+  editor.setState(raw);
+  assert.equal(editor.getState().lockouts.globals.cumulativeScreentimeID, 'old_total');
+  assert.equal(editor.getState().lockouts.blocks[1].typeSpecific.duration.screenTimeID, 'focus');
 });

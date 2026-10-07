@@ -4,7 +4,7 @@
 
 ## Performance feedback when logging
 
-Enable **Insights** for a metric in the Config Editor. Choose whether higher or lower values are better and which kinds of feedback you want: comparisons with previous days, recent averages, raw values, or streaks. Global settings control the comparison dates, average span, and positive/negative performance frequency.
+Enable **Insights** for a metric in the Config Editor. Choose whether higher or lower values are better and which kinds of feedback you want: comparisons with previous days, recent averages, raw values, or streaks. **Metrics → Metric Settings → Insight Defaults** controls the comparison dates, average span, and positive/negative performance frequency.
 
 Probabilities control how often feedback is selected; an insight is not guaranteed on every recording. Comparisons also need suitable history. Text metrics do not support numeric performance comparisons.
 

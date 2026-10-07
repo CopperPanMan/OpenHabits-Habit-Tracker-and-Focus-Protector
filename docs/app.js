@@ -55,7 +55,7 @@
       },
       metricSettings: [],
       lockouts: {
-        globals: { cumulativeScreentimeID: 'cumulative_app_opened', timeOpenedID: 'timeOpenedID', barLength: 20, presetCalendarName: 'App Lockout Settings', defaultBlockTimezoneMode: 'fixed', cacheTimezoneMode: 'script' },
+        globals: { barLength: 20, presetCalendarName: 'App Lockout Settings', defaultBlockTimezoneMode: 'fixed', cacheTimezoneMode: 'script' },
         presets: [],
         blocks: []
       }
@@ -99,7 +99,6 @@
   const $ = (id) => document.getElementById(id);
   const tabs = document.querySelectorAll('.tab');
   const TAB_EXPLAINERS = {
-    global: 'Settings that apply to everything',
     metrics: 'Metrics are individual pieces of data being logged',
     blocks: 'Blocks are individual criteria that prevent access to an app or website'
   };
@@ -327,6 +326,121 @@
     return empty;
   }
 
+  // Only handles capture pointers; normal text selection and card disclosure stay native.
+  let cancelDrag = null;
+
+  function reorderItems(items, sourceKey, targetKey, after) {
+    const from = items.findIndex(item => itemUiKey(item) === sourceKey);
+    const target = items.findIndex(item => itemUiKey(item) === targetKey);
+    if (from < 0 || target < 0 || from === target) return false;
+    const destination = target + (after ? 1 : 0) - (from < target ? 1 : 0);
+    if (destination === from) return false;
+    const [item] = items.splice(from, 1);
+    items.splice(destination, 0, item);
+    return true;
+  }
+
+  function dragHandle(card, item, tab, name) {
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'drag-handle secondary';
+    handle.textContent = '⠿';
+    handle.setAttribute('aria-label', `Drag to reorder ${name}`);
+    handle.title = 'Drag to reorder. You can also use the up and down buttons.';
+    handle.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });
+    handle.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); });
+    handle.addEventListener('pointerdown', event => {
+      if (!event.isPrimary || event.button !== 0) return;
+      if (cancelDrag) cancelDrag();
+      event.preventDefault();
+      event.stopPropagation();
+      handle.focus({ preventScroll: true });
+      const root = $(`tab-${tab}`);
+      const sourceKey = itemUiKey(item);
+      const currentName = (tab === 'metrics' ? item.displayName : item.name) || name;
+      const startY = event.clientY, startX = event.clientX;
+      let x = startX, y = startY, dragging = false, drop = null, frame = null;
+      const cards = [...root.querySelectorAll('.editor-card')].filter(candidate => !candidate.hidden);
+      const clearMarks = () => cards.forEach(candidate => candidate.classList.remove('drop-before', 'drop-after'));
+      const updateDrop = () => {
+        clearMarks();
+        drop = null;
+        const bounds = root.getBoundingClientRect();
+        if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return;
+        const ownHeader = card.firstElementChild.getBoundingClientRect();
+        if (y >= ownHeader.top && y <= ownHeader.bottom) return;
+        const others = cards.filter(candidate => candidate !== card);
+        const target = others.find(candidate => {
+          const rect = candidate.firstElementChild.getBoundingClientRect();
+          return y < rect.top + rect.height / 2;
+        }) || others[others.length - 1];
+        if (!target) return;
+        const rect = target.firstElementChild.getBoundingClientRect();
+        const after = y >= rect.top + rect.height / 2;
+        drop = { key: target.dataset.itemKey, after };
+        target.classList.add(after ? 'drop-after' : 'drop-before');
+      };
+      const animate = () => {
+        if (dragging) {
+          const edge = 65;
+          const delta = y < edge ? -Math.min(16, (edge - y) / 4) : y > innerHeight - edge ? Math.min(16, (y - innerHeight + edge) / 4) : 0;
+          if (delta) window.scrollBy(0, delta);
+          updateDrop();
+        }
+        frame = requestAnimationFrame(animate);
+      };
+      const movePointer = next => {
+        if (next.pointerId !== event.pointerId) return;
+        x = next.clientX; y = next.clientY;
+        if (!dragging && Math.hypot(x - startX, y - startY) >= 6) {
+          dragging = true;
+          card.classList.add('drag-source');
+        }
+        if (dragging) updateDrop();
+      };
+      const finish = (commit, next) => {
+        if (next && next.pointerId !== event.pointerId) return;
+        if (commit && next) { x = next.clientX; y = next.clientY; updateDrop(); }
+        const destination = dragging && commit ? drop : null;
+        cancelDrag = null;
+        cancelAnimationFrame(frame);
+        clearMarks();
+        card.classList.remove('drag-source');
+        handle.removeEventListener('pointermove', movePointer);
+        handle.removeEventListener('pointerup', up);
+        handle.removeEventListener('pointercancel', cancelled);
+        handle.removeEventListener('lostpointercapture', cancelled);
+        document.removeEventListener('keydown', escape);
+        if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+        if (!destination) return;
+        let changed = false;
+        withHistory(() => {
+          const items = tab === 'metrics' ? state.metricSettings : state.lockouts.blocks;
+          changed = reorderItems(items, sourceKey, destination.key, destination.after);
+          if (changed) renderAll();
+        });
+        if (changed) {
+          const moved = [...$(`tab-${tab}`).querySelectorAll('.editor-card')].find(candidate => candidate.dataset.itemKey === sourceKey);
+          moved.querySelector('.drag-handle').focus({ preventScroll: true });
+          const items = tab === 'metrics' ? state.metricSettings : state.lockouts.blocks;
+          $('reorderStatus').textContent = `${currentName} moved to position ${items.findIndex(value => itemUiKey(value) === sourceKey) + 1} of ${items.length}.`;
+        }
+      };
+      const up = next => finish(true, next);
+      const cancelled = next => finish(false, next);
+      const escape = next => { if (next.key === 'Escape') { next.preventDefault(); finish(false); } };
+      cancelDrag = () => finish(false);
+      handle.addEventListener('pointermove', movePointer);
+      handle.addEventListener('pointerup', up);
+      handle.addEventListener('pointercancel', cancelled);
+      handle.addEventListener('lostpointercapture', cancelled);
+      document.addEventListener('keydown', escape);
+      handle.setPointerCapture(event.pointerId);
+      frame = requestAnimationFrame(animate);
+    });
+    return handle;
+  }
+
   function cardHeader(card, item, tab, name, summaryText, controls) {
     const header = card.firstElementChild;
     header.className = 'card-head';
@@ -344,7 +458,7 @@
     // Buttons in a native summary must not invoke its disclosure action.
     controls.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });
     controls.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); });
-    header.append(text, controls);
+    header.append(dragHandle(card, item, tab, name), text, controls);
     card.dataset.itemKey = itemUiKey(item);
     card.dataset.tab = tab;
   }
@@ -358,6 +472,7 @@
         const item = items[index];
         if (!item || itemUiKey(item) !== card.dataset.itemKey) return;
         card.querySelector('[data-card-name]').textContent = (tab === 'metrics' ? item.displayName : item.name) || (tab === 'metrics' ? 'Unnamed Metric' : 'Unnamed Block');
+        card.querySelector('.drag-handle').setAttribute('aria-label', `Drag to reorder ${card.querySelector('[data-card-name]').textContent}`);
         card.querySelector('[data-card-description]').textContent = tab === 'metrics' ? metricCardSummary(item) : blockCardSummary(item);
       });
       if (tab === 'metrics') root.querySelectorAll('.metric-navigator a').forEach((link, index) => {
@@ -691,20 +806,23 @@
     renderAll();
   }
 
-  function renderGlobal() {
-    const root = $('tab-global');
-    root.innerHTML = '';
+  function renderMetricSettings() {
+    const root = toggleSection('Metric Settings', 'metric-settings', false, 'Defaults for logging, Sheet layout, insights, and optional integrations. Most setups can keep these unchanged.');
 
-    const basic = toggleSection('Basic Global Settings', 'global-basic');
+    const basic = toggleSection('Logging and Points Totals', 'metric-logging');
     const basicGrid = document.createElement('div');
     basicGrid.className = 'grid';
-    field(basicGrid, 'Spreadsheet ID Property Name', makeInput({ value: state.scriptProperties.spreadsheetId, onChange: v => state.scriptProperties.spreadsheetId = v }), HELP.spreadsheetId);
     field(basicGrid, 'Tracking Sheet Name', makeInput({ value: state.trackingSheetName, onChange: v => state.trackingSheetName = v, required: true }), HELP.trackingSheetName);
     field(basicGrid, 'Daily Points Metric ID', makeInput({ value: state.dailyPointsID, onChange: v => state.dailyPointsID = v }), 'Metric ID row for daily points total.');
     field(basicGrid, 'Cumulative Points Metric ID', makeInput({ value: state.cumulativePointsID, onChange: v => state.cumulativePointsID = v }), 'Metric ID row for all-time points total.');
     field(basicGrid, 'Late Extension Hours', makeInput({ type: 'number', min: 0, value: state.lateExtensionHours, onChange: v => state.lateExtensionHours = v }), 'Hours after midnight still accepted for previous day due-by checks.');
     basic.appendChild(basicGrid);
     root.appendChild(basic);
+
+    const standalone = toggleSection('Advanced / Standalone Deployment', 'metric-standalone', false);
+    standalone.appendChild(fieldHint('For an Apps Script project hosted separately from your Sheet. The usual Sheet-bound setup needs no spreadsheet ID property. The Sheet menu and setup panel require a bound project.'));
+    field(standalone, 'Spreadsheet ID Property Name', makeInput({ value: state.scriptProperties.spreadsheetId, onChange: v => state.scriptProperties.spreadsheetId = v }), HELP.spreadsheetId);
+    root.appendChild(standalone);
 
     const notionSec = toggleSection('Optional Notion Integration Settings', 'global-notion', false);
     const notionGrid = document.createElement('div');
@@ -735,13 +853,13 @@
     const sheetSec = toggleSection('Sheet Columns', 'global-sheet');
     const sheetGrid = document.createElement('div');
     sheetGrid.className = 'grid';
-    field(sheetGrid, 'Task ID Column', makeInput({ type: 'number', min: 1, value: state.sheetConfig.taskIdColumn, onChange: v => state.sheetConfig.taskIdColumn = v }), '1-indexed column for task ID.');
+    field(sheetGrid, 'Metric ID Column', makeInput({ type: 'number', min: 1, value: state.sheetConfig.taskIdColumn, onChange: v => state.sheetConfig.taskIdColumn = v }), '1-indexed column containing metric IDs. Usually column A (1).');
     field(sheetGrid, 'Label Column', makeInput({ type: 'number', min: 1, value: state.sheetConfig.labelColumn, onChange: v => state.sheetConfig.labelColumn = v }), '1-indexed column for label.');
     field(sheetGrid, 'Data Start Column', makeInput({ type: 'number', min: 1, value: state.sheetConfig.dataStartColumn, onChange: v => state.sheetConfig.dataStartColumn = v }), '1-indexed starting column for metric data.');
     sheetSec.appendChild(sheetGrid);
     root.appendChild(sheetSec);
 
-    const insightSec = toggleSection('Insights Globals', 'global-insights');
+    const insightSec = toggleSection('Insight Defaults', 'metric-insights');
     const insightGrid = document.createElement('div');
     insightGrid.className = 'grid';
     field(insightGrid, 'Positive Performance Frequency', makeInput({ type: 'number', min: 0, max: 1, step: '0.01', value: state.habitsV2Insights.posPerformanceFreq, onChange: v => state.habitsV2Insights.posPerformanceFreq = v }), 'Chance for positive insight style. 0 to 1.');
@@ -774,17 +892,19 @@
     insightSec.appendChild(compareToggle);
     root.appendChild(insightSec);
 
-    const lockouts = toggleSection('Lockouts Globals', 'global-lockouts');
+    return root;
+  }
+
+  function renderBlockSettings() {
+    const lockouts = toggleSection('Advanced Block Settings', 'block-settings', false, 'Display and timezone defaults, and an optional custom preset calendar. Most setups can keep these unchanged.');
     const lockGrid = document.createElement('div');
     lockGrid.className = 'grid';
-    field(lockGrid, 'Cumulative Screentime Metric ID', makeInput({ value: state.lockouts.globals.cumulativeScreentimeID, onChange: v => state.lockouts.globals.cumulativeScreentimeID = v }), 'Metric ID used for global cumulative screentime.');
-    field(lockGrid, 'Time Opened Metric ID', makeInput({ value: state.lockouts.globals.timeOpenedID, onChange: v => state.lockouts.globals.timeOpenedID = v }), 'Metric ID used by clients for app-open timestamp tracking.');
     field(lockGrid, 'Bar Length', makeInput({ type: 'number', min: 1, value: state.lockouts.globals.barLength, onChange: v => state.lockouts.globals.barLength = v }), 'Character length used for on-block screentime bar token.');
-    field(lockGrid, 'Preset Calendar Name', makeInput({ value: state.lockouts.globals.presetCalendarName, onChange: v => state.lockouts.globals.presetCalendarName = v }), 'Calendar name used to detect active lockout preset.');
+    field(lockGrid, 'Preset Calendar Name', makeInput({ value: state.lockouts.globals.presetCalendarName, onChange: v => state.lockouts.globals.presetCalendarName = v }), 'Keep App Lockout Settings for the standard setup. Runtime and Chrome read this custom name, but Locked’s native unlock-expiry event action still writes to App Lockout Settings. Keep that default calendar for expiry events, or also edit the calendar in Locked’s event-creation action when replacing it.');
     field(lockGrid, 'Default Block Timezone Mode', makeSelect(['fixed', 'floating'], state.lockouts.globals.defaultBlockTimezoneMode, v => state.lockouts.globals.defaultBlockTimezoneMode = v), HELP.defaultBlockTimezoneMode);
     field(lockGrid, 'Cache Timezone Mode', makeSelect(['script', 'client'], state.lockouts.globals.cacheTimezoneMode, v => state.lockouts.globals.cacheTimezoneMode = v), HELP.cacheTimezoneMode);
     lockouts.appendChild(lockGrid);
-    root.appendChild(lockouts);
+    return lockouts;
   }
 
   function renderMetric(metric, i) {
@@ -950,6 +1070,7 @@
   function renderMetrics() {
     const root = $('tab-metrics');
     root.innerHTML = '';
+    root.appendChild(renderMetricSettings());
     root.appendChild(listTools('metrics'));
     const nav = document.createElement('nav'); nav.className = 'metric-navigator'; nav.setAttribute('aria-label', 'Metric navigator');
     state.metricSettings.forEach((m, i) => { const link = document.createElement('a'); link.href = `#metric-card-${i}`; link.textContent = `${m.displayName || 'Unnamed'} · ${m.metricID || 'missing ID'} · ${m.dataType}`; link.addEventListener('click', event => { event.preventDefault(); revealTarget({ tab: 'metrics', itemKey: itemUiKey(m) }); }); nav.appendChild(link); });
@@ -1042,11 +1163,11 @@
     const typeSec = toggleSection('Type-Specific Properties', `${key}-type-specific`);
     if (block.type === 'duration_block') {
       const d = document.createElement('div'); d.className = 'grid';
-      field(d, 'Max Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.maxMinutes, onChange: v => block.typeSpecific.duration.maxMinutes = v }), 'Max minutes allowed before block message/shortcut.');
+      field(d, 'Max Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.maxMinutes, onChange: v => block.typeSpecific.duration.maxMinutes = v }), 'Hard cap on this block’s screen-time allowance. The block enforces it only during its active time window. Rationing releases the allowance gradually, but never raises this cap.');
       field(d, 'Screen Time Metric ID', metricReferenceSelect(block.typeSpecific.duration.screenTimeID, v => block.typeSpecific.duration.screenTimeID = v), 'Metric used to read accumulated screen time.');
-      field(d, 'Rationing On', makeCheck(block.typeSpecific.duration.rationing.isON, v => block.typeSpecific.duration.rationing.isON = v), 'Enable gradual quota between beginning and end minutes.');
-      field(d, 'Rationing Begin Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.rationing.begMinutes, onChange: v => block.typeSpecific.duration.rationing.begMinutes = v }), 'Initial allowance minutes.');
-      field(d, 'Rationing End Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.rationing.endMinutes, onChange: v => block.typeSpecific.duration.rationing.endMinutes = v }), 'Ending allowance minutes.');
+      field(d, 'Rationing On', makeCheck(block.typeSpecific.duration.rationing.isON, v => block.typeSpecific.duration.rationing.isON = v), 'Gradually release a cumulative screen-time allowance from Begin Minutes to End Minutes across the block’s Begin Time and End Time. Access blocks when recorded use reaches the allowance available now, capped at Max Minutes.');
+      field(d, 'Rationing Begin Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.rationing.begMinutes, onChange: v => block.typeSpecific.duration.rationing.begMinutes = v }), 'Screen-time minutes available immediately at Begin Time. This is an allowance, not a time of day. The allowance then grows toward End Minutes, capped at Max Minutes.');
+      field(d, 'Rationing End Minutes', makeInput({ type: 'number', min: 0, value: block.typeSpecific.duration.rationing.endMinutes, onChange: v => block.typeSpecific.duration.rationing.endMinutes = v }), 'Target allowance at End Time. Set this higher than Max Minutes to release the full cap earlier. Example: 09:00–17:00, Max 60, Begin 0, End 120 releases all 60 minutes by 13:00. The hard cap remains 60.');
       typeSec.appendChild(d);
     }
     if (block.type === 'task_block') {
@@ -1106,7 +1227,7 @@
     calendarGuide.id = 'presetCalendarGuide';
     presets.appendChild(calendarGuide);
     presets.appendChild(fieldHint('On iOS, a day with no preset has no blocks. If an expected preset is deleted, its rules remain for two minutes from the first detected absence; a later app opening confirms it is still missing and clears it. This discourages impulsive deletions. Switching to another preset takes effect immediately. Use Allowed for a temporary unlock.'));
-    presets.appendChild(fieldHint('For Chrome syncing, use a calendar in Google Calendar or shared with the Google account running your Sheet’s Apps Script, and also add it to Apple Calendar. Use the same calendar name in Preset Calendar Name under Global → Lockouts Globals. Chrome currently applies all blocks when no preset is found; the iOS two-minute deletion delay does not apply to Chrome.'));
+    presets.appendChild(fieldHint('For Chrome syncing, use a calendar in Google Calendar or shared with the Google account running your Sheet’s Apps Script, and also add it to Apple Calendar. Use the same calendar name in Preset Calendar Name under Blocks → Advanced Block Settings. Chrome currently applies all blocks when no preset is found; the iOS two-minute deletion delay does not apply to Chrome.'));
     const presetList = document.createElement('div');
     presetList.className = 'chip-list';
     state.lockouts.presets.forEach((preset, pi) => {
@@ -1131,6 +1252,7 @@
     }));
     presets.appendChild(presetRow);
     root.appendChild(presets);
+    root.appendChild(renderBlockSettings());
     if (!state.lockouts.blocks.length) {
       const empty = document.createElement('p');
       empty.className = 'empty-state';
@@ -1267,9 +1389,8 @@
     });
     const globals = (config.lockouts || {}).globals || {};
     reserve(globals.cumulativeScreentimeID, 'Cumulative Screen Time ID');
-    reserve(globals.timeOpenedID, 'Time Opened ID');
-    add(config.dailyPointsID, 'Daily Points ID', validationTarget('global', null, 'Daily Points Metric ID'));
-    add(config.cumulativePointsID, 'Cumulative Points ID', validationTarget('global', null, 'Cumulative Points Metric ID'));
+    add(config.dailyPointsID, 'Daily Points ID', validationTarget('metrics', null, 'Daily Points Metric ID'));
+    add(config.cumulativePointsID, 'Cumulative Points ID', validationTarget('metrics', null, 'Cumulative Points Metric ID'));
     metrics.forEach(metric => {
       if (!metric) return;
       const points = metric.points || {};
@@ -1313,8 +1434,8 @@
         });
       });
     });
-    if (!['fixed', 'floating'].includes(state.lockouts.globals.defaultBlockTimezoneMode)) fail('Lockouts defaultBlockTimezoneMode must be fixed or floating.', validationTarget('global', null, 'Default Block Timezone Mode'));
-    if (!['script', 'client'].includes(state.lockouts.globals.cacheTimezoneMode)) fail('Lockouts cacheTimezoneMode must be script or client.', validationTarget('global', null, 'Cache Timezone Mode'));
+    if (!['fixed', 'floating'].includes(state.lockouts.globals.defaultBlockTimezoneMode)) fail('Lockouts defaultBlockTimezoneMode must be fixed or floating.', validationTarget('blocks', null, 'Default Block Timezone Mode'));
+    if (!['script', 'client'].includes(state.lockouts.globals.cacheTimezoneMode)) fail('Lockouts cacheTimezoneMode must be script or client.', validationTarget('blocks', null, 'Cache Timezone Mode'));
     const blockIds = state.lockouts.blocks.map(block => block.id).filter(Boolean);
     const duplicateBlockIds = blockIds.filter((id, index) => blockIds.indexOf(id) !== index);
     if (duplicateBlockIds.length) {
@@ -1350,7 +1471,7 @@
     if (tabButton) tabButton.click();
     const root = $(`tab-${tab}`);
     if (!root) return;
-    if (tab !== 'global') {
+    if (target.itemKey) {
       searchQueries[tab] = '';
       const search = $(`${tab}Search`);
       if (search) search.value = '';
@@ -1417,7 +1538,7 @@
   }
 
   function renderAll() {
-    renderGlobal();
+    if (cancelDrag) cancelDrag();
     renderMetrics();
     renderBlocks();
     if (validationShown) showValidationErrors(collectValidationIssues());
@@ -1553,6 +1674,6 @@
   });
 
   renderAll();
-  setTabExplainer('global');
+  setTabExplainer('metrics');
   updateUndoRedoButtons();
 })();

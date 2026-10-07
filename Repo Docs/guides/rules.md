@@ -26,13 +26,15 @@ A timestamp rule needs a valid timestamp for the tracking day. If none exists, t
 
 The beginning is inclusive and the end is exclusive. A window crossing midnight, such as `22:00`–`07:00`, works overnight. Equal beginning/end times mean a full day.
 
-Rules are evaluated in their listed order. The first rule that actually blocks supplies the message and optional shortcut action. If you want an action when blocked, choose its Shortcut name/input in the rule; Chrome displays the block but cannot run an iOS shortcut.
+Rearrange blocks with the header grab handles or up/down arrows. Rules are evaluated in their listed order. The first rule that actually blocks supplies the message and optional shortcut action. If you want an action when blocked, choose its Shortcut name/input in the rule; Chrome displays the block but cannot run an iOS shortcut.
 
 Fixed timezones use the configured/script timezone; floating rules use the client's offset. See [Timezone settings](maintenance.md#timezone-settings) when you travel or mix clients.
 
 ## Rationing
 
 For a duration block, enable **Rationing** and choose the allowance at the beginning and end of its window. For example, within `09:00`–`21:00`, an allowance growing from `0` to `120` minutes releases about ten minutes per hour. Also set max minutes to `120` to cap the day's allowance. Access blocks when used minutes reach the allowance available now.
+
+**Max Minutes** is the hard cap. **Rationing Begin Minutes** is the allowance already available at Begin Time. **Rationing End Minutes** is the target the allowance grows toward by End Time; it can exceed Max Minutes to release the full cap earlier. For example, a `09:00`–`17:00` window with Max `60`, Begin `0`, and End `120` releases all `60` minutes by `13:00`. The limit stays `60`; the higher endpoint changes how quickly those minutes become available.
 
 Use a message such as `{usedHuman} used; allowance now {allowedNowHuman}.` The editor supports tokens for used, available, maximum, remaining, end time, and the screen-time bar; the [server reference](../lockouts-server.md#message-and-tokens) lists their exact names.
 
@@ -42,7 +44,7 @@ A **preset** is a label on blocks, not a separate copy of your metrics. For exam
 
 On iOS, create an all-day event in **App Lockout Settings** titled exactly `workday` or `weekend`. Locked and OpenHabits Runtime use that title as the day’s preset. Set **Preset Calendar Name** to match the calendar if you use another name. Use one matching all-day event per day.
 
-For Chrome, set the global **Preset Calendar Name** to a Google Calendar the Apps Script account can read. Create today's all-day event with the preset title there. If you want both devices to use it, make that Google Calendar available in Apple Calendar and use that same name in **Preset Calendar Name**; Runtime 1.2.0 reads the configured calendar without changes to Locked’s actions. The Chrome options page has no separate preset selector.
+For Chrome, set **Blocks → Advanced Block Settings → Preset Calendar Name** to a Google Calendar the Apps Script account can read. Create today's all-day event with the preset title there. If you want both devices to use it, make that Google Calendar available in Apple Calendar and use that same name in **Preset Calendar Name**; Runtime reads the configured preset calendar automatically. Locked’s native calendar-event action still creates temporary-unlock expiry events in **App Lockout Settings**. Keep that default calendar for expiry events, or edit that action’s calendar too if replacing it. Changing Preset Calendar Name alone does not move expiry events. The Chrome options page has no separate preset selector.
 
 With a selected preset, only its assigned blocks are eligible. In the editor, use **Assign Presets to this Block**. Blocks with no assignment are excluded while a preset is active.
 

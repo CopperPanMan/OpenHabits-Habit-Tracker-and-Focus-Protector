@@ -287,3 +287,31 @@ test('config_snapshot includes reminder state for every snapshot metric and pres
   assert.deepEqual(Array.from(snapshot.metricIDGroups.globalMetricIDs), ['screen_total']);
   assert.deepEqual(Array.from(snapshot.warnings), []);
 });
+
+test('per-block screen-time metric needs no global IDs and a higher rationing endpoint releases the cap early', async () => {
+  const server = loadAppsScript();
+  const client = vm.createContext({ Date, Intl });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'lockouts.js'), 'utf8').replace(/await main\(\);\s*$/, ''), client);
+  const block = {
+    id: 'limit', name: 'Limit', type: 'duration_block', presets: ['workday'],
+    times: { beg: '09:00', end: '17:00' },
+    typeSpecific: { duration: { screenTimeID: 'screen_time', maxMinutes: 60,
+      rationing: { isON: true, begMinutes: 0, endMinutes: 120 } } },
+    onBlock: { message: '{allowedNowHuman} available', shortcutName: '', shortcutInput: '' }
+  };
+  for (const [hour, used, expectedAllowance, status] of [
+    [11, 30, 30, 'blocked'], [13, 30, 60, 'allowed'], [13, 60, 60, 'blocked'], [16, 60, 60, 'blocked']
+  ]) {
+    const now = new Date(`2026-10-07T${hour}:00:00Z`);
+    const value = used === 30 ? '00:30:00' : '01:00:00';
+    const serverResult = server.lockouts_evaluateDurationBlock_(now, block, { todayValuesByMetricID: { screen_time: value } }, 'GMT');
+    assert.equal(serverResult.uiComputedFields.allowedNowMinutes, expectedAllowance);
+    assert.equal(serverResult.shouldBlock, status === 'blocked');
+    const result = await client.lockoutsEvaluateNow({ now: now.toISOString(), presetOverride: 'workday', cache: {
+      schemaVersion: 'lockouts_cache_v1', timezone: 'GMT', config: { globals: { barLength: 20 }, blocks: [block] },
+      metricState: { allByID: { screen_time: { value } } }
+    } });
+    assert.equal(result.status, status);
+    assert.deepEqual(Array.from(result.debug.errors), []);
+  }
+});

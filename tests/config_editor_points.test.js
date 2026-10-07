@@ -132,7 +132,6 @@ test('editor and Sheet validation reject colliding and invalid storage IDs consi
     config => { config.metricSettings[0].streaks.streaksID = 'water_points'; },
     config => { config.metricSettings[0].points.pointsID = 'daily'; },
     config => { config.metricSettings[0].points.pointsID = 'all'; },
-    config => { config.metricSettings[0].points.pointsID = 'opened'; },
     config => { config.metricSettings[0].streaks.streaksID = 'screen_all'; },
     config => { config.dailyPointsID = 'water'; },
     config => { config.cumulativePointsID = 'daily'; },

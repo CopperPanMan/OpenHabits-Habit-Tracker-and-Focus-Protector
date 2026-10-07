@@ -88,7 +88,6 @@ function openHabitsValidateStorageIds_(config) {
   });
   var globals = (config.lockouts || {}).globals || {};
   reserve(globals.cumulativeScreentimeID, 'Cumulative Screen Time ID');
-  reserve(globals.timeOpenedID, 'Time Opened ID');
   add(config.dailyPointsID, 'Daily Points ID');
   add(config.cumulativePointsID, 'Cumulative Points ID');
   metrics.forEach(function (metric) {
@@ -118,7 +117,6 @@ function openHabitsCollectRequiredRows_(config) {
   add(config.cumulativePointsID, 'Points all time');
   var lockouts = config.lockouts || {};
   add(lockouts.globals && lockouts.globals.cumulativeScreentimeID, 'Cumulative screen time');
-  add(lockouts.globals && lockouts.globals.timeOpenedID, 'Time opened');
   (Array.isArray(lockouts.blocks) ? lockouts.blocks : []).forEach(function (block) {
     var specific = block.typeSpecific || {};
     add(specific.duration && specific.duration.screenTimeID, (block.id || 'Lockout') + ' screen time');

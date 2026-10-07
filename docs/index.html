@@ -40,14 +40,13 @@
         </div>
       </div>
       <div class="tabs" role="tablist" aria-label="Config Sections">
-        <button class="tab active" data-tab="global" role="tab" aria-selected="true">Global</button>
-        <button class="tab" data-tab="metrics" role="tab" aria-selected="false">Metrics</button>
+        <button class="tab active" data-tab="metrics" role="tab" aria-selected="true">Metrics</button>
         <button class="tab" data-tab="blocks" role="tab" aria-selected="false">Blocks</button>
       </div>
-      <p id="tabExplainer" class="tab-explainer">Settings that apply to everything</p>
+      <p id="tabExplainer" class="tab-explainer">Metrics are individual pieces of data being logged</p>
 
-      <div id="tab-global" class="tab-panel active"></div>
-      <div id="tab-metrics" class="tab-panel"></div>
+      <p id="reorderStatus" class="sr-only" role="status" aria-live="polite"></p>
+      <div id="tab-metrics" class="tab-panel active"></div>
       <div id="tab-blocks" class="tab-panel"></div>
     </section>
 

@@ -25,7 +25,7 @@ The database ID is the 32-character identifier in the database URL, rather than 
 
 ## Sheets → Notion
 
-1. Enable global **Write To Notion** in the Config Editor.
+1. Enable **Write to Notion** under **Metrics → Metric Settings → Optional Notion Integration Settings** in the Config Editor.
 2. Confirm the configured property names match the table above. An existing config may use `State` instead of `Status`; either works when the configuration and database agree.
 3. Enable **Write To Notion** for each metric you want synced. Keep only the sync fields whose properties you've created.
 4. **Save and Apply**, then log that metric through **Insights**. Check its Notion page for `Complete` and any configured derived values.
