@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: blue; icon-glyph: code;
 
-const RUNTIME_VERSION = "1.2.0";
+const RUNTIME_VERSION = "1.2.1";
 
 // Clock alarms are scheduled to whole minutes. Advance both the calendar
 // event end and local access expiry so an alarm cannot precede local expiry.
@@ -537,11 +537,24 @@ function presetCalendarName(cache) {
 }
 
 async function readPresetEvents(name, start, end) {
-  const calendars = (await Calendar.forEvents()).filter(calendar => calendar.title === name);
-  if (calendars.length !== 1) {
-    throw new Error(`Find exactly one readable calendar named ${name} in Scriptable. Temporary unlocks remain available through Allowed.`);
+  const accessError = () => new Error('Warning: Scriptable could not read your calendars. Check calendar access for Scriptable in Settings, then try again.');
+  let calendars;
+  try {
+    calendars = (await Calendar.forEvents()).filter(calendar => calendar.title === name);
+  } catch (_) {
+    throw accessError();
   }
-  return CalendarEvent.between(start, end, calendars);
+  if (!calendars.length) {
+    throw new Error(`Warning: No calendar named '${name}' was found. Create it in Calendar, then add your presets as all-day events, one per day. If it already exists, allow Scriptable access to it in Settings.`);
+  }
+  if (calendars.length > 1) {
+    throw new Error(`Warning: More than one calendar is named '${name}'. Rename the extra calendars so only one uses this name.`);
+  }
+  try {
+    return await CalendarEvent.between(start, end, calendars);
+  } catch (_) {
+    throw accessError();
+  }
 }
 
 function presetOnDay(events, day) {

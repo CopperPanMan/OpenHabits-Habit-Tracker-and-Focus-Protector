@@ -1,6 +1,6 @@
 {
   "product": "OpenHabits Metrics",
-  "runtimeVersion": "1.2.0",
+  "runtimeVersion": "1.2.1",
   "inputFormat": "command_or_list",
   "scripts": [
     {

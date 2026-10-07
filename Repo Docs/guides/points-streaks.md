@@ -16,7 +16,7 @@ For example, water at `1` point per unit earns `2` points for two glasses. Time 
 
 The daily total receives each point change; the cumulative total carries the running total across days. An additive metric scores the new increment. Overwriting a metric adjusts totals by the difference from its previously recorded points. Keeping the first value does not award points again for repeated taps. Editing a cell directly in Sheets does not rerun scoring.
 
-For a penalty, use a number metric with **Add** and a negative point value. For example, `penalty_unlock` at `-2` points, logged with value `1`, deducts two points on every recording.
+For a penalty, use a number metric with **Add** and a negative point value. For example, `penalty_unlock` at `-2` points, logged with value `1`, deducts two points on every recording when **Maximum Streak Multiplier** is `1`. Keep it at `1` for a fixed penalty.
 
 ## Streaks
 
@@ -31,6 +31,8 @@ It installs a daily recomputation around 1 a.m. in the script timezone. Rerunnin
 
 ## Streak multipliers
 
-In **Points**, set **Max Multiplier** above `1` and **Multiplier Days** to the number of prior streak days needed to reach it. The multiplier grows linearly from `1` to that maximum using the streak before the new recording. For a constant award, use a maximum of `1`.
+In **Points Properties**, **Maximum Streak Multiplier** controls the largest consistency bonus. Newly configured points default to `1.2`: up to 20% extra, turning 10 base points into 12. Existing configured multipliers are retained. **Days Until Maximum Multiplier** controls how quickly the bonus builds; the default is five prior completed streak days. With `1.2` over five days, each prior streak day adds 4%, and the recording after five completed streak days earns the maximum.
+
+The multiplier grows linearly using the streak before the new recording. Scheduled days count; unscheduled days are skipped. Scoring can calculate this streak from metric history even without a separate streak row. For a constant award or fixed penalty, use a maximum of `1`; multipliers above `1` also increase the size of negative deductions.
 
 After applying changes, log a test value and check that metric's points/streak rows and the two totals. The editor and Sheet setup reject supporting IDs that collide with primary metrics, other supporting rows, or totals. Imported supporting IDs are retained; an imported nonzero point value with no Points ID receives the default ID in the editor. Newly generated supporting IDs follow metric ID edits until you edit a supporting ID yourself. Changing an imported or custom ID creates a new row when applied and retains the old row's history. See [Maintenance](maintenance.md) for backups and row repair.

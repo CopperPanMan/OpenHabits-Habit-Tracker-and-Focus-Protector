@@ -1,4 +1,4 @@
-# OpenHabits Runtime 1.2.0
+# OpenHabits Runtime 1.2.1
 
 This checkpoint uses the user's uploaded 1.1.0 script as its baseline, rather
 than the obsolete dictionary-envelope prototype in PR #163. The native action
@@ -54,7 +54,11 @@ On ordinary `app_open` evaluations, the forecast covers local today plus seven
 future days. It refreshes once per local date/calendar/offset combination, using
 all-day event occurrences (including recurring and multi-day events). Missing
 forecast events do not erase known expectations. Use one all-day preset per day;
-conflicting titles or an unreadable/ambiguous calendar produce a failure.
+conflicting titles or an unreadable/ambiguous calendar produce a failure. Runtime
+1.2.1 distinguishes a missing calendar (create it and add all-day preset events),
+duplicate calendar names (rename the extras), and calendar-access errors (check
+Scriptable permissions in Settings). A calendar hidden by permissions can also
+appear missing; the missing-calendar message includes that check.
 
 `evaluator_input` uses Locked’s existing current-day title for the default
 calendar. An empty title is verified through Scriptable; a custom configured

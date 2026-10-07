@@ -56,3 +56,9 @@ The logging performance update changes `Main.gs` and `getAppConfig()` in `Config
 For custom clients, check `errors` and each requested metric's entry in `metricsByID`. A top-level `ok: true` can include individual recording failures. Retrying additive requests blindly can duplicate a recording.
 
 For an installation made before the current metric schema, read [Schema migration](../metric-schema-migration.md) before updating.
+
+### Preset calendar warnings on iOS
+
+If Locked says no calendar named **App Lockout Settings** was found, create that calendar in Apple Calendar and add your presets as all-day events, one per day, with titles matching the editor’s preset names. If the calendar already exists, check that Scriptable can read it in Settings. A custom **Preset Calendar Name** must match the calendar’s name exactly.
+
+If more than one calendar has the configured name, rename the extras. A calendar-access warning means Scriptable could not list calendars or read events; check its calendar permissions and retry with the phone unlocked. For Chrome, the calendar also needs to be in Google Calendar or shared with the Google account running your Sheet’s Apps Script. See [preset setup](rules.md#different-rules-on-different-days).
