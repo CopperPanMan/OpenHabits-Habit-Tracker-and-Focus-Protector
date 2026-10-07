@@ -481,6 +481,8 @@
       });
       filterCards(tab);
     }
+    const presetSummary = $('presetCalendarSummary');
+    if (presetSummary) presetSummary.textContent = presetCalendarSummary();
     const presetGuide = $('presetCalendarGuide');
     if (presetGuide) presetGuide.textContent = presetCalendarInstructions();
   }
@@ -1210,9 +1212,14 @@
     return card;
   }
 
+  function presetCalendarSummary() {
+    const calendarName = state.lockouts.globals.presetCalendarName || 'App Lockout Settings';
+    return `Add presets here, assign them to blocks, and schedule one matching all-day event per day on "${calendarName}".`;
+  }
+
   function presetCalendarInstructions() {
     const calendarName = state.lockouts.globals.presetCalendarName || 'App Lockout Settings';
-    return `Create a calendar named "${calendarName}" (the default is "App Lockout Settings"). Add presets below, such as workday or weekend, and assign them to your blocks. On that calendar, create one all-day event per day with a title that exactly matches a preset name. That day's event activates the blocks assigned to its preset.`;
+    return `Create a calendar named "${calendarName}" (the default is "App Lockout Settings"). Add presets here, such as workday or weekend, and assign them to your blocks. On that calendar, create one all-day event per day with a title that exactly matches a preset name. That day's event activates the blocks assigned to its preset.`;
   }
 
   function renderBlocks() {
@@ -1223,11 +1230,15 @@
     intro.textContent = 'Blocks are checked from top to bottom. If several rules apply, the first rule that blocks access wins.';
     root.appendChild(intro);
     const presets = toggleSection('Preset Modes', 'blocks-presets', true, 'Presets select which blocks apply on a particular day. Add a name here, assign it to blocks, and use that exact name as an all-day event title on your preset calendar. For example, a workday event activates blocks assigned to workday. Use one all-day preset event per day.');
+    const calendarSummary = fieldHint(presetCalendarSummary());
+    calendarSummary.id = 'presetCalendarSummary';
+    presets.appendChild(calendarSummary);
+    const learnMore = toggleSection('Learn more', 'blocks-presets-learn-more', false);
     const calendarGuide = fieldHint(presetCalendarInstructions());
     calendarGuide.id = 'presetCalendarGuide';
-    presets.appendChild(calendarGuide);
-    presets.appendChild(fieldHint('On iOS, a day with no preset has no blocks. If an expected preset is deleted, its rules remain for two minutes from the first detected absence; a later app opening confirms it is still missing and clears it. This discourages impulsive deletions. Switching to another preset takes effect immediately. Use Allowed for a temporary unlock.'));
-    presets.appendChild(fieldHint('For Chrome syncing, use a calendar in Google Calendar or shared with the Google account running your Sheet’s Apps Script, and also add it to Apple Calendar. Use the same calendar name in Preset Calendar Name under Blocks → Advanced Block Settings. Chrome currently applies all blocks when no preset is found; the iOS two-minute deletion delay does not apply to Chrome.'));
+    learnMore.appendChild(calendarGuide);
+    learnMore.appendChild(fieldHint('On iOS, a day with no preset has no blocks. If an expected preset is deleted, its rules remain for two minutes from the first detected absence; a later app opening confirms it is still missing and clears it. This discourages impulsive deletions. Switching to another preset takes effect immediately. Use Allowed for a temporary unlock.'));
+    learnMore.appendChild(fieldHint('For Chrome syncing, use a calendar in Google Calendar or shared with the Google account running your Sheet’s Apps Script, and also add it to Apple Calendar. Use the same calendar name in Preset Calendar Name under Blocks → Advanced Block Settings. Chrome currently applies all blocks when no preset is found; the iOS two-minute deletion delay does not apply to Chrome.'));
     const presetList = document.createElement('div');
     presetList.className = 'chip-list';
     state.lockouts.presets.forEach((preset, pi) => {
@@ -1251,6 +1262,7 @@
       renderAll();
     }));
     presets.appendChild(presetRow);
+    presets.appendChild(learnMore);
     root.appendChild(presets);
     root.appendChild(renderBlockSettings());
     if (!state.lockouts.blocks.length) {

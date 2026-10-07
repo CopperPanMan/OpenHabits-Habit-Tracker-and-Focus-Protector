@@ -40,6 +40,8 @@ Use a message such as `{usedHuman} used; allowance now {allowedNowHuman}.` The e
 
 ## Different rules on different days
 
+In **Preset Modes**, a short setup instruction stays visible; expand **Learn more** for calendar examples, syncing, and the iOS deletion delay.
+
 A **preset** is a label on blocks, not a separate copy of your metrics. For example, assign `workday` to workday rules and `weekend` to weekend rules.
 
 On iOS, create an all-day event in **App Lockout Settings** titled exactly `workday` or `weekend`. Locked and OpenHabits Runtime use that title as the day’s preset. Set **Preset Calendar Name** to match the calendar if you use another name. Use one matching all-day event per day.
