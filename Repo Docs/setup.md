@@ -105,7 +105,9 @@ If either demo fails, use [Troubleshooting](guides/maintenance.md#troubleshootin
 
 Open the Sheet's settings panel and use **Copy Current Configuration → Open Config Editor**. Load the copied configuration, customize it, then use **Finish and Copy for OpenHabits** and **Save and Apply** back in the Sheet panel.
 
-Metric and block cards start collapsed when you load a configuration. Click a card's header to edit it, or use **Expand All / Collapse All** in either tab. New and duplicated items open automatically. Search metrics by name or ID, and blocks by name, preset, or referenced metric. If finishing reveals validation errors, the editor opens the first affected field; select another error to jump to its settings.
+Metric and block cards start collapsed when you load a configuration. Click a card's header to edit it, or use **Expand All / Collapse All** in either tab. Drag the grab handle on a metric or block header to rearrange it, or use the up/down arrows. Block order determines which applicable rule supplies the message. New and duplicated items open automatically. Search metrics by name or ID, and blocks by name, preset, or referenced metric. If finishing reveals validation errors, the editor opens the first affected field; select another error to jump to its settings.
+
+Settings shared by metrics live under **Metrics → Metric Settings**, closed by default. Block display, preset-calendar overrides, and timezone defaults live under **Blocks → Advanced Block Settings**. Most setups can leave these defaults alone. Choose the screen-time metric on each duration block; there is no additional global screen-time ID to configure.
 
 The panel shows a notice when a setup issue needs attention. Full checks and the last-saved time are under **Troubleshooting and preferences → System diagnostics**; when everything is ready, you can go straight to applying your editor changes.
 

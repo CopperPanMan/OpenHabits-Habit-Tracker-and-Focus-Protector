@@ -91,7 +91,7 @@ test('collects every primary, derived, points, and lockout row once', () => {
     dailyPointsID: 'daily', cumulativePointsID: 'all', metricSettings: [{ metricID: 'focus_duration', displayName: 'Focus', dataType: 'duration', streaks: { streaksID: 'streak' }, points: { pointsID: 'points' } }],
     lockouts: { globals: { cumulativeScreentimeID: 'screen_all', timeOpenedID: 'opened' }, blocks: [{ id: 'social', typeSpecific: { duration: { screenTimeID: 'social_time' }, task_block_IDs: ['focus_start'], firstXMinutes: { timestampID: 'wake' } } }] }
   });
-  assert.deepEqual(Array.from(rows, row => row.id).sort(), ['all','daily','focus_duration','focus_start','opened','points','screen_all','social_time','streak','wake']);
+  assert.deepEqual(Array.from(rows, row => row.id).sort(), ['all','daily','focus_duration','focus_start','points','screen_all','social_time','streak','wake']);
 });
 
 test('reconciliation appends only missing rows, reports duplicates, and retains history', () => {
@@ -185,7 +185,7 @@ test('Sheet menu opens an owner-authorized import bridge to the canonical editor
 
 test('GitHub editor is the sole visual editor and exports first-class JSON', () => {
   const githubEditor = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
-  for (const text of ['OpenHabits Config Editor', '1. Get Started', '2. Edit Config', 'Global', 'Metrics', 'Blocks']) {
+  for (const text of ['OpenHabits Config Editor', '1. Get Started', '2. Edit Config', 'Metrics', 'Blocks']) {
     assert.match(githubEditor, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   assert.match(githubEditor, /Import JSON File/);
@@ -232,4 +232,15 @@ test('public web endpoint does not expose configuration administration', () => {
   assert.doesNotMatch(source, /openHabitsServeEditor_/);
   assert.doesNotMatch(source, /EDITOR_TOKEN/);
   assert.doesNotMatch(main, /openHabitsServeEditor_/);
+});
+
+
+test('retired app-open reference creates no row and preserves existing history', () => {
+  const c = load();
+  const config = { lockouts: { globals: { timeOpenedID: 'old_opened' } }, metricSettings: [{ metricID: 'screen_time', dataType: 'duration' }] };
+  const plan = c.openHabitsPlanReconciliation_(config, [['old_opened', 'Old timestamp', 'history']]);
+  assert.deepEqual(Array.from(plan.missing, row => row.id), ['screen_time']);
+  assert.deepEqual(Array.from(plan.retainedUnreferenced), ['old_opened']);
+  config.metricSettings.push({ metricID: 'old_opened', dataType: 'timestamp' });
+  assert.ok(c.openHabitsCollectRequiredRows_(config).some(row => row.id === 'old_opened'));
 });

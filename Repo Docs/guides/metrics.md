@@ -8,7 +8,7 @@ A metric stores one resulting value each day. Repeated recordings replace, retai
 
 Use the Config Editor to choose the value type and how repeated recordings behave, then **Save and Apply** in the Sheet panel. Keep the generated Metric ID unless you want a different one; your logger uses that ID.
 
-Loaded metrics start collapsed. Each header shows the type and whether points and streaks are enabled. Open a header to edit its fields; advanced sections stay collapsed until you open them. Search or use **Expand All / Collapse All** to navigate a larger configuration. New or duplicated metrics open automatically.
+Loaded metrics start collapsed. Each header shows the type and whether points and streaks are enabled. Open a header to edit its fields; advanced sections stay collapsed until you open them. Search or use **Expand All / Collapse All** to navigate a larger configuration. Use each header’s grab handle to reorder metrics with a mouse or touch, or use the up/down arrows. New or duplicated metrics open automatically. Shared logging settings, Sheet columns, and integrations live under the collapsed **Metric Settings** section at the top.
 
 | Track | Recipe/type | Example logger Text |
 | --- | --- | --- |

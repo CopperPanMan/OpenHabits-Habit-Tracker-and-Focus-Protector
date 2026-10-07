@@ -10,7 +10,9 @@ For a simple chart-ready table on a separate tab, put `Date` and `Water` in A1:B
 
 Set the **Apps Script project timezone** and **Google Sheet timezone** to the intended home timezone. Metric and block settings can use **fixed** (configured/script timezone) or **floating** (client timezone/offset) behavior. Custom clients must provide a `timezone` or offset-bearing `clientNow` when they want client-based evaluation; see [API reference](../developer-keys.md).
 
-**Late Extension Hours** shifts the tracking day boundary after midnight. With `5`, a recording at 01:00 belongs to the previous tracking day. This also matters for streaks and completion checks. It is not an extra five hours added to every task's deadline.
+**Metrics → Metric Settings → Late Extension Hours** shifts the tracking day boundary after midnight. With `5`, a recording at 01:00 belongs to the previous tracking day. This also matters for streaks and completion checks. It is not an extra five hours added to every task's deadline.
+
+Block timezone defaults are in **Blocks → Advanced Block Settings**; individual blocks can override them.
 
 After travel or a timezone/configuration change, run **Update Lockout Cache** without input on each iOS device. It refreshes the snapshot using that device's current offset. Timed alarms still need Calendar Alarms' own synchronization.
 
@@ -62,3 +64,10 @@ For an installation made before the current metric schema, read [Schema migratio
 If Locked says no calendar named **App Lockout Settings** was found, create that calendar in Apple Calendar and add your presets as all-day events, one per day, with titles matching the editor’s preset names. If the calendar already exists, check that Scriptable can read it in Settings. A custom **Preset Calendar Name** must match the calendar’s name exactly.
 
 If more than one calendar has the configured name, rename the extras. A calendar-access warning means Scriptable could not list calendars or read events; check its calendar permissions and retry with the phone unlocked. For Chrome, the calendar also needs to be in Google Calendar or shared with the Google account running your Sheet’s Apps Script. See [preset setup](rules.md#different-rules-on-different-days).
+
+
+### Advanced Sheet deployment
+
+The usual Sheet-bound installation uses its own spreadsheet automatically. **Metrics → Metric Settings → Advanced / Standalone Deployment** retains **Spreadsheet ID Property Name** for a separately hosted Apps Script logging endpoint: set that Script Property to the target Sheet’s ID. Standalone logging can open the Sheet by ID; the Sheet menu and configuration sidebar require the bound project.
+
+The editor labels the layout field **Metric ID Column**; saved configurations keep the compatible `sheetConfig.taskIdColumn` key. New configurations omit the old global app-open timestamp and cumulative screen-time fields. Each duration block selects its own screen-time metric. Imported legacy keys remain intact for compatibility, including the optional cumulative fallback display; existing measurements and history rows are retained. Setup no longer creates a row solely for the unused `timeOpenedID` setting. Explicitly configured timestamp metrics still work normally.

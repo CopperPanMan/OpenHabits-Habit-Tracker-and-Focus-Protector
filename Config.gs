@@ -73,8 +73,6 @@ function getCodeBackedAppConfig() {
     // Lockouts settings
     lockouts: {
       globals: {
-        cumulativeScreentimeID: null,
-        timeOpenedID: 'timeOpenedID',
         barLength: 20,
         presetCalendarName: '',
         defaultBlockTimezoneMode: 'fixed',

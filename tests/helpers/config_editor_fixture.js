@@ -19,7 +19,7 @@ function loadEditor() {
       newMetric, metricFromRecipe, setFeatureEnabled, setMetricId, setSupportingId,
       generateSupportingId, pointsEnabled, ensureShape, duplicateMetric, duplicateBlock,
       getPromptRanges,
-      itemUiKey, metricCardSummary, blockCardSummary, blockSearchText, collectValidationIssues,
+      reorderItems, itemUiKey, metricCardSummary, blockCardSummary, blockSearchText, collectValidationIssues,
       validateStorageIds, validateState, withHistory, undo, redo,
       setState: config => { state = ensureShape(config); },
       getState: () => state
