@@ -58,9 +58,9 @@ Each shortcut contains **Comment blocks with instructions**. Open it in the Shor
 
 | Shortcut & install link | What it does and why you need it |
 | --- | --- |
-| **[Locked](https://www.icloud.com/shortcuts/d7f5f060e14b434dac749d3baca003e0)** | Checks your rules when a protected app opens and redirects you when blocked. NOTE: *You will need to set an automation to run this whenever a protected app is opened (you choose the apps). Further instructions can be found inside the shortcut.*|
-| **[Allowed](https://www.icloud.com/shortcuts/0a2a22c2049c4d10a56c5c01fc7209ad)** | Handles allowed access and lets you request a temporary unlock. *Further instructions can be found inside the shortcut.*|
-| **[Update Lockout Cache](https://www.icloud.com/shortcuts/1c81ba3450604c2699068e1edf8583e3)** | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
+| **[Locked](https://www.icloud.com/shortcuts/ea3c31db19f04858b3c7479a0fca3445)** | Checks your rules when a protected app opens and redirects you when blocked. NOTE: *You will need to set an automation to run this whenever a protected app is opened (you choose the apps). Further instructions can be found inside the shortcut.*|
+| **[Allowed](https://www.icloud.com/shortcuts/9ff62254e42946f68a1a2ca518da5d62)** | Handles allowed access and lets you request a temporary unlock. *Further instructions can be found inside the shortcut.*|
+| **[Update Lockout Cache](https://www.icloud.com/shortcuts/4cd4827ac6884958a5391b381c33bf37)** | Refreshes the local metric/rule data used by iOS protection and OpenHabits reminders/task checks in Calendar Alarms. |
 
 **For screen-time tracking**, make a **Toggle Screen Time Timer** from Toggle Timer Template, configured for your screen-time duration metric. Create **Start Screen Time Timer** to run it with input `start`, and **Stop Screen Time Timer** to run it with input `stop`. Configure Allowed to run the start helper when access is allowed, and an **App → Is Closed → Run Immediately** automation to run the stop helper whenever any protected app closes. Follow the [screen-time setup](guides/ios-lockouts.md#add-a-screen-time-allowance) for the full wiring and test.
 
