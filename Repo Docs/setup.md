@@ -52,7 +52,7 @@ Each shortcut contains **Comment blocks with instructions**. Open it in the Shor
 | --- | --- |
 | **[Insights](https://www.icloud.com/shortcuts/732362ad21c64aa3b33af262654b1d0e)** | Connects your loggers to the Sheet and displays feedback. Used by both templates. |
 | **[Metric(s) Logger Template](https://www.icloud.com/shortcuts/bf26ab9d8ddc420c983484a2ea8a9c89)** | Records one or more metrics. Comes ready for the water demo; duplicate it later for your own loggers. |
-| **[Toggle Timer Template](https://www.icloud.com/shortcuts/cff63da7e3814bc6bac740a732e82998)** | Starts/stops a timer and records elapsed time. Used for the timer demo; keep it for anything you want to time. |
+| **[Toggle Timer Template](https://www.icloud.com/shortcuts/6665fbe068a4437ea515ea1192f99f3b)** | Starts/stops a timer and records elapsed time. Used for the timer demo; keep it for anything you want to time. |
 
 **Also using iOS app protection?** Install all three below. For Calendar Alarms integration alone, install **Update Lockout Cache**; you do not need Locked or Allowed.
 
