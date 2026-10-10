@@ -315,3 +315,56 @@ test('per-block screen-time metric needs no global IDs and a higher rationing en
     assert.deepEqual(Array.from(result.debug.errors), []);
   }
 });
+
+
+test('first-X messages append rounded remaining time in server and client responses', async () => {
+  const server = loadAppsScript();
+  const client = vm.createContext({ Date, Intl });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'lockouts.js'), 'utf8').replace(/await main\(\);\s*$/, ''), client);
+  const timestamp = '2026-10-07T09:00:00Z';
+  const block = {
+    id: 'brushing', type: 'firstXMinutesAfterTimestamp_block', presets: ['workday'],
+    times: { beg: '00:00', end: '23:59' },
+    typeSpecific: { firstXMinutes: { timestampID: 'brushed', minutes: 30 } },
+    onBlock: { message: 'First 30 minutes after brushing teeth is blocked.', shortcutName: 'Close', shortcutInput: 'original' }
+  };
+  const config = { globals: { barLength: 20 }, blocks: [block] };
+  for (const [time, value, suffix] of [
+    ['09:00:00', timestamp, '30 minutes remaining.'],
+    ['09:16:01', timestamp, '14 minutes remaining.'],
+    ['09:29:00', timestamp, '1 minute remaining.'],
+    ['09:29:59', timestamp, '1 minute remaining.'],
+    ['09:30:00', timestamp, null],
+    ['09:31:00', timestamp, null],
+    ['09:16:00', '', null],
+    ['09:16:00', 'invalid', null]
+  ]) {
+    const now = new Date(`2026-10-07T${time}Z`);
+    const ctx = { todayValuesByMetricID: { brushed: value }, tz: 'GMT' };
+    const evaluation = server.lockouts_evaluateFirstXAfterTimestampBlock_(now, block, ctx);
+    assert.equal(evaluation.shouldBlock, suffix !== null);
+    const result = await client.lockoutsEvaluateNow({ now: now.toISOString(), presetOverride: 'workday', cache: {
+      timezone: 'GMT', config, metricState: { allByID: { brushed: { value } } }
+    } });
+    assert.equal(result.status, suffix ? 'blocked' : 'allowed');
+    if (suffix) {
+      const serverUi = server.lockouts_buildBlockedUi_(now, block, evaluation.uiComputedFields, config, ctx);
+      for (const response of [serverUi, result]) {
+        assert.equal(response.ui.message, `${block.onBlock.message} ${suffix}`);
+        assert.equal(response.block.message, response.ui.message);
+        assert.equal(response.shortcut.name, 'Close');
+        assert.equal(response.shortcut.input, 'original');
+      }
+    } else {
+      assert.equal(result.block, null);
+      assert.equal(result.ui.message.includes('remaining'), false);
+    }
+  }
+  for (const formatter of [server.lockouts_appendFirstXRemainingMessage_, client.appendFirstXRemainingMessage]) {
+    assert.equal(formatter('', block, { remainingMinutes: 0.1 }), '1 minute remaining.');
+    assert.equal(formatter('Custom\n', block, { remainingMinutes: 14 }), 'Custom\n14 minutes remaining.');
+    for (const type of ['task_block', 'duration_block']) {
+      assert.equal(formatter('Original', { type }, { remainingMinutes: 14 }), 'Original');
+    }
+  }
+});
