@@ -379,7 +379,7 @@ async function handlePotentialSessionTransition(tabId, tab, details) {
   }
 
   if (!serverDecision.allowed) {
-    const message = serverDecision.message || `Blocked ${matchBlockedDomain(effectiveTab.url, cfg.blockedDomains)}.`;
+    const message = serverDecision.message || 'Access blocked because the server could not provide a lockout decision. Try opening the site again.';
     const redirect = chrome.runtime.getURL(`blocked.html?target=${encodeURIComponent(effectiveTab.url)}&message=${encodeURIComponent(message)}`);
     await chrome.tabs.update(effectiveTab.id, { url: redirect });
     await clearSessionCandidate(candidateToken);
@@ -550,12 +550,15 @@ async function isStableActiveTab(tabId, cfg) {
 
 async function queryServerBlockDecision(cfg) {
   if (!cfg.lockoutsServerUrl) {
-    return { allowed: false, message: 'Blocked by local rules.' };
+    return { allowed: false, message: 'Access blocked because no server URL is configured. Open extension options and enter your Apps Script /exec URL.' };
   }
 
   const decisionKeys = getServerDecisionKeys();
   for (const decisionKey of decisionKeys) {
-    const result = await fetchServerDecisionForKey(cfg, decisionKey);
+    let result = await fetchServerDecisionForKey(cfg, decisionKey);
+    if (result.retryable) {
+      result = await fetchServerDecisionForKey(cfg, decisionKey);
+    }
     if (!result.shouldFallback) {
       return {
         allowed: result.allowed,
@@ -564,7 +567,7 @@ async function queryServerBlockDecision(cfg) {
     }
   }
 
-  return { allowed: false, message: '' };
+  return { allowed: false, message: 'Access blocked because the server could not provide a lockout decision. Check the extension connection settings and try again.' };
 }
 
 function getServerDecisionKeys() {
@@ -579,7 +582,7 @@ function getClientTimezone() {
   }
 }
 
-async function postServerJson(cfg, key, data) {
+async function postServerJson(cfg, key, data, signal) {
   const payload = {
     key,
     data,
@@ -601,32 +604,87 @@ async function postServerJson(cfg, key, data) {
   return fetch(cfg.lockoutsServerUrl, {
     method: 'POST',
     headers,
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal
   });
 }
 
+function deniedServerDecision(message, retryable = false) {
+  return { allowed: false, message, shouldFallback: false, retryable };
+}
+
+function serverDecisionMessage(data, cfg) {
+  const errors = [].concat(
+    Array.isArray(data.errors) ? data.errors : [],
+    data.debug && Array.isArray(data.debug.errors) ? data.debug.errors : []
+  ).filter(value => typeof value === 'string' && value.trim());
+  let message = errors.join(' ');
+  // Never expose the configured shared secret in a block-page URL.
+  if (cfg.lockoutsSecret) {
+    message = message.split(cfg.lockoutsSecret).join('[redacted]');
+  }
+  return message;
+}
+
+function ruleBlockMessage(data) {
+  const ui = data.ui || {};
+  const block = data.block || {};
+  const supplied = [ui.message, block.message].find(value => typeof value === 'string' && value.trim());
+  if (supplied) return supplied;
+  if (block.type === 'task_block') {
+    return 'Access blocked by a task rule: one or more required tasks are incomplete or could not be found.';
+  }
+  if (block.type === 'duration_block') {
+    if (Number.isFinite(ui.usedMinutes) && Number.isFinite(ui.allowedNowMinutes)) {
+      return `Access blocked by the screen-time rule: ${ui.usedMinutes} minutes used; ${ui.allowedNowMinutes} minutes allowed right now.`;
+    }
+    return 'Access blocked by a screen-time rule: the allowance available right now has been reached.';
+  }
+  if (block.type === 'firstXMinutesAfterTimestamp_block') {
+    return 'Access blocked by a waiting-period rule following a recorded activity.';
+  }
+  return `Access blocked by a configured rule${block.id ? ` (${block.id})` : ''}. The server did not supply a detailed explanation.`;
+}
+
 async function fetchServerDecisionForKey(cfg, decisionKey) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const response = await postServerJson(cfg, decisionKey, null);
+    const response = await postServerJson(cfg, decisionKey, null, controller.signal);
     if (!response.ok) {
-      return { allowed: false, message: '', shouldFallback: false };
+      return deniedServerDecision(
+        `Access blocked because the lockouts server returned HTTP ${response.status}. Check the web app deployment and try again.`,
+        response.status === 429 || response.status >= 500
+      );
     }
 
-    const contentType = response.headers.get('content-type') || '';
     const bodyText = await response.text();
-    if (!contentType.includes('application/json')) {
-      return { allowed: false, message: '', shouldFallback: false };
+    let data;
+    try {
+      // Apps Script authentication errors are JSON served as text/plain.
+      data = JSON.parse(bodyText);
+    } catch (error) {
+      return deniedServerDecision('Access blocked because the lockouts server returned an unreadable response. Check your Apps Script /exec URL and deployment access permissions.');
     }
-
-    const data = JSON.parse(bodyText);
-    if (data && data.status === 'allowed') {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return deniedServerDecision('Access blocked because the lockouts server returned an invalid decision. Check the web app deployment.');
+    }
+    if (data.status === 'allowed') {
       return { allowed: true, message: '', shouldFallback: false };
     }
-
-    const message = data && data.ui && typeof data.ui.message === 'string' ? data.ui.message : '';
-    return { allowed: false, message, shouldFallback: false };
+    if (data.status === 'blocked') {
+      return deniedServerDecision(ruleBlockMessage(data));
+    }
+    const details = serverDecisionMessage(data, cfg);
+    return deniedServerDecision(details
+      ? `Access blocked because the lockouts server reported an error: ${details}`
+      : 'Access blocked because the lockouts server did not return a recognized decision. Check the web app deployment and configuration.');
   } catch (error) {
-    return { allowed: false, message: '', shouldFallback: false };
+    return deniedServerDecision(controller.signal.aborted
+      ? 'Access blocked because the lockouts server took too long to respond. Try opening the site again.'
+      : 'Access blocked because the extension could not connect to the lockouts server. Check your connection and try opening the site again.', true);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
