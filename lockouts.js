@@ -375,13 +375,24 @@ function evaluateFirstXAfterTimestampBlock(now, block, ctx) {
   };
 }
 
+function appendFirstXRemainingMessage(message, block, computed) {
+  if (block.type !== 'firstXMinutesAfterTimestamp_block' ||
+      computed.remainingMinutes == null || !Number.isFinite(computed.remainingMinutes) ||
+      computed.remainingMinutes <= 0) return message;
+  const minutes = Math.ceil(computed.remainingMinutes);
+  const suffix = `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} remaining.`;
+  return message + (message && !/\s$/.test(message) ? ' ' : '') + suffix;
+}
+
 function buildBlockedUi(now, block, uiComputedFields, config, ctx) {
   const globals = (config && config.globals) || {};
   const barLength = Number(globals.barLength) || 20;
   const tokenMap = buildTokenMap(now, block, uiComputedFields || {}, barLength, ctx);
   const onBlock = block.onBlock || {};
   const messageTemplate = typeof onBlock.message === 'string' ? onBlock.message : '';
-  const finalMessage = tokenSubstitute(messageTemplate, tokenMap);
+  const finalMessage = appendFirstXRemainingMessage(
+    tokenSubstitute(messageTemplate, tokenMap), block, uiComputedFields || {}
+  );
 
   const ui = {
     showMessage: true,

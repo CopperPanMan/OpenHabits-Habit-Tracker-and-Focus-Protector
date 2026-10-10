@@ -1097,6 +1097,15 @@ function lockouts_validateConfig_(config) {
   };
 }
 
+function lockouts_appendFirstXRemainingMessage_(message, block, computed) {
+  if (block.type !== 'firstXMinutesAfterTimestamp_block' ||
+      typeof computed.remainingMinutes !== 'number' || !isFinite(computed.remainingMinutes) ||
+      computed.remainingMinutes <= 0) return message;
+  var minutes = Math.ceil(computed.remainingMinutes);
+  var suffix = minutes + (minutes === 1 ? ' minute' : ' minutes') + ' remaining.';
+  return message + (message && !/\s$/.test(message) ? ' ' : '') + suffix;
+}
+
 function lockouts_buildBlockedUi_(now, block, uiComputedFields, config, ctx) {
   var blockOn = block.onBlock || {};
   var globals = (config && config.globals) || {};
@@ -1108,7 +1117,9 @@ function lockouts_buildBlockedUi_(now, block, uiComputedFields, config, ctx) {
   };
   var tokenMap = lockouts_buildTokenMap_(now, block, computed, barLength, ctx);
   var messageTemplate = typeof blockOn.message === 'string' ? blockOn.message : '';
-  var finalMessage = lockouts_tokenSubstitute_(messageTemplate, tokenMap);
+  var finalMessage = lockouts_appendFirstXRemainingMessage_(
+    lockouts_tokenSubstitute_(messageTemplate, tokenMap), block, computed
+  );
 
   ui.message = finalMessage;
   lockouts_mergeUiFields_(ui, tokenMap);
